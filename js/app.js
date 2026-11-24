@@ -5,7 +5,7 @@
 import * as D from './datos.js';
 import { crearVisor, crearEditor, dePgn, aPgn, ejemploVacio, usarFiguras, diagrama, textoJugadas, escapar as esc } from './tablero.js';
 
-export const VERSION = '1.1.0 (fase 1B)';
+export const VERSION = '1.1.1 (fase 1B)';
 const app = document.getElementById('app');
 
 // ---------------------------------------------------------------------
@@ -46,6 +46,8 @@ const P = {
   guia: 'M12 3a9 9 0 100 18 9 9 0 000-18zM9.5 9.5a2.5 2.5 0 115 0c0 1.7-2.5 2-2.5 3.7M12 17v.5',
   imprimir: 'M7 9V3h10v6M7 17H4v-7h16v7h-3M7 14h10v7H7z',
   descargar: 'M12 4v11M7 10l5 5 5-5M5 20h14',
+  ampliar: 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5',
+  reducir: 'M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5',
 };
 const ico = (n, c = '') => `<svg class="ico ${c}" viewBox="0 0 24 24" aria-hidden="true"><path d="${P[n] || P.libro}"/></svg>`;
 
@@ -143,7 +145,7 @@ function marco() {
     <header class="cab">
       <a href="#/inicio" class="marca" aria-label="Inicio">
         <span class="mono">M<i>d</i>P</span>
-        <span class="marca-txt"><b>Memorias de Peón</b><small>Casilla a casilla</small></span>
+        <span class="marca-txt"><b>Memorias de Peón</b><small class="lema-cab">Casilla a casilla</small><small class="autor">by Manuel Esteve</small></span>
       </a>
       <button class="sync" id="sync"></button>
       <a href="#/ajustes" class="btn-ico" aria-label="Ajustes">${ico('ajustes')}</a>
@@ -221,6 +223,7 @@ function vEntrar(reentrar = false) {
       <div class="logo-grande"><span class="mono">M<i>d</i>P</span></div>
       <h1 class="titulo-app">Memorias de Peón</h1>
       <p class="lema">Casilla a casilla</p>
+      <p class="autor-entrar">by Manuel Esteve</p>
       <form id="f-entrar" class="tarjeta">
         <label>Correo<input type="email" name="email" autocomplete="username" required value="${esc(guardado?.email || '')}"></label>
         <label>Contraseña<input type="password" name="clave" autocomplete="current-password" required></label>
@@ -283,7 +286,8 @@ function saludo() {
 
 function filaConcepto(c) {
   const b = bloqueRaiz(c.bloque_id);
-  return `<a class="fila-c" href="#/concepto/${c.id}">
+  const esbozo = c.origen === 'mdp' && !ejemplosDe(c.id).length;
+  return `<a class="fila-c${esbozo ? ' esbozo' : ''}" href="#/concepto/${c.id}" ${esbozo ? 'title="Ficha sugerida: añádele tu ejemplo para trabajarla"' : ''}>
       <span class="punto" style="--c:${b ? col(b.color) : 'var(--suave)'}"></span>
       <span class="fila-txt"><b>${esc(c.titulo)}</b>${c.principio ? `<small>${esc(c.principio)}</small>` : ''}</span>
       ${ico('flecha', 'peq')}
@@ -660,9 +664,10 @@ function vEjemplo(v, id, q) {
     <div class="cab-vista">
       <a href="#/concepto/${concepto.id}" class="btn-ico" aria-label="Volver" id="volver">${ico('atras')}</a>
       <h1>${nuevo ? 'Nuevo ejemplo' : 'Editar ejemplo'}</h1>
+      <button class="btn peq" id="ampliar">${ico('ampliar', 'peq')} <span>Ampliar</span></button>
     </div>
-    <p class="intro">${esc(concepto.titulo)}</p>
-    <label class="form solo"><span>Título del ejemplo</span>
+    <p class="intro ej-meta">${esc(concepto.titulo)}</p>
+    <label class="form solo ej-meta"><span>Título del ejemplo</span>
       <input id="ej-titulo" maxlength="120" placeholder="Bloqueo del peón aislado con el caballo" value="${esc(fila.titulo || '')}"></label>
     <div id="editor" class="editor"></div>
     <div class="botones pegados">
@@ -675,6 +680,18 @@ function vEjemplo(v, id, q) {
     alCambiar: (_e, o) => { cambios = true; if (o) orientacion = o; },
   });
   limpiezas.push(ed.cerrar);
+  // «Ampliar»: oculta cabecera, barra inferior y título para dejar sitio al tablero
+  const ampliar = v.querySelector('#ampliar');
+  const ponerEnfoque = si => {
+    document.body.classList.toggle('enfoque', si);
+    ampliar.querySelector('span').textContent = si ? 'Reducir' : 'Ampliar';
+    ampliar.querySelector('path').setAttribute('d', si ? P.reducir : P.ampliar);
+    localStorage.setItem('mdp-enfoque', si ? '1' : '');
+    window.scrollTo(0, 0);
+  };
+  ampliar.addEventListener('click', () => ponerEnfoque(!document.body.classList.contains('enfoque')));
+  ponerEnfoque(localStorage.getItem('mdp-enfoque') === '1');
+  limpiezas.push(() => document.body.classList.remove('enfoque'));
   v.querySelector('#ej-titulo').addEventListener('input', () => { cambios = true; });
   v.querySelector('#volver').addEventListener('click', e => {
     if (cambios && !confirm('Hay cambios sin guardar. ¿Salir sin guardar?')) e.preventDefault();

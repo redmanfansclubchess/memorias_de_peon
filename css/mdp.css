@@ -49,10 +49,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
   padding: calc(env(safe-area-inset-top) + 10px) 16px 10px; background: color-mix(in srgb, var(--fondo) 88%, transparent);
   backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--linea); }
 .marca { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
-.marca .mono { width: 38px; height: 38px; font-size: 15px; }
+.marca .mono { width: 52px; height: 52px; font-size: 20px; border-radius: 13px; }
 .marca-txt { display: flex; flex-direction: column; min-width: 0; }
-.marca-txt b { font-family: var(--serif); font-size: 18px; line-height: 1.1; white-space: nowrap; }
-.marca-txt small { color: var(--suave); font-size: 12px; font-style: italic; font-family: var(--serif); }
+.marca-txt b { font-family: var(--serif); font-size: 19px; line-height: 1.1; white-space: nowrap; }
+.marca-txt .lema-cab { color: var(--acento); font-size: 14.5px; font-style: italic; font-family: var(--serif); line-height: 1.25; }
+.marca-txt .autor { color: var(--suave); opacity: .65; font-size: 10.5px; letter-spacing: .02em; line-height: 1.2; }
 .sync { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--linea); background: var(--papel);
   border-radius: 99px; padding: 5px 10px; font-size: 13px; cursor: pointer; white-space: nowrap; }
 .sync .ico { width: 16px; height: 16px; }
@@ -294,7 +295,8 @@ legend { font-family: var(--serif); font-weight: 600; font-size: 17px; padding: 
 .entrar { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; text-align: center; }
 .logo-grande .mono { width: 96px; height: 96px; font-size: 38px; border-radius: 24px; box-shadow: 0 10px 30px rgba(59,42,29,.35); }
 .titulo-app { font-size: 32px; margin-top: 18px; }
-.lema { font-family: var(--serif); font-style: italic; color: var(--suave); margin: 2px 0 24px; font-size: 18px; }
+.lema { font-family: var(--serif); font-style: italic; color: var(--acento); margin: 2px 0 2px; font-size: 20px; }
+.autor-entrar { color: var(--suave); opacity: .65; font-size: 12px; margin: 0 0 24px; }
 .entrar form { width: 100%; max-width: 360px; text-align: left; display: flex; flex-direction: column; gap: 12px; }
 .entrar label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; font-size: 14px; }
 
@@ -425,9 +427,9 @@ button.accion { cursor: pointer; font: inherit; font-size: 14px; font-weight: 60
   .ejemplos { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
   .ejemplos .tarjeta { margin: 0; }
   .ejemplos .anadir-ej { grid-column: 1 / -1; }
-  .ed-rejilla { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(320px, 1fr); grid-template-areas: "tab arriba" "tab abajo";
+  .ed-rejilla { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(320px, 1fr); grid-template-areas: "tab arriba" "tab abajo"; grid-template-rows: auto 1fr;
     gap: 8px 28px; align-items: start; }
-  .ed-tablero { grid-area: tab; position: sticky; top: 84px; width: min(100%, calc(100vh - 290px)); min-width: 360px; justify-self: center; }
+  .ed-tablero { grid-area: tab; position: sticky; top: 100px; width: min(100%, calc(100vh - 290px)); min-width: 360px; justify-self: center; }
   .botones.pegados { position: static; background: none; backdrop-filter: none; -webkit-backdrop-filter: none; padding: 0; max-width: 520px; margin-left: auto; }
   .ed-arriba { grid-area: arriba; }
   .ed-abajo { grid-area: abajo; }
@@ -436,3 +438,25 @@ button.accion { cursor: pointer; font: inherit; font-size: 14px; font-weight: 60
   .flotante { right: max(20px, calc(50% - 540px)); }
   .acciones, .atajos { max-width: 720px; }
 }
+
+/* ---------- Fichas sugeridas aún sin ejemplo propio: translúcidas ---------- */
+.fila-c.esbozo { opacity: .5; }
+.fila-c.esbozo .punto { background: transparent; border: 1.5px dashed var(--c); }
+.fila-c.esbozo .fila-txt b { font-weight: 500; }
+
+/* ---------- «Ampliar» en el editor de ejemplos ---------- */
+body.enfoque .cab, body.enfoque .barra, body.enfoque .ej-meta { display: none !important; }
+body.enfoque main { padding-top: calc(env(safe-area-inset-top) + 8px); padding-bottom: calc(env(safe-area-inset-bottom) + 80px); }
+body.enfoque .cab-vista { margin-bottom: 8px; min-height: 36px; }
+body.enfoque .cab-vista h1 { font-size: 20px; }
+body.enfoque .editor { margin-top: 0; }
+body.enfoque .ed-tablero { width: min(100%, calc(100dvh - 250px)); margin: 0 auto; }
+body.enfoque .botones.pegados { bottom: calc(env(safe-area-inset-bottom) + 8px); }
+@media (min-width: 900px) {
+  .ed-tablero { width: min(100%, calc(100dvh - 470px)); min-width: 340px; }
+  main:has(.editor) { padding-bottom: calc(var(--barra) + 24px); }
+  body.enfoque main:has(.editor) { padding-bottom: 16px; }
+  body.enfoque .ed-tablero { width: min(100%, calc(100dvh - 150px)); }
+  body.enfoque .botones.pegados { position: sticky; }
+}
+@media (min-width: 900px) { body.enfoque .ed-tablero { top: 16px; } }
