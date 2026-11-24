@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="es" data-tema="auto" data-tablero="madera">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>MdP · Memorias de Peón</title>
+  <meta name="description" content="Memorias de Peón · Casilla a casilla. Cuaderno de ajedrez de Manuel Esteve.">
+  <meta name="theme-color" content="#f4f0e8">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="MdP">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%233b2a1d'/%3E%3Ctext x='32' y='42' text-anchor='middle' font-family='Georgia,serif' font-weight='700' font-size='26' fill='%23f6e7cf'%3EM%3Ctspan font-style='italic' font-weight='400' font-size='20' fill='%23e0b77f'%3Ed%3C/tspan%3EP%3C/text%3E%3C/svg%3E">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <!-- Tablero y piezas de Lichess (chessground, licencia GPL-3.0) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chessground@9/assets/chessground.base.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chessground@9/assets/chessground.cburnett.css">
+  <link rel="stylesheet" href="css/mdp.css">
+  <script>
+    // Aplica el tema guardado antes de pintar, para que no parpadee.
+    try { const a = JSON.parse(localStorage.getItem('mdp-aspecto') || '{}');
+      if (a.tema) document.documentElement.dataset.tema = a.tema;
+      if (a.tablero) document.documentElement.dataset.tablero = a.tablero; } catch (e) {}
+  </script>
+</head>
+<body>
+  <div id="app">
+    <div class="entrar"><div class="logo-grande"><span class="mono">M<i>d</i>P</span></div>
+      <h1 class="titulo-app">Memorias de Peón</h1><p class="lema">Casilla a casilla</p></div>
+  </div>
+  <noscript>Memorias de Peón necesita JavaScript.</noscript>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
