@@ -229,6 +229,8 @@ export function validarFen(fen) {
 
 export function crearEditor(contenedor, ej, { orientacion = 'white', alCambiar = () => {}, pedirPromocion }) {
   contenedor.innerHTML = `
+   <div class="ed-rejilla">
+    <div class="ed-arriba">
     <div class="modos">
       <button data-modo="jugar" class="on">Jugar</button>
       <button data-modo="dibujar">Dibujar</button>
@@ -253,6 +255,8 @@ export function crearEditor(contenedor, ej, { orientacion = 'white', alCambiar =
       </div>
       <p class="ayuda">Elige una pieza y toca casillas para colocarla. Con la goma, quitas. También puedes arrastrar las piezas.</p>
     </div>
+    </div>
+    <div class="ed-tablero">
     <div class="tablero"></div>
     <div class="nav-jug">
       <button data-ir="ini" aria-label="Inicio">⏮</button>
@@ -262,11 +266,15 @@ export function crearEditor(contenedor, ej, { orientacion = 'white', alCambiar =
       <button data-ir="fin" aria-label="Final">⏭</button>
       <button data-acc="girar" aria-label="Girar tablero">⟲</button>
     </div>
+    </div>
+    <div class="ed-abajo">
     <label class="campo-com">Comentario de esta posición
       <textarea rows="2" class="com" placeholder="Idea, plan o explicación de la jugada"></textarea>
     </label>
     <div class="lista-jug"></div>
-    <button data-acc="cortar" class="chip peligro" hidden>Borrar desde aquí</button>`;
+    <button data-acc="cortar" class="chip peligro" hidden>Borrar desde aquí</button>
+    </div>
+   </div>`;
 
   let modo = 'jugar', ply = ej.jugadas.length, pincel = 'green', origen = null;
   let herramienta = 'K', turnoPos = colorDe(ej.fen0) === 'white' ? 'w' : 'b';
@@ -424,6 +432,55 @@ export function crearEditor(contenedor, ej, { orientacion = 'white', alCambiar =
     confirmar() { return modo === 'posicion' ? salirDePosicion() : null; },
     orientacion: () => orientacion,
   };
+}
+
+// ---------------------------------------------------------------------
+//  Diagrama fijo (para imprimir): casillas, piezas de Lichess y flechas
+// ---------------------------------------------------------------------
+const ROLES = { k: 'king', q: 'queen', r: 'rook', b: 'bishop', n: 'knight', p: 'pawn' };
+const COLOR_FLECHA = { green: '#15781b', red: '#882020', blue: '#003088', yellow: '#e68f00' };
+export function diagrama(ej, { orientacion = 'white', ply = 0 } = {}) {
+  const fen = fenDe(ej, ply);
+  const filas = fen.split(' ')[0].split('/').map(f => f.replace(/\d/g, n => '.'.repeat(+n)));
+  const blancas = orientacion === 'white';
+  let celdas = '';
+  for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+    const ch = filas[blancas ? r : 7 - r][blancas ? c : 7 - c];
+    const pieza = ch && ch !== '.' ? `<piece class="${ROLES[ch.toLowerCase()]} ${ch === ch.toUpperCase() ? 'white' : 'black'}"></piece>` : '';
+    celdas += `<i class="${(r + c) % 2 ? 'os' : 'cl'}">${pieza}</i>`;
+  }
+  const centro = k => {
+    const f = k.charCodeAt(0) - 97, n = +k[1];
+    return [(blancas ? f : 7 - f) + 0.5, (blancas ? 8 - n : n - 1) + 0.5];
+  };
+  let svg = '';
+  for (const f of formasDe(ej, ply)) {
+    const color = COLOR_FLECHA[f.brush] || COLOR_FLECHA.green;
+    const [x1, y1] = centro(f.orig);
+    if (!f.dest) { svg += `<circle cx="${x1}" cy="${y1}" r="0.44" fill="none" stroke="${color}" stroke-width="0.08" opacity=".85"/>`; continue; }
+    const [x2, y2] = centro(f.dest);
+    const d = Math.hypot(x2 - x1, y2 - y1), ux = (x2 - x1) / d, uy = (y2 - y1) / d;
+    const xf = x2 - ux * 0.32, yf = y2 - uy * 0.32;
+    svg += `<line x1="${x1}" y1="${y1}" x2="${xf}" y2="${yf}" stroke="${color}" stroke-width="0.16" stroke-linecap="round" opacity=".8"/>` +
+      `<polygon points="${x2},${y2} ${xf - uy * 0.22},${yf + ux * 0.22} ${xf + uy * 0.22},${yf - ux * 0.22}" fill="${color}" opacity=".8"/>`;
+  }
+  return `<div class="diagrama cg-wrap"><div class="dg-casillas">${celdas}</div><svg viewBox="0 0 8 8" class="dg-flechas">${svg}</svg></div>`;
+}
+
+// Jugadas en notación, con sus comentarios (para imprimir o exportar)
+export function textoJugadas(ej) {
+  if (!ej.jugadas.length) return '';
+  const p = ej.fen0.split(' ');
+  let turno = p[1], num = parseInt(p[5], 10) || 1, html = '';
+  ej.jugadas.forEach((j, i) => {
+    if (turno === 'w') html += `<b>${num}.</b>`;
+    else if (i === 0 || ej.jugadas[i - 1].comentario) html += `<b>${num}…</b>`;
+    html += `${esc(verSan(j.san))} `;
+    if (j.comentario) html += `<i>${esc(j.comentario)}</i> `;
+    if (turno === 'b') num++;
+    turno = turno === 'w' ? 'b' : 'w';
+  });
+  return html.trim();
 }
 
 export { esc as escapar };
