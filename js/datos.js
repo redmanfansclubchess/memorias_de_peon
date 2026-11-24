@@ -106,7 +106,7 @@ export const pendientes = () => TABLAS.reduce((n, t) => n + [...mem[t].values()]
 // ---------------------------------------------------------------------
 //  Sincronización con Supabase
 // ---------------------------------------------------------------------
-export const estadoSync = { enCurso: false, ultima: null, error: null };
+export const estadoSync = { enCurso: false, ultima: null, error: null, detalle: null };
 let temporizador = null;
 let subidaAutomatica = true;
 export const ponerSubidaAutomatica = si => { subidaAutomatica = !!si; };
@@ -123,7 +123,7 @@ export async function sincronizar() {
   if (estadoSync.enCurso || !navigator.onLine) return false;
   const { data: { session } } = await sb.auth.getSession();
   if (!session) { estadoSync.error = 'Entra de nuevo para sincronizar'; avisar('sync'); return false; }
-  estadoSync.enCurso = true; estadoSync.error = null; avisar('sync');
+  estadoSync.enCurso = true; estadoSync.error = null; estadoSync.detalle = null; avisar('sync');
   try {
     // 1) Subir lo pendiente (en orden: primero los padres, por las referencias)
     for (const t of TABLAS) {
@@ -172,7 +172,8 @@ export async function sincronizar() {
     return true;
   } catch (e) {
     console.error(e);
-    estadoSync.error = navigator.onLine ? 'No se pudo sincronizar. Se reintentará.' : 'Sin conexión';
+    estadoSync.detalle = String(e.message || e);
+    estadoSync.error = navigator.onLine ? 'No se pudo sincronizar: ' + traducirError(estadoSync.detalle) : 'Sin conexión';
     return false;
   } finally {
     estadoSync.enCurso = false;
@@ -185,10 +186,20 @@ export async function leerUltimaSync() {
   if (u) estadoSync.ultima = new Date(u);
 }
 
-// Primera entrada: crea el catálogo de bloques y temas en Supabase.
+function traducirError(m) {
+  if (/permission denied/i.test(m)) return 'Supabase no da permiso a la app (falta ejecutar el SQL de permisos).';
+  if (/schema must be one of|PGRST106/i.test(m)) return 'La Data API de Supabase no tiene expuesto el esquema «public».';
+  if (/does not exist|PGRST20[45]|Could not find/i.test(m)) return 'Falta alguna tabla o columna en Supabase (revisa el SQL).';
+  if (/JWT|token|401/i.test(m)) return 'La sesión ha caducado: entra de nuevo.';
+  if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return 'No hay conexión con Supabase.';
+  return m;
+}
+
+// Catálogo: añade lo que falte (por nombre), sin duplicar. de bloques y temas en Supabase.
 export async function sembrarCatalogo() {
-  const { error } = await sb.rpc('sembrar_catalogo');
-  if (error) throw error;
+  const { data, error } = await sb.rpc('sembrar_catalogo');
+  if (error) throw new Error(traducirError(error.message));
+  return data || 0;
 }
 
 window.addEventListener('online', () => { avisar('red'); sincronizar(); });

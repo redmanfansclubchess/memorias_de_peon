@@ -5,7 +5,7 @@
 import * as D from './datos.js';
 import { crearVisor, crearEditor, dePgn, aPgn, ejemploVacio, usarFiguras, escapar as esc } from './tablero.js';
 
-export const VERSION = '1.0.0 (fase 1A)';
+export const VERSION = '1.0.1 (fase 1A)';
 const app = document.getElementById('app');
 
 // ---------------------------------------------------------------------
@@ -74,8 +74,9 @@ function aviso(texto) {
   const t = document.createElement('div');
   t.className = 'toast'; t.textContent = texto;
   document.body.appendChild(t);
-  setTimeout(() => t.classList.add('fuera'), 2200);
-  setTimeout(() => t.remove(), 2700);
+  const ms = texto.length > 60 ? 6000 : 2200;
+  setTimeout(() => t.classList.add('fuera'), ms);
+  setTimeout(() => t.remove(), ms + 500);
 }
 
 // ---------------------------------------------------------------------
@@ -331,7 +332,7 @@ function vConceptos(v, _id, q) {
       ${activos.length ? '' : `
         <div class="tarjeta vacia">
           <h2>Elige tus bloques</h2>
-          <p>Tienes un catálogo de 9 bloques y 40 temas preparado, todo en reserva. Activa los que vayas a usar; el resto queda guardado.</p>
+          <p>Tu cuaderno se ordena en <b>Bloque → Tema → Ficha</b> (por ejemplo, Táctica → Motivos tácticos → Enfilada). Tienes un catálogo de 9 bloques y 40 temas preparado, en reserva: activa los que vayas a usar.</p>
           <a class="btn primario" href="#/catalogo">Abrir el catálogo</a>
         </div>`}
       <div class="rejilla">
@@ -511,12 +512,13 @@ function vEditarConcepto(v, id, q) {
       <h1>${nuevo ? 'Nueva ficha' : 'Editar ficha'}</h1>
     </div>
     <form id="f-concepto" class="form">
-      <label>Concepto<input name="titulo" required maxlength="120" placeholder="Peón aislado central" value="${esc(c.titulo)}"></label>
+      <label>Nombre del concepto <small>el título de la ficha</small><input name="titulo" required maxlength="120" placeholder="Enfilada" value="${esc(c.titulo)}"></label>
       <div class="dos">
         <label>Bloque<select name="bloque">${opcionesBloque(c.bloque_id)}</select></label>
         <label>Tema<select name="tema" ${raiz ? '' : 'disabled'}>${opcionesTema(raiz?.id, temaId)}</select></label>
       </div>
-      <label>Principio <small>la frase clave, la que quieres recordar</small>
+      <p class="nota" id="aviso-tema" hidden>Este bloque no tiene temas activos. Puedes guardar la ficha sin tema, o activar sus temas en <a href="#/catalogo">Bloques</a>.</p>
+      <label>Principio <small>la idea clave en una frase, la que te enseñó el maestro (opcional)</small>
         <input name="principio" maxlength="200" placeholder="Todo peón propio es un obstáculo" value="${esc(c.principio || '')}"></label>
       <label>Explicación <small>**negrita**, *cursiva* y listas empezando con «- »</small>
         <textarea name="explicacion" rows="7" placeholder="Lo que te explicó el maestro, con tus palabras">${esc(c.explicacion || '')}</textarea></label>
@@ -537,10 +539,13 @@ function vEditarConcepto(v, id, q) {
       </div>
     </form>`;
   const f = v.querySelector('#f-concepto');
+  const avisoTema = () => { v.querySelector('#aviso-tema').hidden = !f.bloque.value || temasDe(f.bloque.value, true).length > 0; };
   f.bloque.addEventListener('change', () => {
     f.tema.innerHTML = opcionesTema(f.bloque.value, '');
     f.tema.disabled = !f.bloque.value;
+    avisoTema();
   });
+  avisoTema();
   v.querySelector('.filtro-rel')?.addEventListener('input', e => {
     const t = norm(e.target.value);
     v.querySelectorAll('.rel-lista .check').forEach(l => { l.hidden = t && !norm(l.textContent).includes(t); });
@@ -566,7 +571,7 @@ function vEditarConcepto(v, id, q) {
       if (!marcados.has(o.id) && activo) await D.borrar('enlaces_conceptos', existe.id);
     }
     editando = false;
-    aviso('Ficha guardada');
+    aviso(nuevo ? 'Ficha guardada. Ahora puedes añadirle ejemplos en el tablero.' : 'Ficha guardada');
     ir('#/concepto/' + guardado.id);
   });
   v.querySelector('#borrar')?.addEventListener('click', async () => {
@@ -663,7 +668,12 @@ function vCatalogo(v, _id, q) {
     const lista = bloques();
     v.innerHTML = `
       <div class="cab-vista"><a href="#/conceptos" class="btn-ico">${ico('atras')}</a><h1>Bloques y temas</h1></div>
-      <p class="intro">Activa lo que vayas a usar. Lo que está en reserva no se pierde: queda guardado con sus fichas, sin estorbar.</p>
+      <div class="tarjeta guia">
+        <p><b>Cómo se ordena tu cuaderno:</b> <span class="ruta-guia">Bloque → Tema → Ficha</span></p>
+        <p>Ejemplo: <b>Táctica</b> → <b>Motivos tácticos</b> → <b>Enfilada</b>. Los bloques y los temas son las carpetas; las fichas, tus apuntes.</p>
+        <p>Activa (interruptor verde) lo que vayas a usar. Lo que está en reserva no se pierde: queda guardado, sin estorbar. Toca un bloque para ver y activar sus temas.</p>
+      </div>
+      ${lista.length < 9 ? `<button class="btn anadir-cat" data-acc="catalogo">${ico('mas', 'peq')} Añadir lo que falte del catálogo (9 bloques y 40 temas)</button>` : ''}
       ${lista.map((b, i) => {
         const temas = temasDe(b.id);
         const abierto = abiertos.has(b.id);
@@ -717,6 +727,16 @@ function vCatalogo(v, _id, q) {
     const sec = el.closest('.cat');
     const b = sec && D.obtener('bloques', sec.dataset.id);
     const acc = el.dataset.acc;
+    if (acc === 'catalogo') {
+      if (!navigator.onLine) return aviso('Necesitas conexión para traer el catálogo');
+      el.disabled = true; el.textContent = 'Trayendo el catálogo…';
+      try {
+        await D.sincronizar();
+        const n = await D.sembrarCatalogo();
+        await D.sincronizar();
+        aviso(n ? `Añadidos ${n} bloques y temas, en reserva` : 'Ya tenías todo el catálogo');
+      } catch (err) { aviso('No se pudo: ' + err.message); }
+    }
     if (acc === 'abrir') { abiertos.has(b.id) ? abiertos.delete(b.id) : abiertos.add(b.id); }
     if (acc === 'color') { b.color = el.dataset.v; await D.guardar('bloques', b); for (const t of temasDe(b.id)) { t.color = b.color; await D.guardar('bloques', t); } }
     if (acc === 'icono') { b.icono = el.dataset.v; await D.guardar('bloques', b); }
@@ -817,6 +837,7 @@ function vAjustes(v) {
       <fieldset><legend>Nube</legend>
         <label class="check"><input type="checkbox" name="subida" ${a.subida ? 'checked' : ''}><span>Subir los cambios automáticamente cuando haya conexión</span></label>
         <p class="nota">Última sincronización: ${ult}. Cambios sin subir: ${D.pendientes()}.</p>
+        ${D.estadoSync.error ? `<p class="error">${esc(D.estadoSync.error)}${D.estadoSync.detalle ? `<br><small>Detalle técnico: ${esc(D.estadoSync.detalle)}</small>` : ''}</p>` : ''}
         <button type="button" class="btn" id="sincr">${ico('nube', 'peq')} Sincronizar ahora</button>
       </fieldset>
       <fieldset><legend>Cuenta</legend>

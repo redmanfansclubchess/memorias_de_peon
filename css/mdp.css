@@ -312,3 +312,9 @@ legend { font-family: var(--serif); font-weight: 600; font-size: 17px; padding: 
   .rejilla { grid-template-columns: repeat(3, 1fr); }
   .enlaces { grid-template-columns: repeat(3, 1fr); }
 }
+
+/* ---------- Guía del catálogo ---------- */
+.guia p { margin: 0 0 8px; font-size: 15px; }
+.guia p:last-child { margin: 0; color: var(--suave); }
+.ruta-guia { display: inline-block; font-family: var(--serif); font-style: italic; color: var(--acento); font-weight: 600; }
+.anadir-cat { width: 100%; margin-bottom: 14px; color: var(--acento); }
