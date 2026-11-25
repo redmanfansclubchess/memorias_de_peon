@@ -5,7 +5,7 @@
 import * as D from './datos.js';
 import { crearVisor, crearEditor, dePgn, aPgn, ejemploVacio, usarFiguras, diagrama, textoJugadas, escapar as esc } from './tablero.js';
 
-export const VERSION = '1.1.1 (fase 1B)';
+export const VERSION = '1.1.2 (fase 1B)';
 const app = document.getElementById('app');
 
 // ---------------------------------------------------------------------
@@ -661,18 +661,17 @@ function vEjemplo(v, id, q) {
   const ej = nuevo ? ejemploVacio() : dePgn(fila.pgn || `[FEN "${fila.fen_inicial}"]`);
   let cambios = false, orientacion = fila.orientacion || 'white';
   v.innerHTML = `
-    <div class="cab-vista">
+    <div class="cab-vista ej-cab">
       <a href="#/concepto/${concepto.id}" class="btn-ico" aria-label="Volver" id="volver">${ico('atras')}</a>
-      <h1>${nuevo ? 'Nuevo ejemplo' : 'Editar ejemplo'}</h1>
-      <button class="btn peq" id="ampliar">${ico('ampliar', 'peq')} <span>Ampliar</span></button>
+      <div class="ej-tit"><h1>${nuevo ? 'Nuevo ejemplo' : 'Ejemplo'}</h1><small>${esc(concepto.titulo)}</small></div>
+      <button class="btn-ico" id="ampliar" aria-label="Ampliar">${ico('ampliar')}</button>
+      <button class="btn primario peq" id="guardar">Guardar</button>
     </div>
-    <p class="intro ej-meta">${esc(concepto.titulo)}</p>
-    <label class="form solo ej-meta"><span>Título del ejemplo</span>
-      <input id="ej-titulo" maxlength="120" placeholder="Bloqueo del peón aislado con el caballo" value="${esc(fila.titulo || '')}"></label>
     <div id="editor" class="editor"></div>
-    <div class="botones pegados">
-      <button class="btn primario" id="guardar">Guardar ejemplo</button>
-      ${nuevo ? '' : `<button class="btn peligro" id="borrar">${ico('borrar', 'peq')}</button>`}
+    <div class="ej-pie">
+      <label class="form solo"><span>Título del ejemplo <small>opcional</small></span>
+        <input id="ej-titulo" maxlength="120" placeholder="Bloqueo del peón aislado con el caballo" value="${esc(fila.titulo || '')}"></label>
+      ${nuevo ? '' : `<button class="btn peligro" id="borrar">${ico('borrar', 'peq')} Borrar este ejemplo</button>`}
     </div>`;
   const ed = crearEditor(v.querySelector('#editor'), ej, {
     orientacion,
@@ -682,15 +681,18 @@ function vEjemplo(v, id, q) {
   limpiezas.push(ed.cerrar);
   // «Ampliar»: oculta cabecera, barra inferior y título para dejar sitio al tablero
   const ampliar = v.querySelector('#ampliar');
-  const ponerEnfoque = si => {
+  const ponerEnfoque = (si, guardarEleccion) => {
     document.body.classList.toggle('enfoque', si);
-    ampliar.querySelector('span').textContent = si ? 'Reducir' : 'Ampliar';
+    ampliar.setAttribute('aria-label', si ? 'Reducir' : 'Ampliar');
     ampliar.querySelector('path').setAttribute('d', si ? P.reducir : P.ampliar);
-    localStorage.setItem('mdp-enfoque', si ? '1' : '');
+    if (guardarEleccion) localStorage.setItem('mdp-enfoque', si ? '1' : '0');
     window.scrollTo(0, 0);
+    ed.ajustar();
   };
-  ampliar.addEventListener('click', () => ponerEnfoque(!document.body.classList.contains('enfoque')));
-  ponerEnfoque(localStorage.getItem('mdp-enfoque') === '1');
+  ampliar.addEventListener('click', () => ponerEnfoque(!document.body.classList.contains('enfoque'), true));
+  // En el móvil se abre ampliado de serie; si lo cambias, se recuerda tu elección.
+  const eleccion = localStorage.getItem('mdp-enfoque');
+  ponerEnfoque(eleccion ? eleccion === '1' : window.innerWidth < 700, false);
   limpiezas.push(() => document.body.classList.remove('enfoque'));
   v.querySelector('#ej-titulo').addEventListener('input', () => { cambios = true; });
   v.querySelector('#volver').addEventListener('click', e => {

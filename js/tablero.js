@@ -256,7 +256,7 @@ export function crearEditor(contenedor, ej, { orientacion = 'white', alCambiar =
       <p class="ayuda">Elige una pieza y toca casillas para colocarla. Con la goma, quitas. También puedes arrastrar las piezas.</p>
     </div>
     </div>
-    <div class="ed-tablero">
+    <div class="ed-tablero"><div class="ed-tablero-in">
     <div class="tablero"></div>
     <div class="nav-jug">
       <button data-ir="ini" aria-label="Inicio">⏮</button>
@@ -266,7 +266,7 @@ export function crearEditor(contenedor, ej, { orientacion = 'white', alCambiar =
       <button data-ir="fin" aria-label="Final">⏭</button>
       <button data-acc="girar" aria-label="Girar tablero">⟲</button>
     </div>
-    </div>
+    </div></div>
     <div class="ed-abajo">
     <label class="campo-com">Comentario de esta posición
       <textarea rows="2" class="com" placeholder="Idea, plan o explicación de la jugada"></textarea>
@@ -284,6 +284,24 @@ export function crearEditor(contenedor, ej, { orientacion = 'white', alCambiar =
     drawable: { enabled: true, eraseOnClick: false, onChange: formas => { if (formas.length) { formas.forEach(alternarForma); api.setShapes([]); refrescar(); } } },
     events: { select: tocar, change: () => { if (modo === 'posicion') alCambiar(ej); } },
   });
+
+  // El tablero se ajusta para caber entero en la pantalla (móvil, iPad u ordenador)
+  const caja = $('.ed-tablero'), interior = $('.ed-tablero-in');
+  let pendiente = 0;
+  function ajustar() {
+    cancelAnimationFrame(pendiente);
+    pendiente = requestAnimationFrame(() => {
+      const alto = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+      const enfoque = document.body.classList.contains('enfoque');
+      const barra = enfoque ? 0 : (document.querySelector('.barra')?.offsetHeight || 0);
+      const arriba = caja.getBoundingClientRect().top + window.scrollY;
+      const nav = $('.nav-jug').offsetHeight + 14;
+      const lado = Math.floor(Math.max(240, Math.min(caja.clientWidth, alto - arriba - nav - barra - 10)));
+      if (interior.style.width !== lado + 'px') interior.style.width = lado + 'px';
+    });
+  }
+  window.addEventListener('resize', ajustar);
+  window.visualViewport?.addEventListener('resize', ajustar);
 
   function alternarForma(f) {
     const lista = formasDe(ej, ply);
@@ -367,6 +385,7 @@ export function crearEditor(contenedor, ej, { orientacion = 'white', alCambiar =
     $('.herr-dibujar').hidden = modo !== 'dibujar';
     $('.herr-posicion').hidden = modo !== 'posicion';
     pintarPaleta();
+    ajustar();
   }
 
   function pintarPaleta() {
@@ -427,7 +446,8 @@ export function crearEditor(contenedor, ej, { orientacion = 'white', alCambiar =
 
   refrescar();
   return {
-    cerrar,
+    cerrar: () => { window.removeEventListener('resize', ajustar); window.visualViewport?.removeEventListener('resize', ajustar); cerrar(); },
+    ajustar,
     // Antes de guardar: si estás en «Posición», se valida y se fija.
     confirmar() { return modo === 'posicion' ? salirDePosicion() : null; },
     orientacion: () => orientacion,
