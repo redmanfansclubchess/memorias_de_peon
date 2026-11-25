@@ -9,9 +9,11 @@
 //            «Todo peón propio es un obstáculo» (maestro: true)
 //  Tanda 4 · Ataque y defensa del rey (14 fichas)
 //  Tanda 5 · Finales (19 fichas)
+//  Tanda 6 · Aperturas (10) · Tanda 7 · Técnica (6)
+//  Tanda 8 · Cálculo y visualización (6) · Tanda 9 · Juego práctico (6)
 //  El campo «lichess» admite un tema de puzzles (skewer) o una dirección completa (https://…).
 // =====================================================================
-export const BIBLIOTECA_VERSION = '5';
+export const BIBLIOTECA_VERSION = '9';
 
 export const BIBLIOTECA = [
   // ================================================================
@@ -1069,5 +1071,358 @@ Es una idea más posicional de lo que parece: muchas veces no hay un mate inmedi
 - Solo entonces pasa a la acción decisiva.
 - Repetir jugadas para ganar tiempo en el reloj o confundir al rival también forma parte de esta técnica.`,
     pista: 'Monta un final con ventaja clara en el que sea mejor mejorar el rey antes de avanzar el peón pasado.',
+  },
+  // ================================================================
+  //  APERTURAS (tanda 6)
+  // ================================================================
+
+  // ------------------------------------------------ Principios de apertura
+  {
+    id: 'ape-principios', bloque: 'Aperturas', tema: 'Principios de apertura',
+    titulo: 'Los tres principios de la apertura', en: 'Opening principles', lichess: 'opening', alias: ['principios de apertura', 'principios de la apertura'],
+    def: 'Centro, desarrollo y enroque: lo que hay que hacer en las primeras jugadas.',
+    principio: 'Centro, desarrollo y enroque: en ese orden de ideas.',
+    explicacion: `En las primeras jugadas, casi todo se resume en tres ideas:
+- **Centro**: ocúpalo o contrólalo con peones y piezas.
+- **Desarrollo**: saca rápido las piezas menores a buenas casillas.
+- **Enroque**: pon el rey a salvo y conecta las torres.
+Antes de memorizar líneas, entender estos principios te permite jugar bien cualquier apertura, incluso cuando el rival se sale de la teoría.`,
+    pista: 'Juega una apertura cualquiera durante diez jugadas y marca con flechas cómo cada jugada cumple (o no) uno de los tres principios.',
+  },
+  {
+    id: 'ape-desarrollo', bloque: 'Aperturas', tema: 'Principios de apertura',
+    titulo: 'Desarrollo', en: 'Development', lichess: 'opening', alias: ['desarrollar', 'desarrollo de piezas'],
+    def: 'Sacar las piezas de sus casillas iniciales a puestos activos.',
+    principio: 'Cada jugada de apertura debería traer una pieza nueva al juego.',
+    explicacion: `Desarrollar es sacar las piezas a casillas donde trabajen.
+- Primero las **piezas menores**: los caballos suelen salir antes que los alfiles, porque sus mejores casillas se conocen antes (f3, c3, f6, c6).
+- **No muevas la misma pieza dos veces** sin motivo: es un tiempo perdido.
+- La **dama** y las **torres** entran después, cuando ya hay líneas abiertas.
+- Quien termina antes el desarrollo suele llevar la iniciativa en el medio juego.`,
+    pista: 'Monta una posición tras ocho jugadas en la que un bando tenga todas las piezas menores fuera y el otro solo dos, y señala la diferencia.',
+  },
+  {
+    id: 'ape-tiempo', bloque: 'Aperturas', tema: 'Principios de apertura',
+    titulo: 'El valor del tiempo', en: 'Tempo', lichess: 'opening', alias: ['tempo', 'tiempos', 'ganar un tiempo', 'perder un tiempo'],
+    def: 'Cada jugada es un tiempo: en la apertura, perderlos cuesta caro.',
+    principio: 'En la apertura, un tiempo vale casi tanto como un peón.',
+    explicacion: `Un **tiempo** es una jugada. En la apertura, quien gasta jugadas en cosas poco útiles se queda atrás en el desarrollo.
+- **Se gana un tiempo** desarrollando con amenaza (atacando una pieza que tiene que moverse).
+- **Se pierde un tiempo** moviendo dos veces la misma pieza, sacando la dama para que la persigan o con jugadas de peón innecesarias.
+- Por eso los gambitos funcionan: se entrega un peón a cambio de tiempos de desarrollo.`,
+    pista: 'Monta una apertura en la que un bando gane tiempos atacando a la dama rival mientras desarrolla sus piezas.',
+  },
+  {
+    id: 'ape-dama-pronto', bloque: 'Aperturas', tema: 'Principios de apertura',
+    titulo: 'No saques la dama pronto', en: 'Early queen development', lichess: 'opening', alias: ['dama pronto', 'sacar la dama pronto'],
+    def: 'La dama en juego demasiado pronto es un blanco que regala tiempos al rival.',
+    principio: 'Saca la dama cuando las piezas menores ya estén fuera.',
+    explicacion: `La dama es la pieza más valiosa, así que **cualquier pieza menor que la ataque la obliga a moverse**.
+- Si sale demasiado pronto, el rival se desarrolla **atacándola** y gana tiempos.
+- Las amenazas rápidas con la dama (como el mate del pastor) se defienden con facilidad, y después la dama queda mal colocada.
+- Hay excepciones en algunas aperturas, pero la regla general es: primero piezas menores, luego la dama.`,
+    pista: 'Monta una apertura en la que la dama blanca salga en la jugada 2 y las negras ganen tres tiempos atacándola.',
+  },
+  {
+    id: 'ape-gambito', bloque: 'Aperturas', tema: 'Principios de apertura',
+    titulo: 'Gambito', en: 'Gambit', lichess: 'opening', alias: ['gambitos'],
+    def: 'Sacrificio de material en la apertura a cambio de desarrollo, centro o iniciativa.',
+    principio: 'Un gambito cambia material por tiempo: úsalo para atacar o lo habrás regalado.',
+    explicacion: `Un gambito es una apertura en la que se **entrega material**, normalmente un peón, a cambio de:
+- **Desarrollo rápido** o **iniciativa**.
+- **Control del centro** o líneas abiertas contra el rey rival.
+Ejemplos: el Gambito de rey, el Evans o el Gambito de dama (que en realidad no es un sacrificio verdadero, porque el peón suele recuperarse).
+**Contra un gambito**: no hace falta conservar el peón a toda costa; a menudo lo mejor es devolverlo para completar el desarrollo.`,
+    pista: 'Monta las primeras jugadas de un gambito y marca con flechas qué consigue el bando que entrega el peón.',
+  },
+
+  // ------------------------------------------------ Trampas típicas
+  {
+    id: 'ape-pastor', bloque: 'Aperturas', tema: 'Trampas típicas',
+    titulo: 'Mate del pastor', en: 'Scholar’s mate', lichess: 'mateIn1', alias: ['pastor'],
+    def: 'Mate en cuatro jugadas con dama y alfil sobre f7.',
+    principio: 'Contra el mate del pastor, defiende f7 y desarróllate con tempo.',
+    explicacion: `El mate rápido más conocido: **1.e4 e5 2.Bc4 Nc6 3.Qh5 Nf6?? 4.Qxf7#**. La dama y el alfil se combinan contra f7, que solo defiende el rey.
+- **Cómo evitarlo**: tras Qh5, jugadas como …g6 o …Qe7 defienden, y luego …Nf6 gana un tiempo atacando a la dama.
+- Es la mejor ilustración de por qué **f7 es débil al principio** y de por qué la dama sacada pronto se convierte después en un blanco.`,
+    pista: 'Juega 1.e4 e5 2.Bc4 Nc6 3.Qh5 y prueba la defensa …g6 seguida de …Nf6.',
+  },
+  {
+    id: 'ape-loco', bloque: 'Aperturas', tema: 'Trampas típicas',
+    titulo: 'Mate del loco', en: 'Fool’s mate', lichess: 'mateIn1', alias: [],
+    def: 'El mate más rápido posible: 1.f3 e5 2.g4 Qh4#.',
+    principio: 'Los peones f y g protegen a tu rey: no los muevas a la ligera.',
+    explicacion: `El mate más rápido que existe: **1.f3 e5 2.g4 Qh4#**. Las blancas debilitan la diagonal e1–h4 moviendo sus peones f y g, y la dama negra da mate.
+- En la práctica casi nunca ocurre, pero enseña algo útil: **mover los peones f y g al principio debilita mucho al rey**.`,
+    pista: 'Juega 1.f3 e5 2.g4 y marca con una flecha la diagonal por la que llega el mate.',
+  },
+  {
+    id: 'ape-legal', bloque: 'Aperturas', tema: 'Trampas típicas',
+    titulo: 'Mate de Légal', en: 'Légal’s mate', lichess: 'opening', alias: ['trampa de legal'],
+    def: 'Sacrificio de dama tras una clavada que no es real, con mate de tres piezas menores.',
+    principio: 'Una clavada sobre la dama no es absoluta: la pieza «clavada» se puede mover.',
+    explicacion: `Trampa clásica: **1.e4 e5 2.Nf3 d6 3.Bc4 Bg4 4.Nc3 g6? 5.Nxe5! Bxd1?? 6.Bxf7+ Ke7 7.Nd5#**.
+- Las negras creen que el caballo de f3 está clavado, pero la clavada es **relativa** (detrás está la dama, no el rey): el caballo se mueve y entrega la dama.
+- Si las negras capturan la dama, llega el mate con tres piezas menores.
+- Lección: **una clavada relativa no impide moverse** si lo que se gana compensa.`,
+    pista: 'Juega la línea hasta 5.Nxe5 y marca con flechas el mate que amenaza si las negras capturan la dama.',
+  },
+
+  // ------------------------------------------------ Paso al medio juego
+  {
+    id: 'ape-plan', bloque: 'Aperturas', tema: 'Paso al medio juego',
+    titulo: 'Del desarrollo al plan', en: 'From opening to middlegame', lichess: 'middlegame', alias: ['paso al medio juego', 'buscar un plan'],
+    def: 'Al terminar el desarrollo, la estructura de peones dice dónde jugar.',
+    principio: 'Terminado el desarrollo, pregunta a los peones cuál es el plan.',
+    explicacion: `Cuando las piezas están fuera y el rey enrocado, empieza el medio juego, y con él la pregunta: **¿y ahora qué?**
+- **Mira la estructura de peones**: ella indica las rupturas, las casillas fuertes y el flanco donde jugar.
+- **Busca la peor pieza** y mejórala.
+- **Mira qué quiere el rival** (profilaxis).
+Conocer los planes típicos de tu apertura vale más que memorizar muchas jugadas: con el plan claro, las jugadas salen solas.`,
+    pista: 'Monta la posición tras el desarrollo de una apertura que juegues y marca con flechas la ruptura típica de cada bando.',
+  },
+  {
+    id: 'ape-sin-teoria', bloque: 'Aperturas', tema: 'Paso al medio juego',
+    titulo: 'Cuando se acaba la teoría', en: 'Out of book', lichess: 'opening', alias: ['salir de la teoría', 'fuera de libro'],
+    def: 'Si no recuerdas la línea o el rival se sale de ella, vuelve a los principios.',
+    principio: 'Si no sabes la teoría, juega los principios.',
+    explicacion: `Tarde o temprano, tú o tu rival saldréis de lo que sabéis de memoria.
+- **No te asustes**: vuelve a los tres principios (centro, desarrollo y enroque).
+- Si el rival hace una jugada rara, pregúntate qué amenaza y qué debilita.
+- Después de la partida, **revisa la apertura** y anota en tu repertorio qué deberías haber jugado.
+Una apertura bien entendida resiste mejor las sorpresas que una aprendida solo de memoria.`,
+    pista: 'Monta una apertura en la que el rival se salga pronto de la teoría y busca la respuesta según los principios.',
+  },
+
+  // ================================================================
+  //  TÉCNICA (tanda 7)
+  // ================================================================
+
+  // ------------------------------------------------ Convertir la ventaja
+  {
+    id: 'tec-ventaja-material', bloque: 'Técnica', tema: 'Convertir la ventaja',
+    titulo: 'Convertir la ventaja material', en: 'Converting a material advantage', lichess: 'crushing', alias: ['convertir la ventaja', 'ganar la partida ganada'],
+    def: 'Con material de más: simplifica, quita contrajuego y avanza con seguridad.',
+    principio: 'Con ventaja, cambia piezas, no peones, y no le des oportunidades al rival.',
+    explicacion: `Ir ganando no es haber ganado. Para convertir una ventaja de material:
+- **Cambia piezas, no peones**: cuantas menos piezas, más pesa tu ventaja; los peones son los que acaban coronando.
+- **Quita el contrajuego** del rival antes de buscar la victoria: piezas activas, peones pasados, ataques al rey.
+- **Pon tu rey a salvo** y tus piezas coordinadas.
+- **Juega seguro**: no necesitas la jugada más brillante, sino la que no da opciones.`,
+    pista: 'Monta una posición con una pieza de ventaja en la que el rival tenga un peón pasado peligroso, y elimínalo antes de atacar.',
+  },
+  {
+    id: 'tec-transformar', bloque: 'Técnica', tema: 'Convertir la ventaja',
+    titulo: 'Transformar la ventaja', en: 'Transforming an advantage', lichess: 'advantage', alias: ['transformar ventajas'],
+    def: 'Cambiar una ventaja por otra más fácil de aprovechar en el momento oportuno.',
+    principio: 'Una ventaja que no se puede aprovechar se transforma en otra que sí.',
+    explicacion: `Las ventajas no son eternas: una iniciativa se apaga, un alfil bueno puede encerrarse. Por eso, a veces hay que **cambiar una ventaja por otra**:
+- La **iniciativa**, por material (ganar un peón).
+- Un **ataque**, por un final mejor.
+- Una **ventaja de espacio**, por una debilidad permanente en el campo rival.
+La clave es hacerlo **en el momento justo**, antes de que la primera ventaja desaparezca.`,
+    pista: 'Monta una posición con un ataque que se está apagando y busca cómo cambiarlo por un final con un peón de más.',
+  },
+  {
+    id: 'tec-contrajuego', bloque: 'Técnica', tema: 'Convertir la ventaja',
+    titulo: 'Eliminar el contrajuego', en: 'Neutralizing counterplay', lichess: 'defensiveMove', alias: ['contrajuego'],
+    def: 'Antes de rematar, quita al rival cualquier recurso activo.',
+    principio: 'Primero apaga su fuego; después, enciende el tuyo.',
+    explicacion: `Cuando vas ganando, el único peligro es el **contrajuego** del rival: sus piezas activas, sus peones pasados o los ataques a tu rey.
+- Identifica **qué es lo único que puede hacer el rival** y neutralízalo.
+- Una jugada profiláctica a tiempo vale más que una amenaza propia.
+- Solo cuando el rival no tenga nada que hacer, pasa a la acción decisiva.`,
+    pista: 'Monta una posición ganadora en la que el rival amenace con su única torre activa, y neutralízala antes de avanzar.',
+  },
+
+  // ------------------------------------------------ Defensa de posiciones peores
+  {
+    id: 'tec-defensa-tenaz', bloque: 'Técnica', tema: 'Defensa de posiciones peores',
+    titulo: 'Defensa tenaz', en: 'Tenacious defense', lichess: 'defensiveMove', alias: ['defender posiciones peores', 'defenderse'],
+    def: 'En una posición peor, poner problemas en cada jugada y buscar recursos de tablas.',
+    principio: 'Una posición peor no es una partida perdida: ponle problemas en cada jugada.',
+    explicacion: `Todos llegamos a posiciones peores. Lo que diferencia al buen jugador es **cómo se defiende**:
+- **No te rindas mentalmente**: el rival también puede equivocarse, sobre todo si le pones problemas.
+- **Busca actividad**: una pieza activa defiende mejor que dos pasivas.
+- **Cambia piezas** si te quitan presión, y busca finales con recursos de tablas (alfiles de distinto color, fortalezas).
+- **Complica** cuando la defensa pasiva no tiene futuro.
+- Y conoce los recursos de salvación: **jaque perpetuo**, **ahogado** y **fortaleza**.`,
+    pista: 'Monta una posición con un peón de menos y busca el plan que dé más problemas al rival.',
+  },
+  {
+    id: 'tec-perpetuo', bloque: 'Técnica', tema: 'Defensa de posiciones peores',
+    titulo: 'Jaque perpetuo', en: 'Perpetual check', lichess: 'defensiveMove', alias: ['perpetuo'],
+    def: 'Una serie de jaques que el rey rival no puede evitar: la partida acaba en tablas.',
+    principio: 'Si vas perdiendo y puedes dar jaques sin fin, tienes tablas.',
+    explicacion: `Si puedes dar **jaques indefinidamente** y el rey rival no puede escapar de ellos, la partida termina en tablas (por repetición de la posición).
+- Es uno de los grandes **recursos de salvación**: muchas posiciones perdidas se salvan con una dama que da jaques.
+- Suele aparecer cuando el rey rival tiene pocos peones delante.
+**Para el que va ganando**: antes de lanzarte, deja a tu rey un refugio para que los jaques se acaben.`,
+    pista: 'Monta una posición con material de menos en la que tu dama pueda dar jaques sin fin al rey rival desprotegido.',
+  },
+  {
+    id: 'tec-ahogado', bloque: 'Técnica', tema: 'Defensa de posiciones peores',
+    titulo: 'Ahogado', en: 'Stalemate', lichess: 'defensiveMove', alias: ['rey ahogado'],
+    def: 'El bando que mueve no tiene jugadas legales y no está en jaque: la partida es tablas.',
+    principio: 'Sin jugadas y sin jaque: tablas. Para el que pierde, una salvación; para el que gana, una trampa.',
+    explicacion: `Una posición es de **ahogado** cuando el bando al que le toca mover **no tiene ninguna jugada legal y no está en jaque**. La partida termina en tablas.
+- **Para el que defiende**: buscar el ahogado (por ejemplo, sacrificando las últimas piezas que le quedan para que su rey no tenga jugadas) puede salvar una partida perdida.
+- **Para el que ataca**: con mucha ventaja hay que tener cuidado, sobre todo en los mates con dama; siempre deja al rey rival alguna jugada hasta el mate.`,
+    pista: 'Monta un final de rey y dama contra rey en el que una jugada descuidada de la dama provoque ahogado.',
+  },
+
+  // ================================================================
+  //  CÁLCULO Y VISUALIZACIÓN (tanda 8)
+  // ================================================================
+  {
+    id: 'cal-candidatas', bloque: 'Cálculo y visualización', tema: 'Jugadas candidatas',
+    titulo: 'Jugadas candidatas', en: 'Candidate moves', lichess: 'long', alias: ['candidatas'],
+    def: 'Las pocas jugadas serias que conviene analizar antes de decidir.',
+    principio: 'Antes de calcular ninguna, haz la lista de todas tus candidatas.',
+    explicacion: `Antes de calcular, **haz una lista** de las jugadas razonables de la posición, normalmente entre dos y cuatro. Son tus **jugadas candidatas**.
+- Así evitas el error típico de enamorarte de la primera jugada que ves.
+- Incluye siempre las **jugadas forzantes** (jaques, capturas y amenazas) y las jugadas «naturales» de la posición.
+- Después, calcula cada una por orden y compáralas.
+La idea la popularizó Alexander Kotov en su libro *Piense como un gran maestro*.`,
+    pista: 'Monta una posición del medio juego y marca con flechas de colores tus tres candidatas antes de calcular ninguna.',
+  },
+  {
+    id: 'cal-forzantes', bloque: 'Cálculo y visualización', tema: 'Jugadas forzantes',
+    titulo: 'Jugadas forzantes', en: 'Forcing moves', lichess: 'short', alias: ['jaques capturas y amenazas', 'forzantes'],
+    def: 'Jaques, capturas y amenazas: obligan al rival a responder y reducen el cálculo.',
+    principio: 'Jaques, capturas y amenazas: míralos siempre primero, los tuyos y los suyos.',
+    explicacion: `Las jugadas forzantes son las que **obligan** al rival a responder de una forma concreta: **jaques**, **capturas** y **amenazas**.
+- Se miran primero porque reducen las respuestas del rival y hacen el cálculo más fácil y fiable.
+- Casi todas las combinaciones son una cadena de jugadas forzantes.
+- Revisa también **las del rival**: muchas veces la amenaza que no viste está en su próximo jaque.`,
+    pista: 'Monta una posición y marca en verde tus jaques, capturas y amenazas, y en rojo los del rival.',
+  },
+  {
+    id: 'cal-arbol', bloque: 'Cálculo y visualización', tema: 'Árbol de variantes',
+    titulo: 'Árbol de variantes', en: 'Tree of variations', lichess: 'veryLong', alias: ['calcular variantes', 'cálculo'],
+    def: 'Calcular de forma ordenada, rama por rama, sin saltar de una a otra.',
+    principio: 'Calcula cada rama hasta el final, una sola vez, y evalúa al llegar.',
+    explicacion: `Calcular bien es calcular **con orden**:
+- Elige una candidata y sigue su línea **hasta una posición tranquila**; después, **evalúala**.
+- Pasa a la siguiente candidata sin volver una y otra vez a la anterior.
+- En cada rama, considera **las mejores respuestas del rival**, no las que te convienen.
+- Si una rama es claramente mala, abandónala pronto y no pierdas tiempo.
+Con la práctica, el árbol se hace más profundo y más fiable.`,
+    pista: 'Monta una posición táctica y escribe en los comentarios del ejemplo las dos ramas principales que has calculado.',
+  },
+  {
+    id: 'cal-visualizacion', bloque: 'Cálculo y visualización', tema: 'Visualización',
+    titulo: 'Visualización', en: 'Visualization', lichess: 'https://lichess.org/training/coordinate', alias: ['ver el tablero', 'ajedrez a ciegas'],
+    def: 'Ver mentalmente cómo quedará el tablero varias jugadas más allá.',
+    principio: 'Lo que no puedes ver en la cabeza, no lo puedes calcular.',
+    explicacion: `Calcular es, en el fondo, **ver el tablero en la cabeza** tras varias jugadas.
+- Un error típico es «ver» piezas donde ya no están (una pieza que se movió en la variante sigue en su casilla en nuestra imaginación).
+- Se entrena con ejercicios de **coordenadas** (saber qué casilla es cada una), con problemas que se resuelven sin mover las piezas y repasando partidas solo con la notación.
+- Mejorar la visualización mejora directamente el cálculo.`,
+    pista: 'Monta una posición sencilla, juega cuatro jugadas sin moverlas en el tablero y comprueba después si las «viste» bien.',
+  },
+  {
+    id: 'cal-evaluacion', bloque: 'Cálculo y visualización', tema: 'Evaluación de la posición',
+    titulo: 'Evaluar la posición', en: 'Position evaluation', lichess: '', alias: ['evaluación', 'desequilibrios'],
+    def: 'Decidir quién está mejor y por qué: material, rey, actividad y estructura.',
+    principio: 'Evalúa al final de la variante, no en mitad de ella.',
+    explicacion: `Al final de cada variante hay que decidir **quién está mejor**. Para ello, repasa:
+- **Material**: quién tiene más y si hay compensación.
+- **Seguridad de los reyes**.
+- **Actividad de las piezas** y coordinación.
+- **Estructura de peones**: debilidades, peones pasados, casillas fuertes.
+- **Iniciativa**: quién manda en este momento.
+Estos «desequilibrios» también te dan el plan: refuerza los que te favorecen y corrige los que no.`,
+    pista: 'Monta una posición equilibrada en material y anota en el comentario quién está mejor según cada uno de los cinco puntos.',
+  },
+  {
+    id: 'cal-respuesta-rival', bloque: 'Cálculo y visualización', tema: 'Árbol de variantes',
+    titulo: 'La respuesta del rival', en: 'The opponent’s reply', lichess: 'defensiveMove', alias: ['ceguera', 'jugada del rival'],
+    def: 'El error más común al calcular: no ver la mejor respuesta del rival.',
+    principio: 'Calcula para el rival como si jugara él contra ti.',
+    explicacion: `El fallo más habitual en el cálculo no es ver mal nuestra jugada, sino **no ver la mejor respuesta del rival**.
+- Pregúntate siempre: «Si yo fuera él, ¿qué jugaría?».
+- Presta especial atención a sus **jugadas intermedias**, a sus **jaques** y a las **retiradas con amenaza**.
+- Cuando una línea te parezca demasiado buena, desconfía: suele haber una respuesta que no has visto.`,
+    pista: 'Monta una combinación «bonita» que falle por una jugada intermedia del rival y marca esa respuesta con una flecha roja.',
+  },
+
+  // ================================================================
+  //  JUEGO PRÁCTICO (tanda 9)
+  // ================================================================
+  {
+    id: 'pra-rutina', bloque: 'Juego práctico', tema: 'Rutina de pensamiento',
+    titulo: 'Rutina de pensamiento', en: 'Thinking process', lichess: '', alias: ['rutina', 'método de pensamiento'],
+    def: 'Una lista fija de preguntas que repasar en cada jugada importante.',
+    principio: 'Piensa siempre en el mismo orden: así no se te escapa nada.',
+    explicacion: `Una rutina es una **lista de preguntas** que repasas en cada jugada importante, siempre en el mismo orden, hasta que se vuelve automática:
+- ¿Qué amenaza la última jugada del rival?
+- ¿Qué jaques, capturas y amenazas hay?
+- ¿Hay piezas desprotegidas?
+- ¿Cuál es mi peor pieza? ¿Y mi plan?
+- ¿Cuáles son mis candidatas? Calcula y evalúa.
+- Comprobación final antes de jugar.
+En la app la tienes en **Inicio → Rutina**, y puedes adaptarla a tu manera.`,
+    pista: 'Coge una posición de tus clases y pasa por todas las preguntas de la rutina, anotando la respuesta en el comentario.',
+  },
+  {
+    id: 'pra-comprobacion', bloque: 'Juego práctico', tema: 'Rutina de pensamiento',
+    titulo: 'Comprobación final', en: 'Blunder check', lichess: 'hangingPiece', alias: ['blunder check', 'comprobar antes de jugar'],
+    def: 'Antes de jugar, un último vistazo: ¿qué deja esta jugada sin defender?',
+    principio: 'Antes de soltar la pieza: ¿qué deja colgado esta jugada?',
+    explicacion: `Justo antes de jugar, un último vistazo de unos segundos a la jugada elegida:
+- ¿Deja alguna pieza **sin defender**?
+- ¿Permite algún **jaque**, captura o amenaza que no había?
+- ¿Abre una **línea** hacia mi rey o mi dama?
+Es el hábito que más puntos ahorra: la mayoría de las partidas no se pierden por falta de ideas, sino por un descuido.`,
+    pista: 'Monta una posición con una jugada natural que deja una pieza colgada y señálala con una flecha roja.',
+  },
+  {
+    id: 'pra-reloj', bloque: 'Juego práctico', tema: 'Gestión del reloj',
+    titulo: 'Gestión del reloj', en: 'Time management', lichess: '', alias: ['el reloj', 'uso del tiempo'],
+    def: 'Repartir el tiempo: rápido en lo conocido, despacio en los momentos críticos.',
+    principio: 'Guarda tiempo para los momentos críticos.',
+    explicacion: `El reloj es parte de la partida.
+- **Juega rápido** lo que conoces (la apertura que te sabes, las jugadas obvias).
+- **Piensa despacio** en los **momentos críticos**: cambios de estructura, sacrificios, paso a un final.
+- **No te quedes atascado**: si llevas mucho tiempo dudando entre dos jugadas parecidas, elige una y sigue.
+- Divide la partida en tramos y comprueba cómo vas de tiempo cada cierto número de jugadas.`,
+    pista: 'Revisa una partida tuya y anota en qué jugadas gastaste más tiempo y si eran realmente las críticas.',
+  },
+  {
+    id: 'pra-apuros', bloque: 'Juego práctico', tema: 'Gestión del reloj',
+    titulo: 'Apuros de tiempo', en: 'Time trouble (zeitnot)', lichess: '', alias: ['zeitnot', 'apuro de tiempo'],
+    def: 'Jugar con muy poco tiempo: simplificar, jugar seguro y no complicarse.',
+    principio: 'Con poco tiempo, jugadas sencillas y seguras.',
+    explicacion: `Cuando te queda muy poco tiempo:
+- **Simplifica**: jugadas seguras, piezas defendidas, sin complicaciones innecesarias.
+- **Revisa solo lo imprescindible**: jaques, capturas y amenazas del rival.
+- Si es el rival quien está apurado, **mantén la tensión** y ponle problemas, pero sin arriesgar tú.
+- Lo mejor es no llegar a ese punto: administra el tiempo desde el principio.`,
+    pista: 'Juega una partida rápida en Lichess y, después, revisa qué errores cometiste en el apuro de tiempo.',
+  },
+  {
+    id: 'pra-calma', bloque: 'Juego práctico', tema: 'Psicología',
+    titulo: 'Mantener la calma', en: 'Staying calm', lichess: '', alias: ['psicología', 'después de un error'],
+    def: 'Tras un error o una sorpresa, respira, reevalúa y sigue jugando.',
+    principio: 'Después de un error, la partida sigue: la siguiente jugada es la importante.',
+    explicacion: `La parte mental pesa mucho en el resultado.
+- **Tras un error**, el peligro es encadenar otro. Respira, acepta la nueva situación y busca la mejor jugada en la posición que tienes ahora.
+- **Con ventaja**, no te relajes: muchas partidas se escapan en la recta final.
+- **Juega el tablero, no al rival**: su nombre o su puntuación no mueven las piezas.
+- **Ante una jugada sorprendente**, no te asustes: compruébala con calma.`,
+    pista: 'Revisa una partida en la que te equivocaste y anota qué pensaste justo después del error.',
+  },
+  {
+    id: 'pra-analizar', bloque: 'Juego práctico', tema: 'Análisis de mis partidas',
+    titulo: 'Analizar mis partidas', en: 'Analyzing your own games', lichess: 'https://lichess.org/analysis', alias: ['análisis de partidas', 'analizar partidas'],
+    def: 'Revisar tus partidas primero tú y después con el motor, para aprender de tus errores.',
+    principio: 'Analiza primero sin motor: el motor da la jugada, tú tienes que encontrar el porqué.',
+    explicacion: `Tus partidas son tu mejor material de estudio.
+- **Primero tú, sin motor**: repasa los momentos clave, qué pensaste y qué alternativas había.
+- **Después, con el motor**: comprueba tus conclusiones y busca dónde se torció la partida.
+- **Anota los errores** y relaciónalos con conceptos: ¿fue una pieza desprotegida? ¿una ruptura que no viste?
+- Con el tiempo verás tus **errores típicos**, y sabrás exactamente qué estudiar.`,
+    pista: 'Coge una partida tuya reciente, busca el momento en que cambió la evaluación y crea un ejemplo con esa posición.',
   },
 ];
