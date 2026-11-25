@@ -120,11 +120,13 @@ function programarSubida() {
 const limpiar = f => Object.fromEntries(Object.entries(f).filter(([k]) => !k.startsWith('_')));
 
 export async function sincronizar() {
-  if (estadoSync.enCurso || !navigator.onLine) return false;
+  if (estadoSync.enCurso || reiniciando || !navigator.onLine) return false;
   const { data: { session } } = await sb.auth.getSession();
   if (!session) { estadoSync.error = 'Entra de nuevo para sincronizar'; avisar('sync'); return false; }
   estadoSync.enCurso = true; estadoSync.error = null; estadoSync.detalle = null; avisar('sync');
   try {
+    // 0) Si empezaste de cero en otro dispositivo, este se vacía antes de subir nada
+    const vaciado = await comprobarReinicio();
     // 1) Subir lo pendiente (en orden: primero los padres, por las referencias)
     for (const t of TABLAS) {
       const filas = [...mem[t].values()].filter(f => f._pendiente);
@@ -168,7 +170,7 @@ export async function sincronizar() {
     }
     estadoSync.ultima = new Date();
     await metaPoner('ultima_sync', estadoSync.ultima.toISOString());
-    if (nuevos) avisar('datos');
+    if (nuevos || vaciado) avisar('datos');
     return true;
   } catch (e) {
     console.error(e);
@@ -205,20 +207,60 @@ export async function sembrarCatalogo() {
 // ---------------------------------------------------------------------
 //  Empezar de cero: borra TODOS tus datos en Supabase y en el dispositivo
 //  (necesita conexión). Los ajustes se conservan.
+//  Además deja una «marca de reinicio» en tus ajustes: los demás dispositivos
+//  (el móvil, el Mac…) la ven al sincronizar y se vacían también, en vez de
+//  seguir enseñando lo que tenían guardado.
 // ---------------------------------------------------------------------
+const DATOS = TABLAS.filter(t => t !== 'ajustes');
 const ORDEN_BORRADO = ['registro_repaso', 'tarjetas', 'momentos', 'partidas', 'repertorio', 'preguntas_maestro',
   'tecnicas', 'glosario', 'notas_rapidas', 'ejemplos', 'enlaces_conceptos', 'conceptos', 'clases', 'bloques'];
+
+// Vacía los datos de este dispositivo. Se conserva lo que hayas creado después
+// de la marca y aún no se haya subido (por ejemplo, sin conexión).
+async function vaciarLocal(salvoDesde = null) {
+  for (const t of DATOS) {
+    const guardar = salvoDesde ? [...mem[t].values()].filter(f => f._pendiente && f.editado_en > salvoDesde) : [];
+    await idb(t, 'readwrite', s => { s.clear(); for (const f of guardar) s.put(f); });
+    mem[t] = new Map(guardar.map(f => [f[clave(t)], f]));
+  }
+  for (const t of TABLAS) await metaPoner('cursor_' + t, null);
+}
+
+let reiniciando = false;
 export async function borrarTodo() {
   if (!navigator.onLine) throw new Error('Necesitas conexión para empezar de cero.');
   const { data: { session } } = await sb.auth.getSession();
   if (!session) throw new Error('Entra de nuevo en la app antes de empezar de cero.');
-  for (const t of ORDEN_BORRADO) {
-    const { error } = await sb.from(t).delete().eq('user_id', usuarioId);
-    if (error) throw new Error(`${t}: ${error.message}`);
-  }
-  for (const t of ORDEN_BORRADO) { await idb(t, 'readwrite', s => s.clear()); mem[t].clear(); }
-  for (const t of TABLAS) await metaPoner('cursor_' + t, null);
+  reiniciando = true;
+  try {
+    for (let i = 0; estadoSync.enCurso && i < 100; i++) await new Promise(r => setTimeout(r, 100));   // que acabe la sincronización en curso
+    for (const t of ORDEN_BORRADO) {
+      const { error } = await sb.from(t).delete().eq('user_id', usuarioId);
+      if (error) throw new Error(`${t}: ${error.message}`);
+    }
+    const marca = new Date().toISOString();
+    const aj = mem.ajustes.get(usuarioId) || { user_id: usuarioId, datos: {} };
+    Object.assign(aj, { user_id: usuarioId, datos: { ...(aj.datos || {}), reinicio: marca }, editado_en: marca });
+    const { error } = await sb.from('ajustes').upsert([limpiar(aj)], { onConflict: 'user_id' });
+    if (error) throw new Error(`ajustes: ${error.message}`);
+    delete aj._pendiente;
+    mem.ajustes.set(usuarioId, aj);
+    await idb('ajustes', 'readwrite', s => s.put(aj));
+    await metaPoner('reinicio', marca);
+    await vaciarLocal();
+  } finally { reiniciando = false; }
   avisar('datos');
+}
+
+// Antes de sincronizar: ¿empezaste de cero en otro dispositivo?
+async function comprobarReinicio() {
+  const { data, error } = await sb.from('ajustes').select('datos').eq('user_id', usuarioId);
+  if (error) throw new Error(`ajustes: ${error.message}`);
+  const marca = data && data[0] && data[0].datos && data[0].datos.reinicio;
+  if (!marca || marca <= ((await metaLeer('reinicio')) || '')) return false;
+  await vaciarLocal(marca);
+  await metaPoner('reinicio', marca);
+  return true;
 }
 
 // ---------------------------------------------------------------------

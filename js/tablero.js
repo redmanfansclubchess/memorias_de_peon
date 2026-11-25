@@ -167,7 +167,7 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '
 // ---------------------------------------------------------------------
 //  VISOR: ver un ejemplo y pasar las jugadas
 // ---------------------------------------------------------------------
-export function crearVisor(contenedor, ej, { orientacion = 'white' } = {}) {
+export function crearVisor(contenedor, ej, { orientacion = 'white', ply: plyInicial = 0, alMover = () => {} } = {}) {
   contenedor.innerHTML = `
     <div class="tablero"></div>
     <div class="nav-jug">
@@ -179,7 +179,7 @@ export function crearVisor(contenedor, ej, { orientacion = 'white' } = {}) {
     </div>
     <div class="comentario-jug"></div>
     <div class="lista-jug"></div>`;
-  let ply = 0;
+  let ply = Math.max(0, Math.min(plyInicial, ej.jugadas.length));
   const { api, cerrar } = montar(contenedor.querySelector('.tablero'), {
     viewOnly: true, orientation: orientacion, fen: ej.fen0,
   });
@@ -196,6 +196,8 @@ export function crearVisor(contenedor, ej, { orientacion = 'white' } = {}) {
     const lj = contenedor.querySelector('.lista-jug');
     lj.innerHTML = listaJugadas(ej, ply);
     contenedor.querySelector('.nav-jug').hidden = !ej.jugadas.length;
+    lj.querySelector('.jug.on')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    alMover(ply);
   }
   contenedor.addEventListener('click', e => {
     const b = e.target.closest('button');
@@ -209,7 +211,7 @@ export function crearVisor(contenedor, ej, { orientacion = 'white' } = {}) {
     pintar();
   });
   pintar();
-  return { cerrar };
+  return { cerrar, ply: () => ply, ir(n) { ply = Math.max(0, Math.min(n, ej.jugadas.length)); pintar(); } };
 }
 
 // ---------------------------------------------------------------------

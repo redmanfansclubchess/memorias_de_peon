@@ -286,7 +286,7 @@ legend { font-family: var(--serif); font-weight: 600; font-size: 17px; padding: 
 .enlace small { color: var(--suave); font-size: 12.5px; line-height: 1.3; }
 
 /* ---------- Barra inferior ---------- */
-.barra { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: grid; grid-template-columns: repeat(5, 1fr);
+.barra { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: grid; grid-template-columns: repeat(6, 1fr);
   max-width: 680px; margin: 0 auto; padding: 6px 6px calc(env(safe-area-inset-bottom) + 6px);
   background: var(--papel);
   border-top: 1px solid var(--linea); }
@@ -642,3 +642,25 @@ body.enfoque .ej-pie { margin-top: 12px; }
 .p-apertura ul { margin: 0 0 4px; padding-left: 18px; font-size: 10.5pt; }
 .p-apertura > p { font-size: 10.5pt; margin: 0 0 4px; }
 .p-ej-txt small { color: #666; }
+
+/* ---------- Mis partidas (fase 4) ---------- */
+.barra a span { font-size: 10.5px; white-space: nowrap; }
+.resultado { font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 99px; border: 1px solid currentColor; }
+.resultado.bien { color: var(--bien); } .resultado.regular { color: var(--regular); } .resultado.mal { color: var(--mal); }
+.tipo-m { flex: none; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 2px 7px; border-radius: 6px; min-width: 64px; text-align: center;
+  background: color-mix(in srgb, var(--suave) 14%, transparent); color: var(--suave); }
+.tipo-m.error { background: color-mix(in srgb, var(--mal) 14%, transparent); color: var(--mal); }
+.tipo-m.acierto { background: color-mix(in srgb, var(--bien) 14%, transparent); color: var(--bien); }
+.tipo-m.duda { background: color-mix(in srgb, var(--regular) 16%, transparent); color: var(--regular); }
+.chip.tipo-error { border-color: var(--mal); color: var(--mal); } .chip.tipo-acierto { border-color: var(--bien); color: var(--bien); }
+.chip.tipo-duda { border-color: var(--regular); color: var(--regular); }
+.momentos-chips { margin-top: 8px; }
+#tablero-partida .fila-btn { margin-top: 10px; }
+.rep-caja { margin: 14px 0; } .rep-caja .sec { margin-top: 0; } .rep-caja p { margin: 4px 0 10px; }
+.segmento button.on.error { color: var(--mal); } .segmento button.on.acierto { color: var(--bien); } .segmento button.on.duda { color: var(--regular); }
+#modo { margin-bottom: 12px; }
+.imp-fila { cursor: pointer; }
+.imp-fila input { width: 20px; height: 20px; flex: none; accent-color: var(--acento); }
+.imp-fila.ya { opacity: .55; cursor: default; }
+.marcador { display: flex; gap: 10px; font-variant-numeric: tabular-nums; }
+.marcador .ok, .nota .ok { color: var(--bien); } .marcador .reg, .nota .reg { color: var(--regular); } .marcador .ko, .nota .ko { color: var(--mal); }
