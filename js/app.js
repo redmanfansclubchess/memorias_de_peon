@@ -6,7 +6,7 @@ import * as D from './datos.js';
 import { BIBLIOTECA } from './biblioteca.js';
 import { crearVisor, crearEditor, dePgn, aPgn, ejemploVacio, usarFiguras, diagrama, textoJugadas, escapar as esc } from './tablero.js';
 
-export const VERSION = '1.4.1 (biblioteca 3)';
+export const VERSION = '1.5.0 (biblioteca 5)';
 const app = document.getElementById('app');
 
 // ---------------------------------------------------------------------
@@ -457,7 +457,8 @@ const LICHESS_TEMAS = [
   ['pawnEndgame', 'Final de peones'], ['rookEndgame', 'Final de torres'], ['bishopEndgame', 'Final de alfiles'],
   ['knightEndgame', 'Final de caballos'], ['queenEndgame', 'Final de damas'],
 ];
-const nombreTemaLichess = k => (LICHESS_TEMAS.find(t => t[0] === k) || [k, k])[1];
+const nombreTemaLichess = k => /^https?:/.test(k || '') ? 'práctica guiada' : (LICHESS_TEMAS.find(t => t[0] === k) || [k, k])[1];
+const urlPractica = k => /^https?:/.test(k) ? k : `https://lichess.org/training/${encodeURIComponent(k)}`;
 
 function vConcepto(v, id) {
   const c = D.obtener('conceptos', id);
@@ -502,8 +503,8 @@ function vConcepto(v, id) {
       <a class="btn anadir-ej" href="#/ejemplo/nuevo?concepto=${id}">${ico('mas')} Añadir ejemplo en el tablero</a>
     </div>
     ${c.practica_lichess ? `
-      <a class="tarjeta practicar" href="https://lichess.org/training/${encodeURIComponent(c.practica_lichess)}" target="_blank" rel="noopener">
-        ${ico('entrenar')}<span><b>Practicar en Lichess</b><small>Puzzles de ${esc(nombreTemaLichess(c.practica_lichess))}</small></span>${ico('externo', 'peq')}
+      <a class="tarjeta practicar" href="${esc(urlPractica(c.practica_lichess))}" target="_blank" rel="noopener">
+        ${ico('entrenar')}<span><b>Practicar en Lichess</b><small>${/^https?:/.test(c.practica_lichess) ? 'Práctica guiada' : 'Puzzles de ' + esc(nombreTemaLichess(c.practica_lichess))}</small></span>${ico('externo', 'peq')}
       </a>` : ''}
     ${rel.length ? `<h3 class="sec">Relacionado</h3><div class="chips">${rel.map(r => `<a class="chip" href="#/concepto/${r.id}">${ico('enlace', 'peq')} ${esc(r.titulo)}</a>`).join('')}</div>` : ''}`;
   v.querySelectorAll('.enl').forEach(bt => bt.addEventListener('click', () => abrirTermino(bt.dataset.k, mapa)));
@@ -578,7 +579,9 @@ function vEditarConcepto(v, id, q) {
       <label>Clase <small>en qué clase lo viste</small>
         <select name="clase"><option value="">Ninguna</option>${clasesOrd.map(k => `<option value="${k.id}" ${c.clase_id === k.id ? 'selected' : ''}>${fechaLarga(k.fecha)}${k.titulo ? ' · ' + esc(k.titulo) : ''}</option>`).join('')}</select></label>
       <label>Practicar en Lichess
-        <select name="practica">${LICHESS_TEMAS.map(([k, t]) => `<option value="${k}" ${c.practica_lichess === k ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+        <select name="practica">${[...LICHESS_TEMAS, ['https://lichess.org/practice', 'Práctica guiada (finales y mates básicos)'], ['attackingF2F7', 'Ataque a f2/f7']]
+          .concat(c.practica_lichess && ![...LICHESS_TEMAS.map(x => x[0]), 'https://lichess.org/practice', 'attackingF2F7'].includes(c.practica_lichess) ? [[c.practica_lichess, c.practica_lichess]] : [])
+          .map(([k, t]) => `<option value="${esc(k)}" ${c.practica_lichess === k ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
       ${otros.length ? `
         <fieldset class="rel"><legend>Relacionar con</legend>
           <input type="search" class="filtro-rel" placeholder="Filtrar fichas…">
@@ -1133,17 +1136,13 @@ const GLOSARIO = [
   ['Bloqueo', 'Blockade', 'Situar una pieza delante de un peón para frenarlo. Ideal: el caballo.'],
   ['Desarrollo', 'Development', 'Sacar las piezas de sus casillas iniciales a puestos activos.'],
   ['Enroque', 'Castling', 'Movimiento de rey y torre que protege al rey y activa la torre.'],
-  ['Enroques opuestos', 'Opposite-side castling', 'Cada rey en un flanco: carrera de ataques con peones.'],
   ['Final', 'Endgame', 'Fase con poco material, donde el rey se vuelve una pieza activa.'],
-  ['Fortaleza', 'Fortress', 'Posición defensiva que el rival no puede romper aunque tenga más material.'],
   ['Gambito', 'Gambit', 'Sacrificio de material en la apertura a cambio de desarrollo o iniciativa.'],
   ['Jugadas candidatas', 'Candidate moves', 'Las pocas jugadas serias que conviene analizar en una posición.'],
   ['Jugadas forzantes', 'Forcing moves', 'Jaques, capturas y amenazas: lo primero que hay que mirar.'],
   ['Medio juego', 'Middlegame', 'Fase de planes, ataques y maniobras tras el desarrollo.'],
-  ['Oposición', 'Opposition', 'Reyes enfrentados con una casilla en medio: quien no mueve la gana.'],
   ['Sacrificio', 'Sacrifice', 'Entregar material a cambio de ataque, posición o mate.'],
   ['Tablas', 'Draw', 'Final de partida sin ganador.'],
-  ['Triangulación', 'Triangulation', 'Maniobra del rey para perder un tiempo y ganar la oposición.'],
   ['Zugzwang', 'Zugzwang', 'Cualquier jugada empeora la posición: estar obligado a mover perjudica.'],
 ];
 function vGlosario(v, _id, q) {
@@ -1549,7 +1548,7 @@ function vBiblioItem(v, id) {
       <div class="md">${enlazar(md(it.explicacion), mapa, norm(it.titulo))}</div>
     </article>
     <div class="pista"><b>Pista para tu ejemplo</b><p>${esc(it.pista)}</p></div>
-    ${it.lichess ? `<a class="tarjeta practicar" href="https://lichess.org/training/${encodeURIComponent(it.lichess)}" target="_blank" rel="noopener">${ico('entrenar')}<span><b>Practicar en Lichess</b><small>Puzzles de ${esc(nombreTemaLichess(it.lichess))}</small></span>${ico('externo', 'peq')}</a>` : ''}
+    ${it.lichess ? `<a class="tarjeta practicar" href="${esc(urlPractica(it.lichess))}" target="_blank" rel="noopener">${ico('entrenar')}<span><b>Practicar en Lichess</b><small>${/^https?:/.test(it.lichess) ? 'Práctica guiada' : 'Puzzles de ' + esc(nombreTemaLichess(it.lichess))}</small></span>${ico('externo', 'peq')}</a>` : ''}
     <button class="btn primario ancho" id="anadir">${ico('mas', 'peq')} Añadir a mi cuaderno</button>
     <p class="nota">Se activará el tema «${esc(it.tema)}» y aparecerán también sus otras fichas, translúcidas hasta que les añadas tu ejemplo.</p>`;
   v.querySelectorAll('.enl').forEach(bt => bt.addEventListener('click', () => abrirTermino(bt.dataset.k, mapa)));

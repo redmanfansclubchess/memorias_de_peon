@@ -7,8 +7,11 @@
 //  Tanda 2 · Estructuras de peones (17 fichas)
 //  Tanda 3 · Estrategia (20 fichas), con el principio del maestro:
 //            «Todo peón propio es un obstáculo» (maestro: true)
+//  Tanda 4 · Ataque y defensa del rey (14 fichas)
+//  Tanda 5 · Finales (19 fichas)
+//  El campo «lichess» admite un tema de puzzles (skewer) o una dirección completa (https://…).
 // =====================================================================
-export const BIBLIOTECA_VERSION = '3';
+export const BIBLIOTECA_VERSION = '5';
 
 export const BIBLIOTECA = [
   // ================================================================
@@ -674,5 +677,397 @@ export const BIBLIOTECA = [
 - **Cambia la pieza buena del rival** por una tuya peor (por ejemplo, tu alfil malo por su buen caballo).
 - **Cambia el defensor** de una debilidad o de una casilla clave.`,
     pista: 'Monta una posición en la que un cambio concreto deje al rival con un alfil malo contra tu buen caballo.',
+  },
+  // ================================================================
+  //  ATAQUE Y DEFENSA DEL REY (tanda 4)
+  // ================================================================
+
+  // ------------------------------------------------ Patrones de mate
+  {
+    id: 'rey-pasillo', bloque: 'Ataque y defensa del rey', tema: 'Patrones de mate',
+    titulo: 'Mate del pasillo', en: 'Back-rank mate', lichess: 'backRankMate', alias: ['mate de la última fila', 'última fila'],
+    def: 'Mate con torre o dama en la última fila contra un rey encerrado por sus propios peones.',
+    principio: 'Un rey sin casilla de escape vive con el mate a una jugada.',
+    explicacion: `Una torre o la dama da jaque en la última fila y el rey no puede salir porque **sus propios peones** le tapan las casillas de delante.
+- Es uno de los mates más frecuentes de la práctica.
+- Muchas combinaciones consisten en **desviar o eliminar** al defensor de la última fila para que llegue este mate.
+**Cómo prevenirlo**: abre una casilla de escape a tu rey (mover un peón del enroque, lo que se llama «hacer luft») cuando haya calma, o mantén una pieza vigilando la primera fila.`,
+    pista: 'Monta un rey negro en g8 con peones en f7, g7 y h7 y una torre blanca que pueda llegar a la octava fila.',
+  },
+  {
+    id: 'rey-coz', bloque: 'Ataque y defensa del rey', tema: 'Patrones de mate',
+    titulo: 'Mate de la coz', en: 'Smothered mate', lichess: 'smotheredMate', alias: ['mate ahogado', 'legado de philidor'],
+    def: 'Mate de caballo a un rey rodeado por sus propias piezas, sin casillas libres.',
+    principio: 'Cuando el rey está rodeado por los suyos, basta un caballo.',
+    explicacion: `El rey está tan rodeado por sus propias piezas que un **caballo** le da mate sin ayuda.
+- El caso clásico es el rey en h8 con torre en g8 y peones en g7 y h7: un caballo en f7 da mate.
+- La combinación más famosa para llegar a él es el «legado de Philidor»: jaque doble de caballo y dama, **sacrificio de dama en g8** que obliga a la torre a capturar y, después, Nf7 mate.
+- Es una mezcla de **atracción** (la torre va a g8) y **jaque doble**.`,
+    pista: 'Monta un rey negro en h8 con torre en g8 y peones en g7 y h7, y un caballo blanco que pueda llegar a f7.',
+  },
+  {
+    id: 'rey-anastasia', bloque: 'Ataque y defensa del rey', tema: 'Patrones de mate',
+    titulo: 'Mate de Anastasia', en: 'Anastasia’s mate', lichess: 'anastasiaMate', alias: [],
+    def: 'Caballo en e7 que cierra al rey en el borde y torre o dama que da mate por la columna h.',
+    principio: 'Caballo que cierra, torre que remata por la columna del borde.',
+    explicacion: `El rey está en el borde (por ejemplo, en h7) con un peón propio en g7. Un **caballo en e7** controla g8 y g6, y una **torre o la dama da mate por la columna h**.
+- Suele llegar tras un sacrificio en h7 o en h5 que abre la columna.
+- La clave es el caballo: sin él, el rey escaparía por g8 o g6.`,
+    pista: 'Monta un rey negro en h7 con peón en g7, un caballo blanco en e7 y una torre blanca que pueda entrar por la columna h.',
+  },
+  {
+    id: 'rey-arabe', bloque: 'Ataque y defensa del rey', tema: 'Patrones de mate',
+    titulo: 'Mate árabe', en: 'Arabian mate', lichess: 'arabianMate', alias: [],
+    def: 'Torre y caballo contra el rey en la esquina: el caballo protege a la torre y le quita la última casilla.',
+    principio: 'Torre y caballo se bastan contra el rey arrinconado.',
+    explicacion: `Es uno de los mates más antiguos que se conocen. El rey está en la **esquina** (h8), un **caballo en f6** y una **torre en h7** que da mate.
+- El caballo protege a la torre y además controla g8, la última casilla de escape.
+- Aparece mucho cuando la columna h o la séptima fila se abren delante del enroque.`,
+    pista: 'Monta un rey negro en h8, un caballo blanco en f6 y una torre blanca que pueda llegar a h7.',
+  },
+  {
+    id: 'rey-boden', bloque: 'Ataque y defensa del rey', tema: 'Patrones de mate',
+    titulo: 'Mate de Boden', en: 'Boden’s mate', lichess: 'bodenMate', alias: ['mate de los dos alfiles cruzados'],
+    def: 'Dos alfiles en diagonales cruzadas dan mate a un rey enrocado largo y bloqueado por sus piezas.',
+    principio: 'Dos alfiles en aspa son una red para el rey.',
+    explicacion: `Dos alfiles en **diagonales que se cruzan** dan mate a un rey (normalmente enrocado largo, en c8 o c1) cuyas casillas de alrededor están ocupadas por sus propias piezas.
+- Suele llegar tras un **sacrificio de dama en c6** (o c3) que abre la diagonal.
+- Un alfil da el jaque y el otro corta las casillas de escape.`,
+    pista: 'Monta un rey negro enrocado largo en c8, con torre en d8 y peón en b7, y dos alfiles blancos que puedan cruzar sus diagonales.',
+  },
+
+  // ------------------------------------------------ Sacrificios típicos
+  {
+    id: 'rey-alfil-h7', bloque: 'Ataque y defensa del rey', tema: 'Sacrificios típicos',
+    titulo: 'Sacrificio del alfil en h7', en: 'Greek gift', lichess: 'kingsideAttack', alias: ['sacrificio griego', 'regalo griego', 'alfil en h7'],
+    def: 'Bxh7+ seguido de Ng5+ y Qh5: ataque relámpago contra el enroque corto.',
+    principio: 'Antes de dar el regalo griego, comprueba que el caballo y la dama llegan.',
+    explicacion: `El ataque clásico contra el enroque corto: **Bxh7+**, y tras Kxh7, **Ng5+** y **Qh5** con amenaza de mate en h7.
+**Condiciones para que funcione**:
+- Alfil apuntando a h7 (en d3) y caballo que pueda saltar a g5.
+- La dama puede llegar a h5 (o a la columna h) a tiempo.
+- No hay un caballo negro en f6 que defienda h7 (a menudo un peón en e5 lo ha echado).
+- Las negras no tienen defensas rápidas, como un alfil que capture en g5.
+**Cuidado**: si falla una condición, se pierde una pieza. Calcula las tres retiradas del rey: g8, g6 y h6.`,
+    pista: 'Monta una posición con alfil blanco en d3, caballo en f3, dama en d1, peón en e5 y el rey negro enrocado sin caballo en f6.',
+  },
+  {
+    id: 'rey-doble-alfiles', bloque: 'Ataque y defensa del rey', tema: 'Sacrificios típicos',
+    titulo: 'Doble sacrificio de alfiles', en: 'Double bishop sacrifice', lichess: 'sacrifice', alias: ['sacrificio de lasker'],
+    def: 'Entregar los dos alfiles en h7 y g7 para destrozar el enroque y dar entrada a dama y torre.',
+    principio: 'Dos alfiles por un enroque desnudo puede ser un buen negocio.',
+    explicacion: `Se sacrifican los **dos alfiles**, en h7 y en g7, para dejar el rey sin peones y atacarlo con la dama y una torre.
+- La partida modelo es Lasker–Bauer, Ámsterdam 1889: Bxh7+, Qh5+, Bxg7 y la torre se suma al ataque por la tercera fila.
+- Funciona si la dama y una torre llegan rápido y el rey no tiene defensores cerca.`,
+    pista: 'Monta un enroque negro con los dos alfiles blancos apuntando a h7 y g7, y la dama y una torre listas para entrar.',
+  },
+  {
+    id: 'rey-calidad', bloque: 'Ataque y defensa del rey', tema: 'Sacrificios típicos',
+    titulo: 'Sacrificio de calidad', en: 'Exchange sacrifice', lichess: 'sacrifice', alias: ['entregar la calidad', 'la calidad'],
+    def: 'Entregar una torre por una pieza menor a cambio de ataque, estructura o casillas.',
+    principio: 'La calidad se puede entregar cuando lo que se gana vale más que la diferencia.',
+    explicacion: `Entregar una **torre por un alfil o un caballo** (la «calidad»). Se pierde material, pero a cambio se consigue algo más valioso:
+- **Ataque**: eliminar la pieza que defiende el enroque rival.
+- **Estructura**: romper los peones del rival o conseguir un peón pasado fuerte.
+- **Casillas**: quedarse con un caballo o un alfil dominante contra una torre sin columnas.
+Es una idea más posicional de lo que parece: muchas veces no hay un mate inmediato, sino una posición mejor a largo plazo.`,
+    pista: 'Monta una posición en la que dar una torre por el caballo que defiende el enroque rival deje su rey sin protección.',
+  },
+  {
+    id: 'rey-f7', bloque: 'Ataque y defensa del rey', tema: 'Sacrificios típicos',
+    titulo: 'El punto débil f7', en: 'The weak f7 square', lichess: 'attackingF2F7', alias: ['f7', 'punto f7', 'casilla f7'],
+    def: 'Al empezar la partida, f7 (y f2) solo los defiende el rey: blanco favorito de los primeros ataques.',
+    principio: 'En la apertura, vigila f7: solo lo defiende tu rey.',
+    explicacion: `Al inicio de la partida, el peón de **f7** (f2 para las blancas) solo está defendido por el rey. Por eso muchos ataques tempranos apuntan allí.
+- El alfil en c4 y la dama o el caballo suelen combinarse contra él (el famoso mate del pastor es el caso más elemental).
+- Los sacrificios en f7 sacan al rey de su casilla y lo exponen.
+**Defensa**: desarrolla, enroca pronto y no muevas el peón de f sin motivo.`,
+    pista: 'Monta una apertura en la que el alfil de c4 y el caballo de g5 ataquen a la vez f7.',
+  },
+
+  // ------------------------------------------------ Enroques opuestos
+  {
+    id: 'rey-enroques-opuestos', bloque: 'Ataque y defensa del rey', tema: 'Enroques opuestos',
+    titulo: 'Enroques opuestos', en: 'Opposite-side castling', lichess: 'kingsideAttack', alias: ['enroque opuesto'],
+    def: 'Cada rey enrocado en un flanco distinto: carrera de ataques con peones.',
+    principio: 'Con enroques opuestos, gana el que llega primero.',
+    explicacion: `Cuando un rey está en el flanco de rey y el otro en el de dama, cada bando puede **lanzar sus peones** contra el rey rival sin debilitar el suyo.
+- Se convierte en una **carrera**: cada tiempo cuenta, y la defensa pasiva suele perder.
+- Lo importante es **abrir líneas** (columnas) contra el rey rival lo antes posible.
+- A veces se sacrifica un peón solo para abrir una columna un tiempo antes.`,
+    pista: 'Monta una posición con enroques opuestos y peones de los dos bandos avanzando contra el rey contrario.',
+  },
+  {
+    id: 'rey-avalancha', bloque: 'Ataque y defensa del rey', tema: 'Enroques opuestos',
+    titulo: 'Avalancha de peones', en: 'Pawn storm', lichess: 'kingsideAttack', alias: ['tormenta de peones', 'ataque con peones'],
+    def: 'Avance de varios peones contra el enroque rival para abrir líneas.',
+    principio: 'Los peones abren la puerta; las piezas entran.',
+    explicacion: `Avanzar varios peones juntos (normalmente g, h y a veces f) contra el enroque del rival.
+- El objetivo es **abrir columnas** para torres y dama, o echar a las piezas que defienden el rey.
+- Funciona sobre todo cuando tu rey está en el otro flanco (enroques opuestos) o el centro está cerrado.
+- Si tu rey está enrocado en ese mismo flanco, avanzar sus peones lo debilita: piénsalo dos veces.`,
+    pista: 'Monta un ataque blanco con los peones g y h avanzando contra un enroque corto negro, con tu rey enrocado largo.',
+  },
+
+  // ------------------------------------------------ Defensa del rey
+  {
+    id: 'rey-seguridad', bloque: 'Ataque y defensa del rey', tema: 'Defensa del rey',
+    titulo: 'Seguridad del rey', en: 'King safety', lichess: 'exposedKing', alias: ['rey expuesto', 'rey en el centro'],
+    def: 'Un rey bien guardado permite jugar al resto de piezas; uno expuesto lo condiciona todo.',
+    principio: 'Primero, tu rey a salvo; después, todo lo demás.',
+    explicacion: `En la apertura y el medio juego, el rey es la pieza más vulnerable.
+- **Enroca pronto**, sobre todo si el centro se va a abrir: un rey en el centro con columnas abiertas es un blanco fácil.
+- **Los peones del enroque** son su escudo: cada uno que avanza deja casillas débiles.
+- **Las piezas defensoras** (sobre todo el caballo en f6 o f3) valen oro: cambiarlas o desviarlas es el primer paso de muchos ataques.
+- En los finales, todo cambia: el rey debe salir y ser activo.`,
+    pista: 'Monta una posición con un rey sin enrocar en una columna e abierta y busca cómo atacarlo.',
+  },
+  {
+    id: 'rey-luft', bloque: 'Ataque y defensa del rey', tema: 'Defensa del rey',
+    titulo: 'Casilla de escape', en: 'Luft', lichess: 'backRankMate', alias: ['luft', 'hacer luft'],
+    def: 'Mover un peón del enroque para dar al rey una salida y evitar el mate del pasillo.',
+    principio: 'Cuando haya calma, dale aire a tu rey.',
+    explicacion: `Una jugada de peón (normalmente h3 o …h6, a veces g3 o …g6) que abre una **casilla de escape** al rey enrocado.
+- Previene el **mate del pasillo** y libera a las piezas que vigilaban la primera fila.
+- Hay que hacerla en un momento tranquilo y eligiendo bien el peón: mover un peón del enroque también crea alguna debilidad.`,
+    pista: 'Monta una posición en la que una torre esté atada a defender la primera fila, y libérala abriendo una casilla de escape.',
+  },
+  {
+    id: 'rey-defensa', bloque: 'Ataque y defensa del rey', tema: 'Defensa del rey',
+    titulo: 'Cómo defenderse de un ataque', en: 'Defending against an attack', lichess: 'defensiveMove', alias: ['defensa activa'],
+    def: 'Cambiar atacantes, cerrar líneas, traer defensores y contraatacar en el centro.',
+    principio: 'Contra un ataque en el flanco, la mejor defensa suele ser el centro.',
+    explicacion: `Cuando el rival ataca a tu rey, no basta con esperar.
+- **Cambia piezas atacantes**: cada cambio quita fuerza al ataque.
+- **Trae defensores** a tiempo, antes de que lleguen todos los atacantes.
+- **Cierra líneas** que el rival necesita abrir.
+- **Contraataca en el centro**: una ruptura central obliga al atacante a volver.
+- A veces conviene **devolver material** para cortar la iniciativa.
+- Y sobre todo, sigue mirando jaques, capturas y amenazas: la táctica también defiende.`,
+    pista: 'Monta un ataque rival en el flanco de rey y busca la ruptura central que lo frena.',
+  },
+
+  // ================================================================
+  //  FINALES (tanda 5)
+  // ================================================================
+
+  // ------------------------------------------------ Mates básicos
+  {
+    id: 'fin-mate-dama', bloque: 'Finales', tema: 'Mates básicos',
+    titulo: 'Mate con dama', en: 'Queen checkmate', lichess: 'https://lichess.org/practice', alias: [],
+    def: 'Rey y dama contra rey solo: se lleva al rey al borde y se da mate con ayuda del rey propio.',
+    principio: 'La dama encierra; el rey se acerca; cuidado con el ahogado.',
+    explicacion: `Con rey y dama contra rey solo, el mate es obligado.
+- La dama **reduce el espacio** del rey rival, saltando como un caballo respecto a él, hasta llevarlo al borde.
+- Después, **acerca tu rey** para apoyar el mate.
+- **Cuidado con el ahogado**: no dejes al rey rival sin jugadas si no está en jaque.`,
+    pista: 'Coloca rey y dama blancos contra el rey negro en el centro y llévalo al borde paso a paso.',
+  },
+  {
+    id: 'fin-mate-torre', bloque: 'Finales', tema: 'Mates básicos',
+    titulo: 'Mate con torre', en: 'Rook checkmate', lichess: 'https://lichess.org/practice', alias: [],
+    def: 'Rey y torre contra rey solo: la torre corta filas y el rey empuja hasta el borde.',
+    principio: 'La torre corta, el rey empuja.',
+    explicacion: `Con rey y torre contra rey solo también se gana siempre.
+- La torre **corta** al rey rival en una franja del tablero.
+- Tu rey se acerca y, con la **oposición** (reyes frente a frente), la torre da jaque y reduce la franja.
+- Cuando el rival tiene que mover y no puede acercarse, haz una **jugada de espera** con la torre.
+- Al final, el mate llega en el borde con los reyes enfrentados.`,
+    pista: 'Coloca rey y torre blancos contra el rey negro en el centro y reduce su espacio fila a fila.',
+  },
+  {
+    id: 'fin-escalera', bloque: 'Finales', tema: 'Mates básicos',
+    titulo: 'Mate de la escalera', en: 'Ladder mate', lichess: 'https://lichess.org/practice', alias: ['mate con dos torres', 'la escalera'],
+    def: 'Dos torres (o torre y dama) que se van alternando en filas consecutivas hasta el borde.',
+    principio: 'Una corta, la otra da jaque: peldaño a peldaño.',
+    explicacion: `Con dos torres (o torre y dama) no hace falta el rey.
+- Una pieza **corta** una fila y la otra **da jaque** en la siguiente; luego se alternan, como subiendo una escalera, hasta llegar al borde.
+- Si el rey rival se acerca a una torre, llévala al otro lado del tablero, lejos de él.`,
+    pista: 'Coloca dos torres blancas y el rey negro en el centro y practica la escalera hasta la octava fila.',
+  },
+  {
+    id: 'fin-dos-alfiles', bloque: 'Finales', tema: 'Mates básicos',
+    titulo: 'Mate con dos alfiles', en: 'Two bishops checkmate', lichess: 'https://lichess.org/practice', alias: [],
+    def: 'Los dos alfiles juntos, con ayuda del rey, empujan al rey rival a una esquina.',
+    principio: 'Los alfiles hacen la pared; el rey los acompaña.',
+    explicacion: `Rey y dos alfiles ganan contra rey solo.
+- Los alfiles, uno al lado del otro, forman una **barrera** diagonal que el rey rival no puede cruzar.
+- Tu rey se acerca y entre los tres llevan al rival al **borde** y luego a una **esquina**, donde llega el mate.
+- Ojo con el ahogado en las últimas jugadas.`,
+    pista: 'Coloca rey y dos alfiles blancos contra el rey negro en el centro y llévalo a una esquina.',
+  },
+  {
+    id: 'fin-alfil-caballo', bloque: 'Finales', tema: 'Mates básicos',
+    titulo: 'Mate con alfil y caballo', en: 'Bishop and knight checkmate', lichess: 'https://lichess.org/practice', alias: [],
+    def: 'El mate básico más difícil: solo se da en una esquina del color del alfil.',
+    principio: 'Alfil y caballo solo dan mate en la esquina del color del alfil.',
+    explicacion: `Es el mate elemental más difícil, y hay que hacerlo en menos de 50 jugadas.
+- Solo se puede dar en una **esquina del color del alfil**.
+- Primero se lleva al rey rival al borde; si se refugia en la esquina equivocada, hay que **trasladarlo** a la buena.
+- Para ese traslado existe una maniobra conocida del caballo en forma de «W».
+- No es urgente dominarlo pronto, pero es un gran ejercicio de coordinación.`,
+    pista: 'Coloca rey, alfil de casillas blancas y caballo contra el rey negro en a1 (esquina oscura) y trasládalo a h1 (esquina clara).',
+  },
+
+  // ------------------------------------------------ Finales de peones
+  {
+    id: 'fin-oposicion', bloque: 'Finales', tema: 'Finales de peones',
+    titulo: 'Oposición', en: 'Opposition', lichess: 'pawnEndgame', alias: ['tener la oposición', 'oposición directa', 'oposición distante'],
+    def: 'Reyes enfrentados con una casilla en medio: quien no tiene que mover, la gana.',
+    principio: 'En los finales de peones, quien tiene la oposición manda.',
+    explicacion: `Los reyes están en oposición cuando quedan **frente a frente con una casilla en medio** (en la misma columna, fila o diagonal). La «tiene» el bando que **no** está obligado a mover: el otro rey tiene que ceder el paso.
+- **Oposición directa**: una casilla de separación.
+- **Oposición distante**: tres o cinco casillas de separación; se convierte en directa al acercarse.
+- Es la clave de casi todos los finales de rey y peón: decide si el peón corona o si el defensor hace tablas.`,
+    pista: 'Coloca rey y peón blancos contra el rey negro y busca la posición en la que, con la oposición, el peón corona.',
+  },
+  {
+    id: 'fin-cuadrado', bloque: 'Finales', tema: 'Finales de peones',
+    titulo: 'Regla del cuadrado', en: 'Rule of the square', lichess: 'pawnEndgame', alias: ['el cuadrado'],
+    def: 'Si el rey rival puede entrar en el cuadrado del peón, lo alcanza antes de que corone.',
+    principio: 'Dibuja el cuadrado: si el rey entra, el peón no corona.',
+    explicacion: `Para saber si un rey alcanza a un peón pasado sin ayuda, imagina un **cuadrado** cuyo lado va desde el peón hasta la casilla de coronación.
+- Si el rey rival **está dentro del cuadrado** (o puede entrar con su jugada), alcanza al peón.
+- Si no puede entrar, el peón corona.
+- **Ojo**: si el peón está en su casilla inicial, cuenta el cuadrado desde la casilla siguiente, porque puede avanzar dos.`,
+    pista: 'Coloca un peón blanco pasado y el rey negro justo dentro y justo fuera de su cuadrado, y compara.',
+  },
+  {
+    id: 'fin-triangulacion', bloque: 'Finales', tema: 'Finales de peones',
+    titulo: 'Triangulación', en: 'Triangulation', lichess: 'zugzwang', alias: [],
+    def: 'Maniobra del rey en triángulo para perder un tiempo y pasar el turno al rival.',
+    principio: 'Si te sobra un tiempo, triangula y pásale el turno.',
+    explicacion: `A veces la posición sería ganadora si le tocara mover al rival. La **triangulación** consigue eso: tu rey recorre tres casillas en triángulo y vuelve a la misma posición, mientras el rey rival, con menos espacio, no puede imitarlo.
+- Resultado: la misma posición, pero **con el turno cambiado**.
+- Es una forma de provocar **zugzwang**.`,
+    pista: 'Monta un final de peones en el que tu rey tenga sitio para triangular y el rival no.',
+  },
+  {
+    id: 'fin-casillas-clave', bloque: 'Finales', tema: 'Finales de peones',
+    titulo: 'Casillas clave', en: 'Key squares', lichess: 'pawnEndgame', alias: ['casilla clave'],
+    def: 'Casillas que, si tu rey las alcanza, hacen coronar a tu peón hagas lo que hagas.',
+    principio: 'No persigas la coronación: conquista las casillas clave.',
+    explicacion: `En los finales de rey y peón, hay casillas que, si tu rey las alcanza, el peón corona **juegue lo que juegue el rival**: las casillas clave.
+- Para un peón que aún no ha pasado la mitad del tablero (salvo los peones de torre), son las **tres casillas dos filas por delante**: con el peón en e4, son d6, e6 y f6.
+- Cuando el peón avanza más, también lo son las casillas de la fila de delante.
+- Pensar en casillas clave es más fácil que calcular todas las jugadas.`,
+    pista: 'Coloca un peón blanco en e4 y marca con colores sus casillas clave d6, e6 y f6.',
+  },
+
+  // ------------------------------------------------ Finales de torres
+  {
+    id: 'fin-lucena', bloque: 'Finales', tema: 'Finales de torres',
+    titulo: 'Posición de Lucena', en: 'Lucena position', lichess: 'rookEndgame', alias: ['lucena', 'construir un puente', 'hacer el puente'],
+    def: 'Final ganado de torre y peón: el rey sale de delante del peón y la torre «hace el puente».',
+    principio: 'En la Lucena, construye el puente.',
+    explicacion: `Es la posición ganadora más importante de los finales de torres: tu peón en séptima, tu rey en la casilla de coronación y el rey rival **cortado** al menos una columna.
+- El problema es que tu rey no puede salir sin recibir jaques laterales.
+- La solución es **«construir un puente»**: lleva tu torre a la **cuarta fila**, saca al rey y, cuando lleguen los jaques, interpón la torre.
+- Su nombre viene del español Luis Ramírez de Lucena, que escribió uno de los primeros libros de ajedrez, en 1497.`,
+    pista: 'Monta la posición: rey blanco en d8, peón blanco en d7, torre blanca en la columna e cortando al rey negro (por ejemplo, en g7) y la torre negra lista para dar jaques laterales.',
+  },
+  {
+    id: 'fin-philidor', bloque: 'Finales', tema: 'Finales de torres',
+    titulo: 'Posición de Philidor', en: 'Philidor position', lichess: 'rookEndgame', alias: ['philidor', 'defensa de philidor', 'tercera fila'],
+    def: 'Defensa de tablas de torre contra torre y peón: la torre en la tercera fila y luego jaques por detrás.',
+    principio: 'En la Philidor, la torre en tu tercera fila; cuando el peón avanza, jaques por detrás.',
+    explicacion: `Es la defensa de tablas clave cuando tu rey está delante del peón rival.
+- Coloca tu torre en **tu tercera fila** (la sexta para el atacante): así el rey rival no puede avanzar.
+- Cuando el peón llega a esa fila, ya no puede proteger a su rey: entonces tu torre se va **al fondo del tablero** y da **jaques por detrás**, y el rey atacante no encuentra refugio.
+- Si dejas pasar el momento o pones la torre pasiva en tu primera fila demasiado pronto, se pierde.`,
+    pista: 'Monta: rey negro en e8 y torre negra en b6; peón blanco en e5 con su rey detrás (en d4 o f4) y torre blanca en a7. Practica la defensa.',
+  },
+  {
+    id: 'fin-torre-activa', bloque: 'Finales', tema: 'Finales de torres',
+    titulo: 'Torre activa', en: 'Active rook', lichess: 'rookEndgame', alias: ['actividad de la torre'],
+    def: 'En los finales de torres, una torre activa vale a menudo más que un peón de ventaja.',
+    principio: 'En los finales de torres, actividad antes que material.',
+    explicacion: `Los finales de torres son los más frecuentes, y en ellos la **actividad** lo decide casi todo.
+- Una torre que ataca peones, corta al rey rival o da jaques vale más que una torre atada a defender.
+- Muchas veces compensa **entregar un peón** para activar la torre.
+- Recuerda la **regla de Tarrasch**: torres detrás de los peones pasados, propios o rivales.`,
+    pista: 'Monta un final de torres con un peón de menos pero tu torre activa en séptima.',
+  },
+
+  // ------------------------------------------------ Finales de piezas menores
+  {
+    id: 'fin-alfiles-distinto', bloque: 'Finales', tema: 'Finales de piezas menores',
+    titulo: 'Alfiles de distinto color', en: 'Opposite-colored bishops', lichess: 'bishopEndgame', alias: ['alfiles de color contrario'],
+    def: 'Alfiles que van por casillas de distinto color: en el final, muy a menudo tablas.',
+    principio: 'Con alfiles de distinto color, uno o dos peones de más no siempre ganan.',
+    explicacion: `Cada bando tiene un alfil, pero de colores de casilla diferentes, así que nunca se pueden enfrentar.
+- **En el final**: son famosos por sus tablas. El defensor bloquea los peones en casillas del color de su alfil y el atacante no puede echarlo.
+- **En el medio juego**: favorecen al atacante, porque el alfil del defensor no puede tapar las casillas que ataca el otro.
+- Por eso, si vas perdiendo, buscar alfiles de distinto color en el final es un buen recurso de salvación.`,
+    pista: 'Monta un final de alfiles de distinto color con dos peones de ventaja para un bando, bien bloqueados por el otro.',
+  },
+  {
+    id: 'fin-alfil-equivocado', bloque: 'Finales', tema: 'Finales de piezas menores',
+    titulo: 'Alfil equivocado y peón de torre', en: 'Wrong bishop', lichess: 'bishopEndgame', alias: ['alfil equivocado'],
+    def: 'Alfil que no controla la casilla de coronación de un peón de torre: el rey rival en la esquina hace tablas.',
+    principio: 'Peón de torre con el alfil equivocado: el rey en la esquina salva.',
+    explicacion: `Con un **peón de torre** (columna a o h) y un alfil que **no controla su casilla de coronación**, el rey defensor solo tiene que llegar a esa esquina para hacer tablas: nadie puede echarlo de allí.
+- Es una excepción importante: material de sobra que no gana.
+- Por eso, al cambiar piezas hacia un final, fíjate en el color de tu alfil y en qué peón te quedará.`,
+    pista: 'Coloca un peón blanco en h6, un alfil blanco de casillas claras (no controla h8, que es oscura) y el rey negro en h8.',
+  },
+
+  // ------------------------------------------------ Finales de damas
+  {
+    id: 'fin-dama-peon', bloque: 'Finales', tema: 'Finales de damas',
+    titulo: 'Dama contra peón en séptima', en: 'Queen versus pawn', lichess: 'queenEndgame', alias: [],
+    def: 'La dama gana contra los peones de caballo y centrales; contra el de alfil o de torre suele ser tablas.',
+    principio: 'Peón de alfil o de torre en séptima: cuidado, que el ahogado salva.',
+    explicacion: `Con la dama contra un peón en séptima apoyado por su rey, la técnica es dar jaques hasta obligar al rey a ponerse **delante** de su peón, y aprovechar ese tiempo para acercar tu rey.
+- Contra **peones centrales o de caballo** (columnas b, d, e y g): se gana.
+- Contra un **peón de alfil o de torre** (columnas a, c, f y h): normalmente son **tablas**, porque el defensor aprovecha recursos de **ahogado**. Solo se gana si tu rey ya está cerca.`,
+    pista: 'Coloca un peón negro en c2 con su rey cerca y tu dama lejos, y comprueba el recurso de ahogado.',
+  },
+
+  // ------------------------------------------------ Fortalezas
+  {
+    id: 'fin-fortaleza', bloque: 'Finales', tema: 'Fortalezas',
+    titulo: 'Fortaleza', en: 'Fortress', lichess: 'defensiveMove', alias: ['fortalezas'],
+    def: 'Posición defensiva que el rival no puede romper aunque tenga más material.',
+    principio: 'Si no puedes ganar material, construye un muro que no se pueda romper.',
+    explicacion: `Una fortaleza es una posición en la que el bando con menos material **no puede perder**, porque el rival no encuentra forma de entrar.
+- Se basa en casillas que el atacante no puede ocupar y en piezas defensoras bien colocadas.
+- Ejemplos típicos: el rey en la esquina con el alfil equivocado, o una torre y peones que impiden la entrada del rey rival.
+- Cuando vas perdiendo, buscar una fortaleza es a menudo la mejor tabla de salvación.`,
+    pista: 'Monta una posición con material de menos en la que el rey rival no tenga casillas de entrada.',
+  },
+
+  // ------------------------------------------------ Principios de finales
+  {
+    id: 'fin-rey-activo', bloque: 'Finales', tema: 'Principios de finales',
+    titulo: 'Rey activo', en: 'Active king', lichess: 'endgame', alias: ['centralizar el rey', 'activar el rey'],
+    def: 'En el final, el rey deja de esconderse y se convierte en una pieza fuerte.',
+    principio: 'En el final, el rey es una pieza más: sácalo.',
+    explicacion: `Con pocas piezas en el tablero, el peligro de mate desaparece y el rey se convierte en una **pieza muy fuerte**.
+- Llévalo hacia el **centro** o hacia donde estén los peones.
+- Un rey activo ataca peones, apoya los tuyos y frena los pasados del rival.
+- Muchos finales se ganan simplemente porque un rey llega antes que el otro.`,
+    pista: 'Monta un final de peones con un rey centralizado y otro pasivo en el borde.',
+  },
+  {
+    id: 'fin-dos-debilidades', bloque: 'Finales', tema: 'Principios de finales',
+    titulo: 'Principio de las dos debilidades', en: 'Principle of two weaknesses', lichess: 'endgame', alias: ['dos debilidades', 'segunda debilidad'],
+    def: 'Una debilidad se puede defender; dos, en flancos distintos, desbordan al defensor.',
+    principio: 'Si una debilidad no basta, crea una segunda en el otro flanco.',
+    explicacion: `Un rival con **una sola debilidad** suele poder defenderla. Pero si creas **una segunda debilidad** lejos de la primera (en el otro flanco), sus piezas no pueden atender las dos a la vez.
+- La técnica: ataca la primera debilidad para atar al defensor y luego abre un segundo frente.
+- Es una de las ideas centrales de la técnica de finales y de convertir la ventaja.`,
+    pista: 'Monta un final en el que el rival tenga un peón débil en un flanco y crea otro objetivo en el contrario.',
+  },
+  {
+    id: 'fin-no-apresurarse', bloque: 'Finales', tema: 'Principios de finales',
+    titulo: 'No te apresures', en: 'Do not hurry', lichess: 'endgame', alias: ['no apresurarse'],
+    def: 'En un final ventajoso, mejora todas tus piezas antes de pasar a la acción decisiva.',
+    principio: 'Con ventaja en el final, no hay prisa: mejora todo antes de decidir.',
+    explicacion: `En un final con ventaja, si el rival no tiene contrajuego, **no hay que precipitarse**.
+- Mejora primero todo lo que se pueda: rey activo, peones en buenas casillas, piezas en sus mejores puestos.
+- Solo entonces pasa a la acción decisiva.
+- Repetir jugadas para ganar tiempo en el reloj o confundir al rival también forma parte de esta técnica.`,
+    pista: 'Monta un final con ventaja clara en el que sea mejor mejorar el rey antes de avanzar el peón pasado.',
   },
 ];
