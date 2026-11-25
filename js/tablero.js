@@ -127,9 +127,19 @@ const formasDe = (ej, ply) => (ply === 0 ? ej.formas0 : ej.jugadas[ply - 1].form
 function montar(el, config) {
   el.innerHTML = '<div class="cg-caja"></div>';
   const api = Chessground(el.firstChild, Object.assign({ coordinates: true, blockTouchScroll: true, animation: { duration: 180 } }, config));
-  const ro = new ResizeObserver(() => api.redrawAll());
+  // Redibujar solo si el tamaño cambia de verdad (en píxeles enteros) y, como
+  // mucho, una vez por fotograma. Sin esto, Safari puede entrar en un bucle:
+  // redibujar mueve medio píxel, eso avisa de otro cambio, y vuelta a empezar.
+  let ancho = Math.round(el.clientWidth), alto = Math.round(el.clientHeight), marco = 0;
+  const ro = new ResizeObserver(() => {
+    const w = Math.round(el.clientWidth), h = Math.round(el.clientHeight);
+    if (w === ancho && h === alto) return;
+    ancho = w; alto = h;
+    cancelAnimationFrame(marco);
+    marco = requestAnimationFrame(() => api.redrawAll());
+  });
   ro.observe(el);
-  return { api, cerrar: () => { ro.disconnect(); api.destroy(); } };
+  return { api, cerrar: () => { cancelAnimationFrame(marco); ro.disconnect(); api.destroy(); } };
 }
 
 function etiquetaJugada(ej, ply) {

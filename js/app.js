@@ -8,7 +8,7 @@ import * as R from './repaso.js';
 import * as RP from './repertorio.js';
 import { FEN_INICIAL, crearVisor, crearEditor, crearEjercicio, crearEntrenoLinea, sirveDeEjercicio, dePgn, aPgn, ejemploVacio, usarFiguras, verSan, diagrama, textoJugadas, escapar as esc } from './tablero.js';
 
-export const VERSION = '3.1.0 (fase 3: repertorio)';
+export const VERSION = '3.1.1 (fase 3: repertorio)';
 const app = document.getElementById('app');
 
 // ---------------------------------------------------------------------

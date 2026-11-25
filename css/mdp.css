@@ -46,8 +46,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 /* ---------- Cabecera ---------- */
 .cab { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 8px;
-  padding: calc(env(safe-area-inset-top) + 10px) 16px 10px; background: color-mix(in srgb, var(--fondo) 88%, transparent);
-  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--linea); }
+  padding: calc(env(safe-area-inset-top) + 10px) 16px 10px; background: var(--fondo);
+  border-bottom: 1px solid var(--linea); }
 .marca { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
 .marca .mono { width: 52px; height: 52px; font-size: 20px; border-radius: 13px; }
 .marca-txt { display: flex; flex-direction: column; min-width: 0; }
@@ -238,7 +238,7 @@ legend { font-family: var(--serif); font-weight: 600; font-size: 17px; padding: 
 .botones { display: flex; gap: 10px; }
 .botones .primario { flex: 1; }
 .botones.pegados { position: sticky; bottom: calc(var(--barra) + env(safe-area-inset-bottom) + 8px); margin-top: 16px; padding: 10px; border-radius: var(--radio);
-  background: color-mix(in srgb, var(--fondo) 92%, transparent); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+  background: var(--fondo); }
 .flotante { position: fixed; right: max(16px, calc(50% - 324px)); bottom: calc(var(--barra) + env(safe-area-inset-bottom) + 16px);
   width: 56px; height: 56px; border-radius: 18px; background: var(--acento); color: var(--acento-txt); border: 0;
   box-shadow: 0 6px 20px rgba(0,0,0,.25); z-index: 15; padding: 0; }
@@ -288,7 +288,7 @@ legend { font-family: var(--serif); font-weight: 600; font-size: 17px; padding: 
 /* ---------- Barra inferior ---------- */
 .barra { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: grid; grid-template-columns: repeat(5, 1fr);
   max-width: 680px; margin: 0 auto; padding: 6px 6px calc(env(safe-area-inset-bottom) + 6px);
-  background: color-mix(in srgb, var(--papel) 92%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  background: var(--papel);
   border-top: 1px solid var(--linea); }
 .barra a { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0; font-size: 11px; color: var(--suave); border-radius: 12px; }
 .barra a.on { color: var(--acento); font-weight: 700; }
