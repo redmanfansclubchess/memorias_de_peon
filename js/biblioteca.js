@@ -4,10 +4,15 @@
 //  Cada ficha aparece cuando su tema está activo, translúcida hasta
 //  que se le añade un ejemplo propio. Textos propios de MdP.
 //  Tanda 1 · Táctica (18 fichas)
+//  Tanda 2 · Estructuras de peones (17 fichas)
 // =====================================================================
-export const BIBLIOTECA_VERSION = '1';
+export const BIBLIOTECA_VERSION = '2';
 
 export const BIBLIOTECA = [
+  // ================================================================
+  //  TÁCTICA (tanda 1)
+  // ================================================================
+
   // ------------------------------------------------ Motivos tácticos
   {
     id: 'tac-clavada', bloque: 'Táctica', tema: 'Motivos tácticos',
@@ -220,5 +225,217 @@ export const BIBLIOTECA = [
 - El rey rival solo puede moverse entre dos casillas, así que no puede romper el mecanismo.
 - El ejemplo más famoso es la partida Torre–Lasker, Moscú 1925.`,
     pista: 'Coloca tu torre en la séptima fila y tu alfil apuntando al rey rival, de forma que la torre tape el jaque del alfil.',
+  },
+  // ================================================================
+  //  ESTRUCTURAS DE PEONES (tanda 2)
+  // ================================================================
+
+  // ------------------------------------------------ Debilidades de peones
+  {
+    id: 'est-aislado', bloque: 'Estructuras de peones', tema: 'Debilidades de peones',
+    titulo: 'Peón aislado', en: 'Isolated pawn', lichess: '', alias: ['peones aislados', 'aislado'],
+    def: 'Peón sin peones propios en las columnas vecinas: ningún peón puede defenderlo.',
+    principio: 'Un peón aislado solo puede defenderse con piezas, y eso las ata.',
+    explicacion: `Un peón está aislado cuando no hay peones propios en las columnas de al lado. Ningún peón puede protegerlo, así que tienen que hacerlo las piezas.
+- **La casilla de delante** es un buen puesto para el rival: ningún peón puede echar a la pieza que se instale allí.
+- Es un **objetivo** fácil de atacar, sobre todo en columnas abiertas o semiabiertas.
+- Cuantas menos piezas quedan en el tablero, más débil se vuelve: en los finales suele ser una desventaja clara.
+**No siempre es malo**: a cambio suele dar columnas abiertas y juego activo a las piezas.`,
+    pista: 'Monta una estructura con un peón aislado en la columna c o e y una pieza rival bien instalada en la casilla de delante.',
+  },
+  {
+    id: 'est-aislado-central', bloque: 'Estructuras de peones', tema: 'Debilidades de peones',
+    titulo: 'Peón aislado central', en: 'Isolated queen’s pawn (IQP)', lichess: '', alias: ['peón de dama aislado', 'IQP'],
+    def: 'Peón aislado en la columna d (d4 o d5): fuerza dinámica en el medio juego, debilidad en el final.',
+    principio: 'Con el peón aislado, busca el ataque; contra él, bloquea y cambia piezas.',
+    explicacion: `Es el peón aislado más famoso: un peón en **d4** (o d5) sin peones en las columnas c y e. Sale en muchas aperturas (Gambito de dama, Caro-Kann, Nimzoindia, Siciliana Alapin…).
+**Para quien lo tiene**:
+- Da espacio y dos casillas fuertes para los caballos (e5 y c5).
+- Las columnas c y e quedan abiertas para las torres.
+- El plan es **atacar**, a menudo sobre el enroque rival, y preparar la ruptura **d4-d5** en el momento justo.
+**Para quien juega contra él**:
+- **Bloquea** la casilla de delante (d5): el mejor bloqueador es el caballo.
+- **Cambia piezas**, sobre todo las menores: cada cambio quita fuerza al ataque y acerca un final en el que el peón será débil.
+- Presiónalo con torres y piezas, y no permitas la ruptura d4-d5.`,
+    pista: 'Monta una posición con un peón blanco aislado en d4 y un caballo negro bloqueando en d5.',
+  },
+  {
+    id: 'est-doblado', bloque: 'Estructuras de peones', tema: 'Debilidades de peones',
+    titulo: 'Peón doblado', en: 'Doubled pawns', lichess: '', alias: ['peones doblados', 'doblados'],
+    def: 'Dos peones propios en la misma columna, normalmente tras una captura.',
+    principio: 'Dos peones en la misma columna se estorban: ni se defienden ni avanzan juntos.',
+    explicacion: `Aparecen cuando un peón captura y se coloca delante o detrás de otro peón propio.
+- **No pueden defenderse entre sí**, y el de delante bloquea al de detrás.
+- Pierden capacidad de crear un peón pasado: en una mayoría con peones doblados, a veces no se consigue coronar.
+- Suelen ser más débiles si además están aislados.
+**Compensaciones habituales**: una columna semiabierta al lado, más control de casillas centrales o la pareja de alfiles. Por eso, a veces se aceptan a propósito.`,
+    pista: 'Monta un cambio de alfil por caballo que deje al rival con peones doblados en la columna c o f.',
+  },
+  {
+    id: 'est-retrasado', bloque: 'Estructuras de peones', tema: 'Debilidades de peones',
+    titulo: 'Peón retrasado', en: 'Backward pawn', lichess: '', alias: ['retrasado', 'peones retrasados'],
+    def: 'Peón que se ha quedado atrás respecto a sus vecinos y no puede avanzar sin perderse.',
+    principio: 'El peón retrasado deja delante una casilla débil: ocúpala.',
+    explicacion: `Es un peón que se ha quedado por detrás de los peones de las columnas vecinas: ellos ya no pueden protegerlo, y no puede avanzar porque la casilla de delante está controlada por un peón rival.
+- **La casilla de delante** se convierte en un puesto fijo para una pieza rival.
+- Si está en una **columna semiabierta**, las torres rivales lo atacan de frente.
+- Ejemplo típico: el peón de d6 de muchas Sicilianas, con la casilla d5 delante.
+**Para quien lo tiene**: la clave es conseguir avanzarlo (la ruptura) o controlar con piezas la casilla de delante.`,
+    pista: 'Monta una estructura con un peón negro retrasado en d6 y un caballo blanco instalado en d5.',
+  },
+  {
+    id: 'est-colgantes', bloque: 'Estructuras de peones', tema: 'Debilidades de peones',
+    titulo: 'Peones colgantes', en: 'Hanging pawns', lichess: '', alias: ['colgantes'],
+    def: 'Dos peones unidos en el centro (normalmente c y d) sin peones propios a los lados.',
+    principio: 'Unidos y móviles son fuertes; obligados a avanzar, se vuelven débiles.',
+    explicacion: `Dos peones, uno al lado del otro (típicamente c4 y d4, o c5 y d5), sin peones propios en las columnas b y e.
+- **Fuerza**: controlan el centro y pueden avanzar para abrir el juego en el momento oportuno.
+- **Debilidad**: no se protegen el uno al otro en diagonal. Si uno avanza, el otro puede quedar retrasado o aislado.
+**Contra ellos**: atácalos con piezas y con rupturas laterales (b4-b5 o e3-e4) para obligar a que uno avance o a que tengan que defenderse con piezas.
+**Con ellos**: mantenlos unidos, apóyalos con piezas activas y elige bien el momento de avanzar.`,
+    pista: 'Monta una posición con peones negros en c5 y d5, sin peones en b y e, y piezas blancas presionándolos.',
+  },
+
+  // ------------------------------------------------ Cadenas de peones
+  {
+    id: 'est-cadena', bloque: 'Estructuras de peones', tema: 'Cadenas de peones',
+    titulo: 'Cadena de peones', en: 'Pawn chain', lichess: '', alias: ['cadenas de peones', 'base de la cadena', 'base débil'],
+    def: 'Peones en diagonal que se protegen unos a otros. Se ataca por su base.',
+    principio: 'Ataca la cadena por su base: el peón de atrás no tiene quien lo defienda.',
+    explicacion: `Peones colocados en diagonal, cada uno protegiendo al de delante (por ejemplo, d4-e5 frente a d5-e6 en la Francesa).
+- **La base** es el último peón de la cadena: ningún peón la defiende, y es el punto débil.
+- **La cabeza** es el peón más avanzado; atacarla también es posible, pero suele ser menos eficaz.
+- **Hacia dónde apunta**: normalmente cada bando juega en el flanco hacia el que apunta su cadena. En la Francesa, las blancas atacan en el flanco de rey y las negras atacan la base d4 con …c5.
+**Plan típico**: rupturas de peón contra la base, apoyadas por piezas.`,
+    pista: 'Monta la cadena de la Francesa (d4-e5 contra d5-e6) y prepara la ruptura negra …c5 contra la base.',
+  },
+
+  // ------------------------------------------------ Peón pasado y mayorías
+  {
+    id: 'est-pasado', bloque: 'Estructuras de peones', tema: 'Peón pasado y mayorías',
+    titulo: 'Peón pasado', en: 'Passed pawn', lichess: 'advancedPawn', alias: ['peones pasados', 'pasado'],
+    def: 'Peón sin peones rivales delante ni en las columnas vecinas: nada lo frena salvo las piezas.',
+    principio: 'Los peones pasados se empujan; los del rival se bloquean.',
+    explicacion: `Un peón está pasado cuando ningún peón rival puede frenarlo ni capturarlo en su camino a la coronación.
+- **Hay que avanzarlo**: cuanto más avanzado, más piezas rivales tiene que atar.
+- **Para frenarlo, bloquéalo**: pon una pieza justo delante. El caballo es un bloqueador excelente, y en los finales, el rey.
+- **Regla de Tarrasch**: las torres van detrás de los peones pasados, tanto de los propios como de los rivales.
+**Valor**: en los finales, un peón pasado suele decidir la partida.`,
+    pista: 'Monta un final de torres con un peón pasado y coloca cada torre según la regla de Tarrasch.',
+  },
+  {
+    id: 'est-pasado-protegido', bloque: 'Estructuras de peones', tema: 'Peón pasado y mayorías',
+    titulo: 'Peón pasado protegido', en: 'Protected passed pawn', lichess: 'pawnEndgame', alias: ['pasado protegido'],
+    def: 'Peón pasado defendido por otro peón: el rey rival no puede capturarlo.',
+    principio: 'Un pasado protegido trabaja solo y deja libre a tu rey.',
+    explicacion: `Es un peón pasado defendido por otro peón propio.
+- El rey rival **no puede capturarlo**, así que queda atado a vigilarlo.
+- Tu rey, en cambio, queda **libre** para atacar en el otro flanco.
+- En los finales de peones suele ser decisivo.`,
+    pista: 'Monta un final de peones con un pasado protegido en un flanco y tu rey libre para atacar en el otro.',
+  },
+  {
+    id: 'est-pasados-unidos', bloque: 'Estructuras de peones', tema: 'Peón pasado y mayorías',
+    titulo: 'Peones pasados unidos', en: 'Connected passed pawns', lichess: 'advancedPawn', alias: ['pasados unidos'],
+    def: 'Dos peones pasados en columnas vecinas: se protegen y avanzan juntos.',
+    principio: 'Dos pasados unidos avanzan como una apisonadora.',
+    explicacion: `Dos peones pasados en columnas contiguas.
+- Se protegen el uno al otro mientras avanzan: si capturan a uno, el otro sigue adelante.
+- Son tan fuertes que, cuando llegan juntos a la sexta fila, a menudo vencen a una torre sin ayuda de su rey.
+- Para frenarlos hay que bloquear el que va delante y atacar al de atrás.`,
+    pista: 'Monta dos peones blancos pasados unidos en sexta contra una torre negra, con el rey negro lejos.',
+  },
+  {
+    id: 'est-mayoria', bloque: 'Estructuras de peones', tema: 'Peón pasado y mayorías',
+    titulo: 'Mayoría de peones', en: 'Pawn majority', lichess: '', alias: ['mayoría en el flanco de dama', 'mayoría'],
+    def: 'Más peones que el rival en un flanco: con ellos se puede crear un peón pasado.',
+    principio: 'Una mayoría sana es un peón pasado en potencia: el candidato va primero.',
+    explicacion: `Tienes mayoría en un flanco cuando allí tienes más peones que el rival (por ejemplo, tres contra dos).
+- Bien avanzada, **crea un peón pasado**.
+- **El candidato va primero**: avanza antes el peón que no tiene un peón rival delante, apoyado por los demás.
+- La **mayoría en el flanco de dama** se valora mucho en los finales: el pasado que crea queda lejos de los reyes.
+- Si la mayoría tiene peones doblados, quizá no logre crear un pasado.`,
+    pista: 'Monta una mayoría blanca de tres contra dos en el flanco de dama y crea el peón pasado avanzando primero el candidato.',
+  },
+  {
+    id: 'est-pasado-alejado', bloque: 'Estructuras de peones', tema: 'Peón pasado y mayorías',
+    titulo: 'Peón pasado alejado', en: 'Outside passed pawn', lichess: 'pawnEndgame', alias: ['pasado alejado'],
+    def: 'Peón pasado lejos del resto de peones: desvía al rey rival y gana el final.',
+    principio: 'El pasado alejado es un señuelo: el rey rival va a por él y tu rey se come el resto.',
+    explicacion: `Es un peón pasado situado lejos de la masa principal de peones, normalmente en una columna del borde.
+- En los finales de peones, el rey rival tiene que ir a frenarlo.
+- Mientras tanto, **tu rey se va al otro flanco** y captura los peones que quedan.
+- Por eso se considera una ventaja decisiva en los finales de peones.`,
+    pista: 'Monta un final de peones con un peón pasado tuyo en la columna a y el resto de peones en el flanco de rey.',
+  },
+
+  // ------------------------------------------------ Rupturas
+  {
+    id: 'est-ruptura', bloque: 'Estructuras de peones', tema: 'Rupturas',
+    titulo: 'Ruptura de peones', en: 'Pawn break', lichess: '', alias: ['ruptura', 'rupturas'],
+    def: 'Avance de peón que ataca la estructura rival para abrir líneas o cambiar el centro.',
+    principio: 'Las rupturas son los planes de los peones: prepáralas antes de jugarlas.',
+    explicacion: `Una ruptura es un avance de peón que choca con los peones del rival para abrir columnas y diagonales o para cambiar la estructura.
+- Casi todas las estructuras tienen **rupturas típicas**: …c5 y …f6 en la Francesa, …f5 en la India de rey, b4-b5 en la Carlsbad.
+- **Hay que prepararla**: con piezas que apoyen la casilla de ruptura y que estén listas para aprovechar las líneas que se abren.
+- **El momento importa**: demasiado pronto no funciona; demasiado tarde, el rival ya se ha organizado.
+**Pregunta clave**: ¿cuál es mi ruptura en esta estructura? ¿Y la de mi rival?`,
+    pista: 'Monta una estructura de la Francesa y prepara con piezas la ruptura …c5 antes de jugarla.',
+  },
+  {
+    id: 'est-ruptura-coronar', bloque: 'Estructuras de peones', tema: 'Rupturas',
+    titulo: 'Ruptura para coronar', en: 'Breakthrough', lichess: 'promotion', alias: ['rotura', 'sacrificio de ruptura'],
+    def: 'Sacrificio de peones que abre paso a uno de ellos para coronar.',
+    principio: 'A veces un peón se entrega para que otro corone.',
+    explicacion: `En los finales de peones, cuando los peones de los dos bandos están frente a frente, un sacrificio puede abrir paso a uno de ellos.
+- El caso clásico: tres peones blancos en a5, b5 y c5 contra tres negros en a7, b7 y c7, sin reyes cerca. **b6!** gana: si …cxb6, a6!; y si …axb6, c6!, y un peón blanco corona.
+- Hay que **calcular** con precisión: si el rey rival está cerca, la ruptura puede fallar.`,
+    pista: 'Monta el caso clásico: peones blancos en a5, b5 y c5 contra negros en a7, b7 y c7, con los reyes lejos, y encuentra la ruptura.',
+  },
+
+  // ------------------------------------------------ Estructuras tipo
+  {
+    id: 'est-carlsbad', bloque: 'Estructuras de peones', tema: 'Estructuras tipo',
+    titulo: 'Estructura Carlsbad', en: 'Carlsbad structure', lichess: '', alias: ['carlsbad', 'ataque de minorías', 'ataque de las minorías'],
+    def: 'Estructura del Gambito de dama, variante del cambio, con el famoso ataque de minorías.',
+    principio: 'En la Carlsbad, las blancas atacan con la minoría: b4-b5 contra c6.',
+    explicacion: `Aparece en el Gambito de dama, variante del cambio: blancas con peones en a2, b2, d4 y e3; negras con a7, b7, c6 y d5 (la columna c abierta para las blancas, la e para las negras).
+**Plan blanco: el ataque de minorías**. Avanzar b4-b5 con dos peones contra tres para cambiar en c6 y dejar a las negras un peón débil en c6 (retrasado) o aislado.
+**Otros planes blancos**: la ruptura central e3-e4 (preparada con f3) o el ataque en el flanco de rey.
+**Plan negro**: juego en el flanco de rey, un caballo en e4 y, a veces, …c5 para cambiar la estructura.`,
+    pista: 'Monta la estructura Carlsbad y juega el ataque de minorías b4-b5 hasta crear la debilidad en c6.',
+  },
+  {
+    id: 'est-maroczy', bloque: 'Estructuras de peones', tema: 'Estructuras tipo',
+    titulo: 'Estructura Maroczy', en: 'Maróczy bind', lichess: '', alias: ['maroczy', 'bind de maroczy'],
+    def: 'Peones blancos en c4 y e4 que frenan las rupturas …b5 y …d5 de las negras.',
+    principio: 'La Maroczy es una tenaza: las blancas ganan espacio, las negras esperan su ruptura.',
+    explicacion: `Estructura típica de algunas Sicilianas: las blancas colocan peones en **c4 y e4**, y las negras tienen su peón en d6.
+- **Para las blancas**: espacio y control de d5; las rupturas negras …b5 y …d5 son muy difíciles.
+- **Para las negras**: posición sólida pero con poco espacio. Conviene **cambiar piezas** (con menos piezas, la falta de espacio molesta menos) y preparar con paciencia …b5, …d5 o …f5.
+- Las negras suelen buscar la casilla d4 para un caballo y presionar c4.`,
+    pista: 'Monta una Maroczy con peones blancos en c4 y e4 y prepara con las negras la ruptura …b5.',
+  },
+  {
+    id: 'est-erizo', bloque: 'Estructuras de peones', tema: 'Estructuras tipo',
+    titulo: 'Erizo', en: 'Hedgehog', lichess: '', alias: ['estructura erizo'],
+    def: 'Peones negros en a6, b6, d6 y e6: posición compacta que espera su momento para romper.',
+    principio: 'El erizo parece pasivo, pero tiene las púas preparadas: …b5 y …d5.',
+    explicacion: `Las negras colocan sus peones en **a6, b6, d6 y e6** (normalmente contra peones blancos en c4 y e4) y las piezas detrás, en las tres primeras filas.
+- Es una posición **compacta y elástica**: cede espacio, pero no tiene debilidades fáciles.
+- Las negras esperan el momento de **romper** con …b5 o …d5; cuando la ruptura llega, la posición se abre y las piezas negras saltan.
+- **Para las blancas**: aprovechar el espacio sin precipitarse y vigilar siempre esas dos rupturas.`,
+    pista: 'Monta una estructura de erizo y prepara la ruptura …d5 con las piezas negras.',
+  },
+  {
+    id: 'est-stonewall', bloque: 'Estructuras de peones', tema: 'Estructuras tipo',
+    titulo: 'Stonewall', en: 'Stonewall', lichess: '', alias: ['muro de piedra'],
+    def: 'Peones en c3, d4, e3 y f4 (o c6, d5, e6 y f5): casilla fuerte delante y un alfil malo detrás.',
+    principio: 'El Stonewall regala una casilla fuerte… y deja otra débil.',
+    explicacion: `Peones en **c3, d4, e3 y f4** (blancas) o **c6, d5, e6 y f5** (negras, en la Holandesa Stonewall).
+- **Ventaja**: una casilla muy fuerte delante para un caballo (e5 para las blancas, e4 para las negras) y posibilidades de ataque en el flanco de rey.
+- **Inconvenientes**: la casilla de detrás del peón e queda débil (e4 para las blancas, e5 para las negras), y el alfil del color de los peones queda malo, encerrado tras ellos.
+- Los planes giran en torno a esas dos casillas: ocupar la fuerte y vigilar la débil.`,
+    pista: 'Monta un Stonewall blanco y coloca un caballo en e5 apoyado por los peones d4 y f4.',
   },
 ];

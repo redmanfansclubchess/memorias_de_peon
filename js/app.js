@@ -3,9 +3,10 @@
 //  by Manuel Esteve
 // =====================================================================
 import * as D from './datos.js';
+import { BIBLIOTECA } from './biblioteca.js';
 import { crearVisor, crearEditor, dePgn, aPgn, ejemploVacio, usarFiguras, diagrama, textoJugadas, escapar as esc } from './tablero.js';
 
-export const VERSION = '1.1.2 (fase 1B)';
+export const VERSION = '1.3.0 (biblioteca 2)';
 const app = document.getElementById('app');
 
 // ---------------------------------------------------------------------
@@ -147,6 +148,7 @@ function marco() {
         <span class="mono">M<i>d</i>P</span>
         <span class="marca-txt"><b>Memorias de Peón</b><small class="lema-cab">Casilla a casilla</small><small class="autor">by Manuel Esteve</small></span>
       </a>
+      <button class="btn-ico" id="lupa" aria-label="Buscar">${ico('buscar')}</button>
       <button class="sync" id="sync"></button>
       <a href="#/ajustes" class="btn-ico" aria-label="Ajustes">${ico('ajustes')}</a>
     </header>
@@ -155,6 +157,7 @@ function marco() {
       ${[['inicio', 'Inicio'], ['conceptos', 'Conceptos'], ['repertorio', 'Repertorio'], ['entrenar', 'Entrenar'], ['clases', 'Clases']]
         .map(([r, t]) => `<a href="#/${r}" data-r="${r}">${ico(r)}<span>${t}</span></a>`).join('')}
     </nav>`;
+  document.getElementById('lupa').addEventListener('click', abrirBuscador);
   document.getElementById('sync').addEventListener('click', async () => {
     if (D.estadoSync.error && /Entra/.test(D.estadoSync.error)) return ir('#/entrar');
     if (!navigator.onLine) return aviso('Sin conexión: los cambios están guardados en el dispositivo');
@@ -265,6 +268,8 @@ async function iniciarSesion(u) {
     }
   } catch (e) { console.error(e); }
   await D.sincronizar();
+  const n = await sembrarBiblioteca();
+  if (n) { aviso(`${n} fichas sugeridas de la biblioteca en tus temas activos`); pintar(true); }
 }
 
 // ---------------------------------------------------------------------
@@ -459,6 +464,8 @@ function vConcepto(v, id) {
   const ejemplos = ejemplosDe(id);
   const rel = relacionados(id);
   const clase = c.clase_id && D.obtener('clases', c.clase_id);
+  const mapa = terminos();
+  const termino = terminoDeFicha(c, mapa);
   const volver = b ? `#/bloque/${b.id}` : '#/bloque/bandeja';
   v.innerHTML = `
     <div class="cab-vista">
@@ -474,8 +481,9 @@ function vConcepto(v, id) {
         ${c.origen === 'mdp' ? `<span class="estado mdp">${adaptada(c) ? 'Biblioteca MdP · adaptada' : 'Sugerida por MdP'}</span>` : ''}
       </div>
       <h1 class="ficha-tit">${esc(c.titulo)}</h1>
+      ${termino && termino.en ? `<p class="ficha-en"><span class="g-en">${esc(termino.en)}</span> en inglés · <a href="#/glosario?q=${encodeURIComponent(termino.es)}">glosario</a></p>` : ''}
       ${c.principio ? `<blockquote class="principio">${esc(c.principio)}</blockquote>` : ''}
-      ${c.explicacion ? `<div class="md">${md(c.explicacion)}</div>` : ''}
+      ${c.explicacion ? `<div class="md">${enlazar(md(c.explicacion), mapa, norm(c.titulo))}</div>` : ''}
       ${(c.etiquetas || []).length ? `<div class="chips">${c.etiquetas.map(t => `<a class="chip" href="#/conceptos?q=${encodeURIComponent(t)}">#${esc(t)}</a>`).join('')}</div>` : ''}
       ${clase ? `<a class="de-clase" href="#/clase/${clase.id}">${ico('clases', 'peq')} Visto en la clase del ${fechaLarga(clase.fecha)}</a>` : ''}
     </article>
@@ -495,6 +503,7 @@ function vConcepto(v, id) {
         ${ico('entrenar')}<span><b>Practicar en Lichess</b><small>Puzzles de ${esc(nombreTemaLichess(c.practica_lichess))}</small></span>${ico('externo', 'peq')}
       </a>` : ''}
     ${rel.length ? `<h3 class="sec">Relacionado</h3><div class="chips">${rel.map(r => `<a class="chip" href="#/concepto/${r.id}">${ico('enlace', 'peq')} ${esc(r.titulo)}</a>`).join('')}</div>` : ''}`;
+  v.querySelectorAll('.enl').forEach(bt => bt.addEventListener('click', () => abrirTermino(bt.dataset.k, mapa)));
   v.querySelectorAll('.visor').forEach(el => {
     const e = D.obtener('ejemplos', el.dataset.ej);
     try {
@@ -531,6 +540,7 @@ function vEditarConcepto(v, id, q) {
   const c = nuevo ? { titulo: '', principio: '', explicacion: '', etiquetas: [], practica_lichess: '', bloque_id: null } : D.obtener('conceptos', id);
   if (!c) return ir('#/conceptos');
   if (nuevo && q.get('bloque') && q.get('bloque') !== 'bandeja') c.bloque_id = q.get('bloque');
+  if (nuevo && q.get('titulo')) c.titulo = q.get('titulo');
   const nota = nuevo && q.get('nota') && D.obtener('notas_rapidas', q.get('nota'));
   if (nota) {
     const lineas = (nota.texto || '').split('\n');
@@ -831,6 +841,10 @@ function vCatalogo(v, _id, q) {
       fila.activo = el.checked;
       await D.guardar('bloques', fila);
       if (!fila.padre_id && el.checked && !temasDe(fila.id).some(t => t.activo)) abiertos.add(fila.id);
+      if (el.checked) {
+        const n = await sembrarBiblioteca();
+        if (n) aviso(`Han aparecido ${n} fichas sugeridas. Se verán translúcidas hasta que les añadas tu ejemplo.`);
+      }
       pintarCat();
     }
     if (acc === 'nombre' && el.value.trim()) { fila.nombre = el.value.trim(); await D.guardar('bloques', fila); }
@@ -847,6 +861,8 @@ function vCatalogo(v, _id, q) {
       const b = D.obtener('bloques', f.closest('.cat').dataset.id);
       await D.guardar('bloques', { nombre, padre_id: b.id, color: b.color, orden: temasDe(b.id).length + 1, activo: true });
     }
+    const n = await sembrarBiblioteca();
+    if (n) aviso(`Han aparecido ${n} fichas sugeridas. Se verán translúcidas hasta que les añadas tu ejemplo.`);
     pintarCat();
   });
   pintarCat();
@@ -1107,66 +1123,50 @@ function vClase(v, id, q) {
 // ---------------------------------------------------------------------
 //  GLOSARIO español – inglés
 // ---------------------------------------------------------------------
+// Términos básicos. Los que define la biblioteca (biblioteca.js) no se repiten aquí.
 const GLOSARIO = [
   ['Ahogado', 'Stalemate', 'El bando que mueve no tiene jugadas legales y no está en jaque: tablas.'],
   ['Alfil bueno / malo', 'Good / bad bishop', 'Malo si sus propios peones están en casillas de su color y le quitan movilidad.'],
   ['Apertura', 'Opening', 'Primera fase: desarrollo, centro y seguridad del rey.'],
-  ['Ataque a la descubierta', 'Discovered attack', 'Una pieza se mueve y destapa el ataque de otra que estaba detrás.'],
-  ['Ataque doble', 'Fork / double attack', 'Una pieza ataca dos objetivos a la vez. Con caballo, «horquilla».'],
-  ['Atracción', 'Attraction / decoy', 'Obligar a una pieza enemiga a ir a una casilla donde será víctima.'],
   ['Bloqueo', 'Blockade', 'Situar una pieza delante de un peón para frenarlo. Ideal: el caballo.'],
-  ['Cadena de peones', 'Pawn chain', 'Peones en diagonal que se protegen. Se ataca por su base.'],
   ['Casilla débil / fuerte', 'Weak / strong square', 'Casilla que ningún peón contrario puede ya atacar: perfecta para una pieza.'],
   ['Centro', 'Center', 'Las casillas e4, d4, e5 y d5, y su entorno.'],
-  ['Clavada', 'Pin', 'Una pieza no puede moverse sin dejar expuesta a otra más valiosa detrás.'],
   ['Columna abierta / semiabierta', 'Open / half-open file', 'Sin peones / sin peones propios. Autopista para torres.'],
-  ['Desviación', 'Deflection', 'Apartar a un defensor de su tarea.'],
   ['Desarrollo', 'Development', 'Sacar las piezas de sus casillas iniciales a puestos activos.'],
-  ['Despeje', 'Clearance', 'Vaciar una casilla o línea para que la use otra pieza.'],
-  ['Enfilada', 'Skewer', 'Ataque en línea a una pieza valiosa que, al apartarse, deja la de detrás.'],
   ['Enroque', 'Castling', 'Movimiento de rey y torre que protege al rey y activa la torre.'],
   ['Enroques opuestos', 'Opposite-side castling', 'Cada rey en un flanco: carrera de ataques con peones.'],
   ['Final', 'Endgame', 'Fase con poco material, donde el rey se vuelve una pieza activa.'],
   ['Fortaleza', 'Fortress', 'Posición defensiva que el rival no puede romper aunque tenga más material.'],
   ['Gambito', 'Gambit', 'Sacrificio de material en la apertura a cambio de desarrollo o iniciativa.'],
   ['Iniciativa', 'Initiative', 'Capacidad de imponer amenazas y obligar al rival a responder.'],
-  ['Interferencia', 'Interference', 'Interponer una pieza para cortar la defensa entre dos piezas contrarias.'],
-  ['Jaque doble', 'Double check', 'Jaque de dos piezas a la vez: solo se responde moviendo el rey.'],
-  ['Jugada intermedia', 'Intermezzo / zwischenzug', 'Una jugada inesperada antes de la respuesta «obligada».'],
   ['Jugadas candidatas', 'Candidate moves', 'Las pocas jugadas serias que conviene analizar en una posición.'],
   ['Jugadas forzantes', 'Forcing moves', 'Jaques, capturas y amenazas: lo primero que hay que mirar.'],
   ['Ligar torres', 'Connect the rooks', 'Despejar la primera fila para que las torres se protejan entre sí.'],
-  ['Mayoría de peones', 'Pawn majority', 'Más peones en un flanco: puede crear un peón pasado.'],
   ['Medio juego', 'Middlegame', 'Fase de planes, ataques y maniobras tras el desarrollo.'],
   ['Oposición', 'Opposition', 'Reyes enfrentados con una casilla en medio: quien no mueve la gana.'],
   ['Pareja de alfiles', 'Bishop pair', 'Tener los dos alfiles; ventaja en posiciones abiertas.'],
-  ['Peón aislado', 'Isolated pawn (IQP en d4/d5)', 'Peón sin peones propios en las columnas vecinas.'],
-  ['Peón doblado', 'Doubled pawn', 'Dos peones propios en la misma columna.'],
-  ['Peón pasado', 'Passed pawn', 'Ningún peón contrario puede frenarlo ni capturarlo en su camino.'],
-  ['Peón retrasado', 'Backward pawn', 'Se ha quedado atrás y no puede avanzar con apoyo de otro peón.'],
-  ['Peones colgantes', 'Hanging pawns', 'Dos peones unidos en el centro sin peones vecinos (c y d).'],
-  ['Pieza colgada / desprotegida', 'Hanging / loose piece', 'Pieza sin defensa: blanco natural de la táctica.'],
   ['Profilaxis', 'Prophylaxis', 'Prevenir los planes del rival antes de que ocurran.'],
   ['Puesto avanzado', 'Outpost', 'Casilla fuerte en campo enemigo, apoyada por un peón propio.'],
-  ['Rayos X', 'X-ray', 'Una pieza actúa a través de otra que está en medio, propia o contraria.'],
-  ['Ruptura', 'Pawn break', 'Avance de peón que abre líneas o ataca la estructura rival.'],
   ['Sacrificio', 'Sacrifice', 'Entregar material a cambio de ataque, posición o mate.'],
-  ['Sobrecarga', 'Overloading', 'Una pieza tiene demasiadas tareas defensivas a la vez.'],
   ['Tablas', 'Draw', 'Final de partida sin ganador.'],
   ['Triangulación', 'Triangulation', 'Maniobra del rey para perder un tiempo y ganar la oposición.'],
   ['Zugzwang', 'Zugzwang', 'Cualquier jugada empeora la posición: estar obligado a mover perjudica.'],
 ];
-function vGlosario(v) {
-  const propios = D.lista('glosario').map(g => [g.termino_es, g.termino_en || '', g.definicion || '', g.id]);
-  const todos = [...GLOSARIO, ...propios].sort((a, b) => a[0].localeCompare(b[0], 'es'));
+function vGlosario(v, _id, q) {
+  const mapa = terminos();
+  const todos = [...mapa.values()].filter(t => t.def || t.en).sort((a, b) => a.es.localeCompare(b.es, 'es'));
   v.innerHTML = `
     <div class="cab-vista"><a href="#/inicio" class="btn-ico">${ico('atras')}</a><h1>Glosario</h1></div>
-    <label class="buscador">${ico('buscar')}<input type="search" id="g-buscar" placeholder="Busca en español o en inglés"></label>
-    <div class="lista glosario">${todos.map(([es, en, def, id]) => `
-      <div class="g-fila" data-t="${esc(norm(es + ' ' + en + ' ' + def))}">
-        <div><b>${esc(es)}</b> <span class="g-en">${esc(en)}</span>${id ? ' <span class="estado">mío</span>' : ''}</div>
-        <small>${esc(def)}</small>
-        ${id ? `<button class="btn-ico peq g-borrar" data-id="${id}" aria-label="Borrar">${ico('borrar')}</button>` : ''}
+    <p class="intro">${todos.length} términos. Toca «Ver ficha» para ir a tu ficha, o «Crear ficha» si aún no la tienes.</p>
+    <label class="buscador">${ico('buscar')}<input type="search" id="g-buscar" placeholder="Busca en español o en inglés" value="${esc(q.get('q') || '')}"></label>
+    <div class="lista glosario">${todos.map(t => `
+      <div class="g-fila" data-t="${esc(norm(t.es + ' ' + (t.en || '') + ' ' + (t.def || '') + ' ' + t.alias.join(' ')))}">
+        <div><b>${esc(t.es)}</b> <span class="g-en">${esc(t.en || '')}</span>${t.propio ? ' <span class="estado">mío</span>' : ''}</div>
+        <small>${esc(t.def || '')}</small>
+        <div class="g-acc">
+          ${t.ficha ? `<a class="chip" href="#/concepto/${t.ficha}">${ico('conceptos', 'peq')} Ver ficha</a>` : `<a class="chip" href="#/editar/nuevo?titulo=${encodeURIComponent(t.es)}">${ico('mas', 'peq')} Crear ficha</a>`}
+          ${t.propio ? `<button class="btn-ico peq g-borrar" data-id="${t.propio}" aria-label="Borrar">${ico('borrar')}</button>` : ''}
+        </div>
       </div>`).join('')}</div>
     <form class="tarjeta form" id="g-nuevo">
       <b>Añadir un término</b>
@@ -1174,10 +1174,13 @@ function vGlosario(v) {
       <input name="def" placeholder="Definición breve">
       <button class="btn">Añadir</button>
     </form>`;
-  v.querySelector('#g-buscar').addEventListener('input', e => {
-    const t = norm(e.target.value);
+  const inp = v.querySelector('#g-buscar');
+  const filtrar = () => {
+    const t = norm(inp.value);
     v.querySelectorAll('.g-fila').forEach(f => { f.hidden = t && !f.dataset.t.includes(t); });
-  });
+  };
+  inp.addEventListener('input', filtrar);
+  filtrar();
   v.querySelector('#g-nuevo').addEventListener('submit', async e => {
     e.preventDefault();
     const f = e.target;
@@ -1312,6 +1315,155 @@ function vImprimir(v, _id, q) {
   v.querySelector('#p-sel')?.addEventListener('change', recargar);
   v.querySelector('#p-ej').addEventListener('change', recargar);
   v.querySelector('#p-imp').addEventListener('click', () => window.print());
+}
+
+// ---------------------------------------------------------------------
+//  BIBLIOTECA: las fichas de serie aparecen al activar su tema
+// ---------------------------------------------------------------------
+async function idDeterminista(texto) {
+  // Mismo id en todos tus dispositivos, para que nunca se dupliquen.
+  const h = new Uint8Array(await crypto.subtle.digest('SHA-1', new TextEncoder().encode(texto)));
+  h[6] = (h[6] & 0x0f) | 0x50; h[8] = (h[8] & 0x3f) | 0x80;
+  const x = [...h.slice(0, 16)].map(b => b.toString(16).padStart(2, '0')).join('');
+  return `${x.slice(0, 8)}-${x.slice(8, 12)}-${x.slice(12, 16)}-${x.slice(16, 20)}-${x.slice(20, 32)}`;
+}
+let sembrando = false;
+async function sembrarBiblioteca() {
+  if (sembrando || !usuario || !crypto.subtle) return 0;
+  sembrando = true;
+  let n = 0;
+  try {
+    const titulos = new Set(conceptos().map(c => norm(c.titulo)));
+    for (const it of BIBLIOTECA) {
+      const b = bloques().find(x => norm(x.nombre) === norm(it.bloque));
+      const t = b && temasDe(b.id).find(x => norm(x.nombre) === norm(it.tema));
+      if (!b || !t || !b.activo || !t.activo) continue;
+      const id = await idDeterminista(usuario.id + ':' + it.id);
+      if (D.obtenerAunBorrado('conceptos', id)) continue;            // ya está (o la borraste tú)
+      if (titulos.has(norm(it.titulo))) continue;                     // ya tienes tu propia ficha
+      await D.guardar('conceptos', {
+        id, titulo: it.titulo, principio: it.principio, explicacion: it.explicacion, pista: it.pista,
+        practica_lichess: it.lichess, bloque_id: t.id, etiquetas: [], origen: 'mdp', orden: BIBLIOTECA.indexOf(it) + 1,
+        original: { id: it.id, titulo: it.titulo, principio: it.principio, explicacion: it.explicacion },
+      });
+      titulos.add(norm(it.titulo));
+      n++;
+    }
+  } catch (e) { console.error(e); }
+  sembrando = false;
+  return n;
+}
+
+// ---------------------------------------------------------------------
+//  TÉRMINOS: glosario + biblioteca + tus fichas, todo enlazado
+// ---------------------------------------------------------------------
+const GENERICOS = new Set(['final', 'centro', 'tablas', 'desarrollo', 'apertura', 'medio juego', 'sacrificio', 'enroque', 'bloqueo', 'iniciativa', 'gambito']);
+function terminos() {
+  const mapa = new Map();
+  const poner = (es, en, def, extra = {}) => {
+    const k = norm(es);
+    const prev = mapa.get(k) || { es, alias: [] };
+    mapa.set(k, Object.assign(prev, { es, en: en || prev.en, def: def || prev.def }, extra, { alias: [...prev.alias, ...(extra.alias || [])] }));
+  };
+  for (const [es, en, def] of GLOSARIO) poner(es, en, def);
+  for (const it of BIBLIOTECA) poner(it.titulo, it.en, it.def, { alias: it.alias || [], biblio: it.id });
+  for (const g of D.lista('glosario')) poner(g.termino_es, g.termino_en, g.definicion, { propio: g.id });
+  // ¿Qué término tiene ficha?
+  const fichas = conceptos();
+  for (const [k, t] of mapa) {
+    const c = fichas.find(f => (t.biblio && f.original?.id === t.biblio)) ||
+      fichas.find(f => norm(f.titulo) === k || t.alias.some(a => norm(a) === norm(f.titulo)));
+    if (c) t.ficha = c.id;
+  }
+  // Tus fichas sin término en el glosario también se enlazan
+  for (const f of fichas) {
+    const k = norm(f.titulo);
+    if (![...mapa.values()].some(t => t.ficha === f.id)) mapa.set(k, { es: f.titulo, alias: [], ficha: f.id, def: f.principio || '' });
+  }
+  return mapa;
+}
+function terminoDeFicha(c, mapa = terminos()) {
+  return [...mapa.values()].find(t => t.ficha === c.id) || null;
+}
+
+// Convierte en enlaces las palabras con ficha o glosario dentro de un texto ya en HTML
+function enlazar(html, mapa, excluir) {
+  const variantes = [];
+  for (const [k, t] of mapa) {
+    if (k === excluir || GENERICOS.has(k) || t.es.includes('/') || t.es.length < 4) continue;
+    for (const v of [t.es, ...t.alias]) if (v && v.length >= 4 && norm(v) !== excluir) variantes.push([v, k]);
+  }
+  if (!variantes.length) return html;
+  variantes.sort((a, b) => b[0].length - a[0].length);
+  const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`(^|[^\\p{L}])(${variantes.map(v => escRe(esc(v[0]))).join('|')})(?![\\p{L}])`, 'giu');
+  const clave = new Map(variantes.map(([v, k]) => [esc(v).toLowerCase(), k]));
+  const usados = new Set();
+  return html.split(/(<[^>]+>)/).map(trozo => trozo.startsWith('<') ? trozo : trozo.replace(re, (m, antes, pal) => {
+    const k = clave.get(pal.toLowerCase());
+    if (!k || usados.has(k)) return m;
+    usados.add(k);
+    return `${antes}<button class="enl" data-k="${esc(k)}">${pal}</button>`;
+  })).join('');
+}
+
+// Globo con la definición, el diagrama de tu ejemplo y el enlace a la ficha
+function abrirTermino(k, mapa = terminos()) {
+  const t = mapa.get(k);
+  if (!t) return;
+  const c = t.ficha && D.obtener('conceptos', t.ficha);
+  const e = c && ejemplosDe(c.id)[0];
+  let dg = '';
+  if (e) { try { dg = diagrama(dePgn(e.pgn || `[FEN "${e.fen_inicial}"]`), { orientacion: e.orientacion }); } catch (err) { dg = ''; } }
+  const d = document.createElement('div');
+  d.className = 'modal hoja-abajo';
+  d.innerHTML = `<div class="modal-caja termino">
+      <div class="t-cab"><b>${esc(t.es)}</b>${t.en ? `<span class="g-en">${esc(t.en)}</span>` : ''}</div>
+      ${t.def ? `<p class="t-def">${esc(t.def)}</p>` : ''}
+      ${c && c.principio && c.principio !== t.def ? `<blockquote class="t-principio">${esc(c.principio)}</blockquote>` : ''}
+      ${dg ? `<div class="t-dg">${dg}<small>${esc(e.titulo || 'Tu ejemplo')}</small></div>` : (c ? '<p class="nota">Esta ficha aún no tiene ejemplo tuyo.</p>' : '')}
+      <div class="botones">
+        <button class="btn" data-cerrar>Cerrar</button>
+        ${c ? `<a class="btn primario" href="#/concepto/${c.id}">Abrir ficha</a>` : `<a class="btn primario" href="#/editar/nuevo?titulo=${encodeURIComponent(t.es)}">Crear ficha</a>`}
+      </div></div>`;
+  d.addEventListener('click', ev => { if (ev.target === d || ev.target.closest('[data-cerrar]') || ev.target.closest('a')) d.remove(); });
+  document.body.appendChild(d);
+}
+
+// ---------------------------------------------------------------------
+//  BUSCADOR GLOBAL (lupa de la cabecera)
+// ---------------------------------------------------------------------
+function abrirBuscador() {
+  const d = document.createElement('div');
+  d.className = 'modal buscador-global';
+  d.innerHTML = `<div class="modal-caja bg-caja">
+      <label class="buscador">${ico('buscar')}<input type="search" id="bg-in" placeholder="Busca fichas, glosario, clases, notas…" autocomplete="off" autocapitalize="off"></label>
+      <div id="bg-res"><p class="nota">Escribe las primeras letras: «enf», «peon ais», «skewer»…</p></div>
+    </div>`;
+  document.body.appendChild(d);
+  const inp = d.querySelector('#bg-in'), res = d.querySelector('#bg-res');
+  const cerrar = () => { d.remove(); document.removeEventListener('keydown', tecla); };
+  const tecla = e => { if (e.key === 'Escape') cerrar(); };
+  document.addEventListener('keydown', tecla);
+  d.addEventListener('click', e => { if (e.target === d || e.target.closest('a')) cerrar(); });
+  setTimeout(() => inp.focus(), 30);
+  const mapa = terminos();
+  inp.addEventListener('input', () => {
+    const q = norm(inp.value.trim());
+    if (!q) { res.innerHTML = '<p class="nota">Escribe las primeras letras: «enf», «peon ais», «skewer»…</p>'; return; }
+    const puntuar = (titulo, resto) => { const t = norm(titulo); return t.startsWith(q) ? 0 : t.split(/\s+/).some(p => p.startsWith(q)) ? 1 : t.includes(q) ? 2 : norm(resto).includes(q) ? 3 : 9; };
+    const top = (lista, f) => lista.map(x => [f(x), x]).filter(([p]) => p < 9).sort((a, b) => a[0] - b[0]).slice(0, 6).map(([, x]) => x);
+    const fichas = top(conceptos(), c => puntuar(c.titulo, [c.principio, c.explicacion, (c.etiquetas || []).join(' ')].join(' ')));
+    const gl = top([...mapa.entries()].filter(([, t]) => t.def || t.en), ([, t]) => Math.min(puntuar(t.es, t.def || ''), puntuar(t.en || '', '')));
+    const cl = top(D.lista('clases'), k => puntuar(k.titulo || '', [k.resumen, k.deberes, fechaLarga(k.fecha)].join(' ')));
+    const nt = top(D.lista('notas_rapidas'), n => puntuar((n.texto || '').split('\n')[0], n.texto));
+    const grupo = (tit, html) => html ? `<h3 class="sec">${tit}</h3><div class="lista">${html}</div>` : '';
+    res.innerHTML = (grupo('Fichas', fichas.map(filaConcepto).join('')) +
+      grupo('Glosario', gl.map(([k, t]) => `<a class="fila-c" href="${t.ficha ? '#/concepto/' + t.ficha : '#/glosario?q=' + encodeURIComponent(t.es)}">${ico('glosario', 'peq')}<span class="fila-txt"><b>${esc(t.es)} <span class="g-en">${esc(t.en || '')}</span></b><small>${esc(t.def || '')}</small></span></a>`).join('')) +
+      grupo('Clases', cl.map(k => `<a class="fila-c" href="#/clase/${k.id}">${ico('clases', 'peq')}<span class="fila-txt"><b>${esc(k.titulo || 'Clase')}</b><small>${fechaLarga(k.fecha)}</small></span></a>`).join('')) +
+      grupo('Notas', nt.map(n => `<a class="fila-c" href="#/notas">${ico('nota', 'peq')}<span class="fila-txt"><b>${esc((n.texto || '').split('\n')[0])}</b></span></a>`).join(''))) ||
+      `<p class="nada">Nada con «${esc(inp.value)}».</p>`;
+  });
 }
 
 function vPronto(titulo, texto) {

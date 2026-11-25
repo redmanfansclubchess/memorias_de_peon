@@ -470,3 +470,35 @@ body.enfoque .ej-pie { margin-top: 12px; }
 .herr { margin-bottom: 8px; }
 .ply-txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 15px; }
 @media (max-width: 420px) { .herr-posicion .ayuda { display: none; } }
+
+/* =====================================================================
+   BIBLIOTECA, ENLACES Y BUSCADOR
+   ===================================================================== */
+.enl { border: 0; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer;
+  text-decoration: underline dotted color-mix(in srgb, var(--acento) 80%, transparent); text-underline-offset: 3px; text-decoration-thickness: 1.5px; }
+.enl:hover { color: var(--acento); }
+.ficha-en { margin: -2px 0 6px; font-size: 14px; color: var(--suave); }
+.ficha-en a { color: var(--acento); }
+.g-acc { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+.g-acc .chip { padding: 3px 10px; font-size: 13px; }
+.glosario .g-fila { padding-right: 14px; }
+.g-borrar { position: static; }
+.hoja-abajo { align-items: end; padding: 0; }
+.hoja-abajo .modal-caja { width: min(560px, 100%); border-radius: 20px 20px 0 0; padding: 18px 18px calc(env(safe-area-inset-bottom) + 16px); text-align: left; max-height: 85dvh; overflow: auto; }
+@media (min-width: 700px) { .hoja-abajo { align-items: center; padding: 20px; } .hoja-abajo .modal-caja { border-radius: 18px; } }
+.termino .t-cab { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.termino .t-cab b { font-family: var(--serif); font-size: 24px; }
+.termino .t-def { margin: 6px 0 8px; font-size: 16px; font-family: var(--sans); }
+.t-principio { font-family: var(--serif); font-style: italic; border-left: 3px solid var(--acento); padding-left: 10px; margin: 0 0 10px; }
+.t-dg { width: min(260px, 100%); margin: 6px auto 12px; text-align: center; }
+.t-dg small { color: var(--suave); }
+.termino .botones { justify-content: flex-end; }
+.termino .botones .primario { flex: 0 0 auto; }
+.buscador-global { align-items: start; padding-top: calc(env(safe-area-inset-top) + 16px); }
+.bg-caja { width: min(620px, 100%); text-align: left; max-height: 85dvh; overflow: auto; }
+.bg-caja .buscador { margin-bottom: 8px; }
+.bg-caja .sec { margin-top: 14px; }
+.cab #lupa { margin-left: auto; }
+.cab .marca { flex: 1 1 auto; }
+@media (max-width: 420px) { .sync span { display: none; } .sync { padding: 6px 8px; } }
+@media (max-width: 420px) { .sync.pend span, .sync.error span { display: inline; } }
