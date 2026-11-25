@@ -9,7 +9,7 @@ import * as RP from './repertorio.js';
 import * as PA from './partidas.js';
 import { FEN_INICIAL, crearVisor, crearEditor, crearEjercicio, crearEntrenoLinea, sirveDeEjercicio, dePgn, aPgn, ejemploVacio, usarFiguras, verSan, diagrama, textoJugadas, escapar as esc } from './tablero.js';
 
-export const VERSION = '4.0.1 (fase 4: mis partidas)';
+export const VERSION = '4.1.0 (primeros pasos y ayuda)';
 const app = document.getElementById('app');
 
 // ---------------------------------------------------------------------
@@ -128,7 +128,7 @@ function relacionados(id) {
 // ---------------------------------------------------------------------
 //  Ajustes (tema, tablero, notación…)
 // ---------------------------------------------------------------------
-const AJ_DEF = { tema: 'auto', tablero: 'madera', notacion: 'letras', lichess: '', subida: true };
+const AJ_DEF = { tema: 'auto', tablero: 'madera', notacion: 'letras', lichess: '', subida: true, primerosPasos: true };
 let usuario = null;
 const ajustes = () => Object.assign({}, AJ_DEF, (usuario && D.obtener('ajustes', usuario.id)?.datos) || {});
 async function guardarAjustes(cambios) {
@@ -228,6 +228,7 @@ function pintar(conservarScroll) {
       || (r === 'repertorio' && ['apertura', 'editar-apertura', 'linea', 'editar-linea', 'imprimir-repertorio'].includes(nombre)) || (r === 'partidas' && ['importar-partidas', 'partida', 'editar-partida', 'comentar-partida', 'momento', 'resumen-partidas'].includes(nombre)) || (r === 'clases' && ['clase', 'preguntas', 'pregunta'].includes(nombre)) || (r === 'entrenar' && ['repaso', 'progreso', 'tecnicas'].includes(nombre)) || (r === 'inicio' && ['notas', 'glosario', 'rutina', 'guia'].includes(nombre)));
   });
   (RUTAS[nombre] || vInicio)(vista, id, new URLSearchParams(q || ''));
+  ponerAyuda(vista, nombre);
   window.scrollTo(0, conservarScroll === true ? scroll : 0);
   pintarSync();
 }
@@ -319,19 +320,21 @@ function filaConcepto(c) {
 function vInicio(v) {
   const dia = conceptoDelDia();
   const mias = fichasDeTrabajo();
+  const primeros = tarjetaPrimerosPasos();
   const recientes = [...mias].sort((a, b) => String(b.editado_en).localeCompare(String(a.editado_en))).slice(0, 5);
   const nEj = D.lista('ejemplos').length;
   const notasPendientes = D.lista('notas_rapidas').filter(n => !n.procesada).length;
   const b = dia && bloqueRaiz(dia.bloque_id);
   v.innerHTML = `
     <h1 class="saludo">${saludo()}, Manuel</h1>
+    ${primeros}
     ${dia ? `
       <a class="tarjeta dia" href="#/concepto/${dia.id}" style="--c:${b ? col(b.color) : 'var(--acento)'}">
         <span class="etq">Concepto del día${b ? ' · ' + esc(b.nombre) : ''}</span>
         <h2>${esc(dia.titulo)}</h2>
         ${dia.principio ? `<blockquote>${esc(dia.principio)}</blockquote>` : ''}
         <span class="mas-txt">Repasar ${ico('flecha', 'peq')}</span>
-      </a>` : `
+      </a>` : primeros ? '' : `
       <div class="tarjeta dia vacia">
         <span class="etq">Empieza aquí</span>
         <h2>Tu primera ficha</h2>
@@ -360,6 +363,11 @@ function vInicio(v) {
     </div>
     ${recientes.length ? `<h3 class="sec">Últimas fichas</h3><div class="lista">${recientes.map(filaConcepto).join('')}</div>` : ''}`;
   v.querySelector('#nota-rapida').addEventListener('click', () => abrirNotaRapida());
+  v.querySelector('#pp-ocultar')?.addEventListener('click', async () => {
+    await guardarAjustes({ primerosPasos: false });
+    aviso('Ocultados. Puedes volver a mostrarlos en Ajustes → Ayuda.');
+    pintar(true);
+  });
   // Tarjetas nuevas (fichas o ejercicios recientes): se crean y se actualiza el contador
   const antes = R.pendientes(tarjetas()).length + ':' + tarjetas().length;
   prepararTarjetas().then(() => {
@@ -1021,6 +1029,9 @@ function vAjustes(v) {
         <div class="opciones">${radio('notacion', 'letras', 'Letras (Nf3)')}${radio('notacion', 'figuras', 'Figuras (♘f3)')}</div></fieldset>
       <fieldset><legend>Lichess</legend>
         <label>Tu usuario<input name="lichess" value="${esc(a.lichess)}" placeholder="usuario" autocapitalize="off" autocorrect="off"></label></fieldset>
+      <fieldset><legend>Ayuda</legend>
+        <label class="check"><input type="checkbox" name="primerosPasos" ${a.primerosPasos !== false ? 'checked' : ''}><span>Mostrar «Primeros pasos» en Inicio <small>(desaparece sola cuando los completas)</small></span></label>
+        <p class="nota">En cada pantalla, el botón <b>?</b> explica para qué sirve. El manual completo está en <a href="#/guia">Guía</a>.</p></fieldset>
       <fieldset><legend>Nube</legend>
         <label class="check"><input type="checkbox" name="subida" ${a.subida ? 'checked' : ''}><span>Subir los cambios automáticamente cuando haya conexión</span></label>
         <p class="nota">Última sincronización: ${ult}. Cambios sin subir: ${D.pendientes()}.</p>
@@ -1567,6 +1578,106 @@ function abrirTermino(k, mapa = terminos()) {
           : t.biblio ? `<a class="btn primario" href="#/biblioteca/${t.biblio}">Ver en la biblioteca</a>`
           : `<a class="btn primario" href="#/editar/nuevo?titulo=${encodeURIComponent(t.es)}">Crear ficha</a>`}
       </div></div>`;
+  d.addEventListener('click', ev => { if (ev.target === d || ev.target.closest('[data-cerrar]') || ev.target.closest('a')) d.remove(); });
+  document.body.appendChild(d);
+}
+
+// ---------------------------------------------------------------------
+//  AYUDA: «Primeros pasos» en Inicio y el botón «?» de cada pantalla
+// ---------------------------------------------------------------------
+//  Los pasos se marcan solos según lo que ya has hecho. La tarjeta desaparece
+//  al completarlos (o si la ocultas; se recupera en Ajustes → Ayuda).
+const PRIMEROS_PASOS = [
+  { titulo: 'Elige tus bloques y temas', ir: () => '#/catalogo',
+    ayuda: 'Activa solo lo que estés trabajando con tu maestro. Al activar un tema aparecen, translúcidas, las fichas de la biblioteca de ese tema.',
+    hecho: () => D.lista('bloques').some(t => t.padre_id && t.activo && D.obtener('bloques', t.padre_id)?.activo) },
+  { titulo: 'Tu primera ficha', ir: () => '#/editar/nuevo',
+    ayuda: 'Un concepto de tus clases, con tus palabras. O abre una ficha translúcida de la biblioteca y adáptala a lo que te explicó el maestro.',
+    hecho: () => conceptos().some(c => c.origen !== 'mdp' || adaptada(c) || ejemplosDe(c.id).length) },
+  { titulo: 'Un ejemplo en el tablero',
+    ir: () => {   // a tu ficha más reciente (o a una de tus bloques activos)
+      const c = [...conceptos().filter(conceptoElegible)].sort((x, y) => String(y.editado_en).localeCompare(String(x.editado_en)))[0] || fichasDeTrabajo()[0];
+      return c ? `#/ejemplo/nuevo?concepto=${c.id}` : '#/conceptos';
+    },
+    ayuda: 'Dentro de una ficha, «Añadir ejemplo en el tablero». Con su ejemplo, la ficha queda Trabajada y entra en el repaso.',
+    hecho: () => D.lista('ejemplos').length > 0 },
+  { titulo: 'Apunta tu clase', ir: () => '#/clases',
+    ayuda: 'En Clases, con el botón +: lo que visteis y los deberes. Las fichas que crees ese día quedan unidas a la clase.',
+    hecho: () => D.lista('clases').length > 0 },
+  { titulo: 'Tu primera apertura', ir: () => '#/repertorio',
+    ayuda: 'Tu apertura principal con blancas o tu defensa contra 1.e4. La guía te irá pidiendo cada parte.',
+    hecho: () => aperturas().length > 0 },
+  { titulo: 'Tu primera partida', ir: () => '#/importar-partidas',
+    ayuda: 'Trae de Lichess una partida que jugaras pensando y revísala con su guía.',
+    hecho: () => partidas().length > 0 },
+  { titulo: 'Tu primer repaso', ir: () => (tarjetas().length ? '#/repaso?n=5' : null),
+    ayuda: 'Cuando tengas fichas trabajadas, «Repaso · 10» o «Rápido · 5», aquí en Inicio. Unos minutos al día, como en Anki.',
+    hecho: () => D.lista('registro_repaso').length > 0 },
+];
+
+function tarjetaPrimerosPasos() {
+  if (ajustes().primerosPasos === false) return '';
+  const pasos = PRIMEROS_PASOS.map(p => ({ ...p, ok: p.hecho() }));
+  const hechos = pasos.filter(p => p.ok).length;
+  if (hechos === pasos.length) return '';
+  const sig = pasos.find(p => !p.ok);
+  return `<section class="tarjeta primeros">
+      <div class="pp-cab"><span class="etq">Primeros pasos · ${hechos} de ${pasos.length}</span>
+        <button class="btn-ico peq" id="pp-ocultar" aria-label="Ocultar los primeros pasos" title="Ocultar">✕</button></div>
+      <div class="progreso-barra"><span style="width:${Math.round(hechos / pasos.length * 100)}%"></span></div>
+      <div class="pp-lista">${pasos.map((p, i) => {
+        const url = !p.ok && p.ir();
+        return `<div class="pp-paso${p.ok ? ' hecho' : ''}${p === sig ? ' actual' : ''}">
+          <span class="paso-n">${p.ok ? ico('check', 'peq') : i + 1}</span>
+          <div class="pp-txt"><b>${esc(p.titulo)}</b>${p === sig ? `<small>${esc(p.ayuda)}</small>${url ? `<a class="btn primario peq" href="${url}">Hacerlo ahora ${ico('flecha', 'peq')}</a>` : ''}` : ''}</div>
+          ${p !== sig && !p.ok && url ? `<a class="btn-ico peq" href="${url}" aria-label="Ir">${ico('flecha', 'peq')}</a>` : ''}
+        </div>`;
+      }).join('')}</div>
+      <p class="nota">Se marcan solos al hacerlos. Cuando termines, esta tarjeta desaparece.</p>
+    </section>`;
+}
+
+// Texto corto de cada pantalla (el manual completo está en la Guía)
+const AYUDAS = {
+  conceptos: ['Conceptos', 'Tu cuaderno, ordenado en **Bloque → Tema → Ficha**. Arriba buscas. «Bloques» para activar lo que estudias o dejarlo en reserva; «Biblioteca» para leer toda la teoría de serie; con + creas una ficha. La Bandeja guarda las fichas sin clasificar.'],
+  bloque: ['Un bloque', 'Sus temas y sus fichas. Las **translúcidas** son de la biblioteca: ábrelas, adáptalas a lo que te dijo tu maestro y añádeles tu ejemplo para que pasen a **Trabajada**.'],
+  catalogo: ['Bloques y temas', 'Activa con el interruptor solo lo que estés estudiando. Toca un bloque para ver sus temas. Al activar un tema aparecen sus fichas de la biblioteca, translúcidas. Lo que dejas en reserva **no se borra**.'],
+  biblioteca: ['Biblioteca', 'La teoría de serie de MdP, solo texto: definición, principio y explicación. Puedes leerla aunque esté en reserva y añadirla a tu cuaderno con un toque. **El tablero lo pones tú.**'],
+  concepto: ['Una ficha', 'Principio, explicación y tus ejemplos. Las palabras subrayadas abren el glosario. **«Añadir ejemplo en el tablero»** la deja Trabajada y la mete en el repaso. «Editar» cambia el texto (abajo está «Borrar ficha»); la impresora la saca en PDF.'],
+  editar: ['Editar la ficha', 'Nombre, bloque y tema, el **principio** (la frase clave) y la explicación, con **negrita**, *cursiva* y listas empezando con «- ». Si el nombre está en la biblioteca, puedes traer su teoría.'],
+  ejemplo: ['El tablero', 'Tres modos. **Posición**: «Vaciar» y coloca las piezas; indica quién juega. **Jugar**: mueve y la notación se escribe sola; comenta cada jugada. **Dibujar**: elige color y toca salida y llegada para una flecha. Marca «Usar como ejercicio» para que entre en el repaso.'],
+  repertorio: ['Repertorio', 'Tus aperturas, **elegidas por ti**: hasta 3 con blancas y 3 con negras. Cada una tiene una guía de 12 pasos con su porcentaje y el siguiente paso. Debajo de cada color, la app te avisa de las respuestas del rival que aún no tienes preparadas.'],
+  apertura: ['Una apertura', 'Arriba, el **siguiente paso** con «Hacerlo ahora»; en «La guía», los 12 pasos. Cada línea lleva un punto de color según cómo te sale al entrenarla. **«Entrenar esta apertura»** repasa todas sus líneas, primero las que peor llevas.'],
+  'editar-linea': ['Una línea', 'Juega las jugadas desde la posición inicial, o pega un PGN copiado de Lichess. **«¿Qué juega el rival aquí?»** abre el explorador de Lichess donde has llegado. Comenta las jugadas clave: esos comentarios serán tus pistas al entrenar.'],
+  partidas: ['Mis partidas', 'Solo las que jugaste pensando. **«Traer de Lichess»** te enseña tus últimas partidas para que marques las que quieras; también puedes pegar un enlace o un PGN. Cada partida tiene su guía de revisión. «Resumen»: tus resultados y tus errores más repetidos.'],
+  partida: ['Revisar una partida', 'Sigue el **siguiente paso** de arriba. Para marcar un momento clave, ve a la jugada con las flechas del tablero y pulsa **«Marcar momento»**. En «Tu repertorio» ves si alguien se salió de lo preparado.'],
+  momento: ['Un momento clave', 'Elige si fue error, buena jugada, duda o momento clave. Si fue un error, **juega en el tablero la jugada buena** y marca «Usar como ejercicio»: entrará en tu repaso. Enlázalo con su ficha o mándalo como pregunta al maestro.'],
+  entrenar: ['Entrenar', 'El **repaso inteligente**, como Anki: tus fichas trabajadas, tus ejercicios, las líneas del repertorio y los errores de tus partidas. Además, Mi progreso, las Técnicas esenciales y los entrenamientos de Lichess.'],
+  progreso: ['Mi progreso', 'Tus fichas según cómo te van en el repaso: **en lo que fallas**, lo que tienes que repasar y lo que dominas. Lo que falles es buen material para preguntar en clase.'],
+  clases: ['Diario de clases', 'Con **+** apuntas la clase de hoy: lo que visteis y los deberes. Las fichas que crees ese día quedan unidas a ella. «Preguntas» guarda tus dudas para el maestro.'],
+  preguntas: ['Preguntas para el maestro', 'Apunta las dudas cuando te surjan, con la posición si hace falta. Cuando te responda, escribe la respuesta y **conviértela en ficha**.'],
+};
+
+function ponerAyuda(v, nombre) {
+  const a = AYUDAS[nombre];
+  const cab = a && v.querySelector('.cab-vista');
+  if (!cab || cab.querySelector('.btn-ayuda')) return;
+  const ancla = cab.querySelector(':scope > h1') || cab.querySelector('.ej-tit');
+  const b = document.createElement('button');
+  b.className = 'btn-ayuda'; b.type = 'button'; b.textContent = '?';
+  b.setAttribute('aria-label', 'Ayuda de esta pantalla');
+  b.addEventListener('click', () => abrirAyuda(a));
+  ancla ? ancla.after(b) : cab.append(b);
+}
+
+function abrirAyuda([titulo, texto]) {
+  const d = document.createElement('div');
+  d.className = 'modal hoja-abajo';
+  d.innerHTML = `<div class="modal-caja termino">
+      <div class="t-cab"><b>${esc(titulo)}</b></div>
+      <p class="t-def">${inl(esc(texto))}</p>
+      <div class="botones"><a class="btn" href="#/guia">${ico('guia', 'peq')} Guía completa</a><button class="btn primario" data-cerrar>Entendido</button></div>
+    </div>`;
   d.addEventListener('click', ev => { if (ev.target === d || ev.target.closest('[data-cerrar]') || ev.target.closest('a')) d.remove(); });
   document.body.appendChild(d);
 }
