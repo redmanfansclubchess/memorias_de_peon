@@ -202,5 +202,52 @@ export async function sembrarCatalogo() {
   return data || 0;
 }
 
+// ---------------------------------------------------------------------
+//  Empezar de cero: borra TODOS tus datos en Supabase y en el dispositivo
+//  (necesita conexión). Los ajustes se conservan.
+// ---------------------------------------------------------------------
+const ORDEN_BORRADO = ['registro_repaso', 'tarjetas', 'momentos', 'partidas', 'repertorio', 'preguntas_maestro',
+  'tecnicas', 'glosario', 'notas_rapidas', 'ejemplos', 'enlaces_conceptos', 'conceptos', 'clases', 'bloques'];
+export async function borrarTodo() {
+  if (!navigator.onLine) throw new Error('Necesitas conexión para empezar de cero.');
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) throw new Error('Entra de nuevo en la app antes de empezar de cero.');
+  for (const t of ORDEN_BORRADO) {
+    const { error } = await sb.from(t).delete().eq('user_id', usuarioId);
+    if (error) throw new Error(`${t}: ${error.message}`);
+  }
+  for (const t of ORDEN_BORRADO) { await idb(t, 'readwrite', s => s.clear()); mem[t].clear(); }
+  for (const t of TABLAS) await metaPoner('cursor_' + t, null);
+  avisar('datos');
+}
+
+// ---------------------------------------------------------------------
+//  Restaurar una copia (archivo .json descargado desde Ajustes).
+//  Recupera todo lo que había en la copia; lo creado después se conserva.
+// ---------------------------------------------------------------------
+export async function restaurarCopia(copia) {
+  const datos = copia && copia.datos;
+  if (!datos || typeof datos !== 'object') throw new Error('El archivo no es una copia de Memorias de Peón.');
+  const ahora = new Date().toISOString();
+  let n = 0;
+  for (const t of TABLAS) {
+    const filas = Array.isArray(datos[t]) ? datos[t] : [];
+    for (const f of filas) {
+      const fila = Object.fromEntries(Object.entries(f).filter(([k]) => !k.startsWith('_') && k !== 'actualizado_en'));
+      if (!fila[clave(t)] && t !== 'ajustes') continue;
+      fila.user_id = usuarioId;
+      if (t === 'ajustes') fila.user_id = usuarioId;
+      fila.editado_en = ahora;           // la copia manda sobre lo que haya ahora
+      fila._pendiente = 1;
+      mem[t].set(fila[clave(t)], fila);
+      await idb(t, 'readwrite', s => s.put(fila));
+      n++;
+    }
+  }
+  avisar('datos');
+  sincronizar().catch(() => {});
+  return n;
+}
+
 window.addEventListener('online', () => { avisar('red'); sincronizar(); });
 window.addEventListener('offline', () => avisar('red'));

@@ -5,9 +5,10 @@
 import * as D from './datos.js';
 import { BIBLIOTECA } from './biblioteca.js';
 import * as R from './repaso.js';
-import { crearVisor, crearEditor, crearEjercicio, sirveDeEjercicio, dePgn, aPgn, ejemploVacio, usarFiguras, diagrama, textoJugadas, escapar as esc } from './tablero.js';
+import * as RP from './repertorio.js';
+import { FEN_INICIAL, crearVisor, crearEditor, crearEjercicio, sirveDeEjercicio, dePgn, aPgn, ejemploVacio, usarFiguras, verSan, diagrama, textoJugadas, escapar as esc } from './tablero.js';
 
-export const VERSION = '2.0.0 (fase 2: repaso)';
+export const VERSION = '3.0.0 (fase 3: repertorio)';
 const app = document.getElementById('app');
 
 // ---------------------------------------------------------------------
@@ -81,6 +82,7 @@ const ordenar = (a, b) => (a.orden ?? 0) - (b.orden ?? 0) || String(a.nombre || 
 const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 const ir = h => { location.hash = h; };
 function aviso(texto) {
+  document.querySelectorAll('.toast').forEach(x => x.remove());   // un aviso nuevo sustituye al anterior
   const t = document.createElement('div');
   t.className = 'toast'; t.textContent = texto;
   document.body.appendChild(t);
@@ -189,7 +191,7 @@ function pintarSync() {
 const RUTAS = {
   inicio: vInicio, conceptos: vConceptos, bloque: vBloque, concepto: vConcepto, editar: vEditarConcepto,
   ejemplo: vEjemplo, catalogo: vCatalogo, entrenar: vEntrenar, ajustes: vAjustes,
-  repertorio: () => vPronto('Repertorio', 'Tus aperturas con blancas y negras en árbol de variantes, con ideas, planes y entrenamiento. Llega en la fase 3.'),
+  repertorio: vRepertorio, apertura: vApertura, 'editar-apertura': vEditarApertura, linea: vLinea, 'editar-linea': vEditarLinea,
   clases: vClases, clase: vClase, notas: vNotas, glosario: vGlosario, rutina: vRutina, guia: vGuia, imprimir: vImprimir,
   biblioteca: vBiblioteca,
   repaso: vRepaso, progreso: vProgreso, tecnicas: vTecnicas, preguntas: vPreguntas, pregunta: vPregunta,
@@ -211,7 +213,7 @@ function pintar(conservarScroll) {
   document.querySelectorAll('.barra a').forEach(a => {
     const r = a.dataset.r;
     a.classList.toggle('on', r === nombre || (r === 'conceptos' && ['bloque', 'concepto', 'editar', 'ejemplo', 'catalogo', 'imprimir', 'biblioteca'].includes(nombre))
-      || (r === 'clases' && ['clase', 'preguntas', 'pregunta'].includes(nombre)) || (r === 'entrenar' && ['repaso', 'progreso', 'tecnicas'].includes(nombre)) || (r === 'inicio' && ['notas', 'glosario', 'rutina', 'guia'].includes(nombre)));
+      || (r === 'repertorio' && ['apertura', 'editar-apertura', 'linea', 'editar-linea'].includes(nombre)) || (r === 'clases' && ['clase', 'preguntas', 'pregunta'].includes(nombre)) || (r === 'entrenar' && ['repaso', 'progreso', 'tecnicas'].includes(nombre)) || (r === 'inicio' && ['notas', 'glosario', 'rutina', 'guia'].includes(nombre)));
   });
   (RUTAS[nombre] || vInicio)(vista, id, new URLSearchParams(q || ''));
   window.scrollTo(0, conservarScroll === true ? scroll : 0);
@@ -487,6 +489,8 @@ function vConcepto(v, id) {
   const clase = c.clase_id && D.obtener('clases', c.clase_id);
   const mapa = terminos();
   const termino = terminoDeFicha(c, mapa);
+  const itBiblio = BIBLIOTECA.find(x => norm(x.titulo) === norm(c.titulo) || (x.alias || []).some(a => norm(a) === norm(c.titulo)));
+  const enAperturas = aperturas().filter(a => (a.conceptos || []).includes(id));
   const volver = b ? `#/bloque/${b.id}` : '#/bloque/bandeja';
   v.innerHTML = `
     <div class="cab-vista">
@@ -511,6 +515,8 @@ function vConcepto(v, id) {
     ${conceptoElegible(c) ? `<div class="mi-estado"><span>Mi estado</span><div class="segmento" id="estado-ficha">
       ${[['nuevo', 'Sin repasar'], ['repasar', 'Repasar'], ['fallo', 'Fallo'], ['domino', 'Lo domino']].map(([k, t]) => `<button data-estado="${k}" class="${(c.estado || 'nuevo') === k ? 'on ' + k : ''}">${t}</button>`).join('')}
     </div></div>` : ''}
+    ${!c.original && itBiblio ? `<div class="aviso-biblio">${ico('libro', 'peq')} <span>La biblioteca tiene teoría de <b>${esc(itBiblio.titulo)}</b>.${c.principio || c.explicacion ? ' Solo se rellenará lo que esté vacío.' : ''}</span>
+      <button class="btn peq" id="completar">Completar con la biblioteca</button></div>` : ''}
     ${c.pista && !ejemplos.length ? `<div class="pista"><b>Pista para tu ejemplo</b><p>${esc(c.pista)}</p></div>` : ''}
     <h3 class="sec">Ejemplos <small>${ejemplos.length || ''}</small></h3>
     <div class="ejemplos">
@@ -526,8 +532,20 @@ function vConcepto(v, id) {
       <a class="tarjeta practicar" href="${esc(urlPractica(c.practica_lichess))}" target="_blank" rel="noopener">
         ${ico('entrenar')}<span><b>Practicar en Lichess</b><small>${esc(textoPractica(c.practica_lichess))}</small></span>${ico('externo', 'peq')}
       </a>` : ''}
+    ${enAperturas.length ? `<h3 class="sec">En tu repertorio</h3><div class="chips">${enAperturas.map(a => `<a class="chip" href="#/apertura/${a.id}">${a.color === 'white' ? '♔' : '♚'} ${esc(a.nombre)}</a>`).join('')}</div>` : ''}
     ${rel.length ? `<h3 class="sec">Relacionado</h3><div class="chips">${rel.map(r => `<a class="chip" href="#/concepto/${r.id}">${ico('enlace', 'peq')} ${esc(r.titulo)}</a>`).join('')}</div>` : ''}`;
   v.querySelectorAll('.enl').forEach(bt => bt.addEventListener('click', () => abrirTermino(bt.dataset.k, mapa)));
+  v.querySelector('#completar')?.addEventListener('click', async () => {
+    const it = itBiblio;
+    c.principio = c.principio || it.principio;
+    c.explicacion = c.explicacion || it.explicacion;
+    c.pista = c.pista || it.pista;
+    c.practica_lichess = c.practica_lichess || it.lichess || null;
+    c.original = { id: it.id, titulo: it.titulo, principio: it.principio, explicacion: it.explicacion };
+    await D.guardar('conceptos', c);
+    aviso('Ficha completada con la teoría de la biblioteca');
+    pintar(true);
+  });
   v.querySelector('#estado-ficha')?.addEventListener('click', async e => {
     const b = e.target.closest('[data-estado]');
     if (!b) return;
@@ -629,6 +647,30 @@ function vEditarConcepto(v, id, q) {
       </div>
     </form>`;
   const f = v.querySelector('#f-concepto');
+  // Si el nombre coincide con una ficha de la biblioteca, se ofrece su teoría
+  const cajaBiblio = document.createElement('div');
+  cajaBiblio.className = 'aviso-biblio'; cajaBiblio.hidden = true;
+  f.titulo.closest('label').after(cajaBiblio);
+  const buscarEnBiblio = () => {
+    const it = BIBLIOTECA.find(x => norm(x.titulo) === norm(f.titulo.value.trim()) || (x.alias || []).some(a => norm(a) === norm(f.titulo.value.trim())));
+    cajaBiblio.hidden = !it || (!nuevo && c.original?.id === it?.id);
+    if (it) cajaBiblio.innerHTML = `${ico('libro', 'peq')} <span>La biblioteca tiene teoría de <b>${esc(it.titulo)}</b>.</span> <button type="button" class="btn peq" data-usar="${it.id}">Usar la teoría de la biblioteca</button>`;
+  };
+  f.titulo.addEventListener('input', buscarEnBiblio);
+  cajaBiblio.addEventListener('click', e => {
+    const it = biblioItem(e.target.closest('[data-usar]')?.dataset.usar);
+    if (!it) return;
+    if (f.principio.value.trim() || f.explicacion.value.trim()) {
+      if (!confirm('Ya has escrito principio o explicación. ¿Sustituirlos por la teoría de la biblioteca?')) return;
+    }
+    f.titulo.value = it.titulo; f.principio.value = it.principio; f.explicacion.value = it.explicacion;
+    if (!f.practica.value) f.practica.value = it.lichess || '';
+    c.original = { id: it.id, titulo: it.titulo, principio: it.principio, explicacion: it.explicacion };
+    c.pista = c.pista || it.pista;
+    cajaBiblio.hidden = true;
+    aviso('Teoría de la biblioteca añadida. Puedes cambiarla a tu manera.');
+  });
+  buscarEnBiblio();
   const avisoTema = () => { v.querySelector('#aviso-tema').hidden = !f.bloque.value || temasDe(f.bloque.value, true).length > 0; };
   f.bloque.addEventListener('change', () => {
     f.tema.innerHTML = opcionesTema(f.bloque.value, '');
@@ -975,10 +1017,19 @@ function vAjustes(v) {
       <fieldset><legend>Copia de seguridad</legend>
         <p class="nota">Tus datos ya están en Supabase. Esto es una copia extra en un archivo, por si acaso.</p>
         <div class="fila-btn">
-          <button type="button" class="btn" id="copia-json">${ico('descargar', 'peq')} Copia completa</button>
+          <button type="button" class="btn" id="copia-json">${ico('descargar', 'peq')} Descargar copia completa</button>
           <button type="button" class="btn" id="copia-pgn">${ico('descargar', 'peq')} Ejemplos en PGN</button>
         </div>
+        <p class="nota">Para recuperar una copia descargada antes: elige el archivo <b>MdP-copia-….json</b>. Vuelve todo lo que había en ella; lo que hayas creado después se conserva.</p>
+        <label class="btn subir-copia">${ico('subir', 'peq')} Restaurar desde una copia<input type="file" id="restaurar" accept=".json,application/json" hidden></label>
       </fieldset>
+      <details class="peligro-zona">
+        <summary>Zona peligrosa</summary>
+        <p><b>Empezar de cero</b> borra todas tus fichas, ejemplos, clases, notas, repasos y preguntas, en este dispositivo y en la nube. La app queda como recién instalada, con el catálogo en reserva. Tus ajustes se conservan.</p>
+        <p class="nota">Consejo: descarga antes una copia completa, por si acaso.</p>
+        <label>Para confirmar, escribe <b>BORRAR</b><input id="confirmar-borrar" autocomplete="off" autocapitalize="characters" placeholder="BORRAR"></label>
+        <button type="button" class="btn peligro" id="empezar-cero" disabled>Borrar todo y empezar de cero</button>
+      </details>
       <fieldset><legend>Cuenta</legend>
         <p class="nota">${esc(usuario.email)}</p>
         <button type="button" class="btn peligro" id="salir">Cerrar sesión</button>
@@ -1009,6 +1060,32 @@ function vAjustes(v) {
     }
     if (!partes.length) return aviso('Aún no tienes ejemplos');
     descargar(`MdP-ejemplos-${hoyISO()}.pgn`, partes.join('\n\n') + '\n', 'application/x-chess-pgn');
+  });
+  v.querySelector('#restaurar').addEventListener('change', async e => {
+    const archivo = e.target.files[0];
+    if (!archivo) return;
+    try {
+      const copia = JSON.parse(await archivo.text());
+      const fecha = copia.fecha ? new Date(copia.fecha).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : 'desconocida';
+      if (!confirm(`¿Restaurar la copia del ${fecha}? Lo que había en ella volverá a tu cuaderno.`)) return;
+      const n = await D.restaurarCopia(copia);
+      aviso(`Copia restaurada: ${n} elementos recuperados`);
+      pintar();
+    } catch (err) { alert('No se pudo restaurar: ' + err.message); }
+    e.target.value = '';
+  });
+  const conf = v.querySelector('#confirmar-borrar'), btnCero = v.querySelector('#empezar-cero');
+  conf.addEventListener('input', () => { btnCero.disabled = conf.value.trim().toUpperCase() !== 'BORRAR'; });
+  btnCero.addEventListener('click', async () => {
+    if (conf.value.trim().toUpperCase() !== 'BORRAR') return;
+    if (!confirm('Última comprobación: se borrará TODO tu cuaderno, aquí y en la nube. ¿Seguir?')) return;
+    btnCero.disabled = true; btnCero.textContent = 'Borrando…';
+    try {
+      await D.borrarTodo();
+      await iniciarSesion(usuario);
+      aviso('Listo: la app está como recién instalada');
+      ir('#/inicio');
+    } catch (err) { alert(err.message); btnCero.disabled = false; btnCero.textContent = 'Borrar todo y empezar de cero'; }
   });
   v.querySelector('#sincr').addEventListener('click', async () => {
     const ok = await D.sincronizar();
@@ -1289,6 +1366,9 @@ function vGuia(v) {
       <section class="tarjeta"><h2>Repaso diario</h2>
         <p>Como en Anki: cada día, en Inicio, «Repaso · 10» o «Rápido · 5», con nota sobre 10. Entran tus fichas y las de la biblioteca que ya has trabajado. En el tablero, la pista te da primero el concepto y después la idea, nunca la jugada; si la usas, cuenta como Regular. Lo que aciertas vuelve más tarde; lo que fallas, mañana. En <a href="#/progreso">Mi progreso</a> ves qué dominas, qué repasar y en qué fallas.</p>
         <p>Para crear ejercicios de tablero, marca «Usar como ejercicio de repaso» en un ejemplo: la primera jugada será la solución.</p></section>
+      <section class="tarjeta"><h2>Repertorio</h2>
+        <p>Tus aperturas, elegidas por ti: hasta 3 con blancas y 3 defensas con negras. La app no te propone ninguna; te guía para que cada una quede completa, paso a paso: <b>las jugadas que la definen</b>, objetivos, <b>línea principal</b>, <b>respuestas del rival</b>, estructura, planes, rupturas, <b>trampas</b>, tácticas, partidas modelo, conceptos de tu cuaderno y, al final, revisarla con tu maestro.</p>
+        <p>Cada apertura muestra su porcentaje y el <b>siguiente paso</b>. En cada línea tienes enlaces para comprobarla en Lichess: el tablero de análisis y el <b>explorador</b>, donde ves qué juegan de verdad los rivales. También puedes pegar un PGN copiado de Lichess.</p></section>
       <section class="tarjeta"><h2>En clase</h2>
         <p><b>Nota rápida</b> (en Inicio) para apuntar al vuelo; luego, en <a href="#/notas">Notas</a>, la conviertes en ficha. En <a href="#/clases">Clases</a> tienes el diario: lo que visteis, deberes y las fichas de cada día.</p></section>
       <section class="tarjeta"><h2>Sin conexión</h2>
@@ -1481,7 +1561,7 @@ function abrirBuscador() {
   const d = document.createElement('div');
   d.className = 'modal buscador-global';
   d.innerHTML = `<div class="modal-caja bg-caja">
-      <label class="buscador">${ico('buscar')}<input type="search" id="bg-in" placeholder="Busca fichas, glosario, clases, notas…" autocomplete="off" autocapitalize="off"></label>
+      <label class="buscador">${ico('buscar')}<input type="search" id="bg-in" placeholder="Busca fichas, aperturas, glosario, clases…" autocomplete="off" autocapitalize="off"></label>
       <div id="bg-res"><p class="nota">Escribe las primeras letras: «enf», «peon ais», «skewer»…</p></div>
     </div>`;
   document.body.appendChild(d);
@@ -1501,8 +1581,10 @@ function abrirBuscador() {
     const gl = top([...mapa.entries()].filter(([, t]) => t.def || t.en), ([, t]) => Math.min(puntuar(t.es, t.def || ''), puntuar(t.en || '', '')));
     const cl = top(D.lista('clases'), k => puntuar(k.titulo || '', [k.resumen, k.deberes, fechaLarga(k.fecha)].join(' ')));
     const nt = top(D.lista('notas_rapidas'), n => puntuar((n.texto || '').split('\n')[0], n.texto));
+    const ap = top(aperturas(), a => puntuar(a.nombre, [a.eco, a.ideas, a.planes, (a.lineas || []).map(l => l.nombre).join(' ')].join(' ')));
     const grupo = (tit, html) => html ? `<h3 class="sec">${tit}</h3><div class="lista">${html}</div>` : '';
     res.innerHTML = (grupo('Fichas', fichas.map(filaConcepto).join('')) +
+      grupo('Repertorio', ap.map(a => `<a class="fila-c" href="#/apertura/${a.id}">${ico('repertorio', 'peq')}<span class="fila-txt"><b>${esc(a.nombre)}</b><small>${COLOR_TXT[a.color]}</small></span></a>`).join('')) +
       grupo('Glosario y biblioteca', gl.map(([k, t]) => `<a class="fila-c" href="${t.ficha ? '#/concepto/' + t.ficha : t.biblio ? '#/biblioteca/' + t.biblio : '#/glosario?q=' + encodeURIComponent(t.es)}">${ico('glosario', 'peq')}<span class="fila-txt"><b>${esc(t.es)} <span class="g-en">${esc(t.en || '')}</span></b><small>${esc(t.def || '')}</small></span></a>`).join('')) +
       grupo('Clases', cl.map(k => `<a class="fila-c" href="#/clase/${k.id}">${ico('clases', 'peq')}<span class="fila-txt"><b>${esc(k.titulo || 'Clase')}</b><small>${fechaLarga(k.fecha)}</small></span></a>`).join('')) +
       grupo('Notas', nt.map(n => `<a class="fila-c" href="#/notas">${ico('nota', 'peq')}<span class="fila-txt"><b>${esc((n.texto || '').split('\n')[0])}</b></span></a>`).join(''))) ||
@@ -1939,10 +2021,10 @@ function vPreguntas(v) {
     ${l.length > pend.length ? `<h3 class="sec">Respondidas</h3><div class="lista">${l.filter(p => p.respondida).map(filaPregunta).join('')}</div>` : ''}
     <a class="btn flotante" href="#/pregunta/nueva" aria-label="Nueva pregunta">${ico('mas')}</a>`;
 }
-function vPregunta(v, id) {
+function vPregunta(v, id, q = new URLSearchParams()) {
   editando = true;
   const nueva = id === 'nueva';
-  const p = nueva ? { texto: '', respuesta: '', respondida: false, clase_id: null } : D.obtener('preguntas_maestro', id);
+  const p = nueva ? { texto: q.get('texto') || '', respuesta: '', respondida: false, clase_id: null, pgn: q.get('pgn') || null } : D.obtener('preguntas_maestro', id);
   if (!p) return ir('#/preguntas');
   const ej = p.pgn ? dePgn(p.pgn) : (p.fen ? ejemploVacio(p.fen) : null);
   let conPosicion = !!ej, ejemplo = ej || ejemploVacio(), ed = null;
@@ -1998,11 +2080,368 @@ function vPregunta(v, id) {
   });
 }
 
-function vPronto(titulo, texto) {
-  document.getElementById('vista').innerHTML = `
-    <div class="cab-vista"><h1>${titulo}</h1></div>
-    <div class="tarjeta vacia"><span class="etq">Próximamente</span><p>${texto}</p></div>`;
+// ---------------------------------------------------------------------
+//  REPERTORIO (fase 3): tus aperturas, construidas por ti, con guía
+// ---------------------------------------------------------------------
+const aperturas = () => D.lista('repertorio').sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0) || a.nombre.localeCompare(b.nombre, 'es'));
+const leerPgn = p => { if (!p) return null; try { return dePgn(p); } catch (e) { return null; } };
+const COLOR_TXT = { white: 'Con blancas', black: 'Con negras' };
+const TIPO_LINEA = { principal: 'Línea principal', secundaria: 'Respuesta del rival', trampa: 'Trampa' };
+const ESTADO_PASO = { hecho: ['check', 'Hecho'], medio: ['reloj', 'A medias'], falta: ['mas', 'Falta'] };
+const pasoUrl = (a, p) => (p.ir ? p.ir(a) : `#/editar-apertura/${a.id}?campo=${p.campo || p.clave}`);
+const fenFinal = ej => (ej.jugadas.length ? ej.jugadas[ej.jugadas.length - 1].fen : ej.fen0);
+const filaAvisos = l => l.map(x => `<li class="${x.tipo}">${ico(ESTADO_PASO[x.tipo][0], 'peq')}<span>${esc(x.texto)}</span></li>`).join('');
+
+function vRepertorio(v) {
+  const todas = aperturas();
+  const cob = RP.cobertura(todas, leerPgn, verSan);
+  const bloque = color => {
+    const lista = todas.filter(a => a.color === color);
+    return `
+      <h3 class="sec">${color === 'white' ? '♔' : '♚'} ${COLOR_TXT[color]} <small>${lista.length} de ${RP.MAX_POR_COLOR}</small></h3>
+      ${lista.length ? `<div class="lista">${lista.map(a => {
+        const r = RP.analizar(a, leerPgn, verSan);
+        return `<a class="fila-ap" href="#/apertura/${a.id}">
+          <span class="fila-txt"><b>${esc(a.nombre)}</b> <span class="rol ${a.rol}">${a.rol === 'principal' ? 'Principal' : 'Secundaria'}</span>
+            <small>${r.tronco && r.tronco.jugadas.length ? esc(RP.jugadasTexto(r.tronco, verSan)) : 'Sin jugadas todavía'}</small>
+            <span class="progreso-barra"><span style="width:${r.pct}%"></span></span>
+            <small class="sig">${r.siguiente ? `Siguiente: ${esc(r.siguiente.titulo)}` : '✓ Completa'} · ${r.pct}%</small></span>
+          ${ico('flecha', 'peq')}</a>`;
+      }).join('')}</div>` : ''}
+      <ul class="cobertura">${filaAvisos(cob[color])}</ul>
+      <a class="btn anadir-ej" href="#/editar-apertura/nueva?color=${color}">${ico('mas')} ${color === 'white' ? 'Añadir apertura con blancas' : 'Añadir defensa con negras'}</a>`;
+  };
+  v.innerHTML = `
+    <div class="cab-vista"><h1>Repertorio</h1></div>
+    ${todas.length ? '' : `
+      <div class="tarjeta dia vacia">
+        <span class="etq">Tu repertorio, a tu manera</span>
+        <h2>Empieza por tu apertura principal</h2>
+        <p>Elige tú las aperturas: hasta ${RP.MAX_POR_COLOR} con blancas y ${RP.MAX_POR_COLOR} defensas con negras. La app no te propone ninguna; te guía paso a paso para que cada una quede completa: jugadas, línea principal, respuestas del rival, planes, trampas…</p>
+      </div>`}
+    ${bloque('white')}
+    ${bloque('black')}`;
 }
+
+function vApertura(v, id) {
+  const a = D.obtener('repertorio', id);
+  if (!a) return ir('#/repertorio');
+  const r = RP.analizar(a, leerPgn, verSan);
+  const color = a.color;
+  const sig = r.siguiente;
+  const fichas = (a.conceptos || []).map(cid => D.obtener('conceptos', cid)).filter(Boolean);
+  const filaLinea = l => {
+    const sep = r.principal && l.tipo !== 'principal' && l.ej ? RP.separacion(l.ej, r.principal.ej) : -1;
+    const n = l.ej ? l.ej.jugadas.length : 0;
+    return `<a class="fila-c" href="#/linea/${a.id}?l=${l.id}">
+      <span class="fila-txt"><b>${esc(l.nombre || TIPO_LINEA[l.tipo])}</b>
+      <small>${sep >= 0 ? `Se separa en ${esc(RP.etiquetaPly(l.ej, sep, verSan))} · ` : ''}hasta la jugada ${Math.ceil(n / 2) || 0}${l.nota ? ' · ' + esc(l.nota.slice(0, 60)) : ''}</small></span>
+      ${ico('flecha', 'peq')}</a>`;
+  };
+  const seccion = (titulo, contenido, clave) => contenido ? `<h3 class="sec">${titulo} <a class="btn-ico peq" href="#/editar-apertura/${a.id}?campo=${clave}" aria-label="Editar">${ico('editar')}</a></h3><div class="md">${md(contenido)}</div>` : '';
+  v.innerHTML = `
+    <div class="cab-vista">
+      <a href="#/repertorio" class="btn-ico" aria-label="Volver">${ico('atras')}</a>
+      <span class="hueco"></span>
+      <a href="#/editar-apertura/${a.id}" class="btn peq">${ico('editar', 'peq')} Editar</a>
+    </div>
+    <article class="ficha ap-cab">
+      <div class="etqs"><span class="etq-bloque">${COLOR_TXT[color]}${a.eco ? ' · ' + esc(a.eco) : ''}</span>
+        <span class="rol ${a.rol}">${a.rol === 'principal' ? 'Principal' : 'Secundaria'}</span>
+        ${a.revisada ? `<span class="estado hecho">${ico('check', 'peq')} Revisada con el maestro</span>` : ''}</div>
+      <h1 class="ficha-tit">${esc(a.nombre)}</h1>
+      ${r.tronco && r.tronco.jugadas.length ? `<p class="tronco">${esc(RP.jugadasTexto(r.tronco, verSan))}
+        <a href="${esc(RP.urlExplorador(fenFinal(r.tronco), color))}" target="_blank" rel="noopener" class="chip">${ico('externo', 'peq')} Explorador</a></p>` : ''}
+      <div class="progreso-barra grande"><span style="width:${r.pct}%"></span></div>
+      <p class="nota">Preparada al <b>${r.pct}%</b></p>
+    </article>
+    ${sig ? `<div class="pista siguiente"><b>Siguiente paso · ${esc(sig.titulo)}</b><p>${esc(sig.ayuda)}</p>
+      ${sig.clave === 'revisada' ? `<div class="fila-btn"><button class="btn primario peq" id="revisada">${ico('check', 'peq')} Ya la he revisado</button>
+        <a class="btn peq" href="#/pregunta/nueva?texto=${encodeURIComponent(`Repertorio · ${a.nombre}: `)}">Apuntar una pregunta</a></div>`
+        : `<a class="btn primario peq" href="${pasoUrl(a, sig)}">Hacerlo ahora ${ico('flecha', 'peq')}</a>`}</div>`
+      : `<div class="pista siguiente"><b>¡Apertura completa!</b><p>Ahora toca jugarla y repasarla. Cuando tu maestro te corrija algo, edítalo: la guía te avisará si falta algo.</p></div>`}
+    ${r.avisosLineas.length ? `<ul class="cobertura">${r.avisosLineas.map(x => `<li class="medio">${ico('reloj', 'peq')}<span>${esc(x.texto)}</span></li>`).join('')}</ul>` : ''}
+    <details class="guia-ap"${r.pct < 100 ? ' open' : ''}><summary>La guía: ${r.pasos.filter(p => p.estado === 'hecho').length} de ${r.pasos.length} pasos</summary>
+      <div class="lista">${r.pasos.map((p, i) => `<a class="fila-c paso ${p.estado}" href="${p.clave === 'revisada' ? '#/editar-apertura/' + a.id + '?campo=revisada' : pasoUrl(a, p)}">
+        <span class="paso-n">${p.estado === 'hecho' ? ico('check', 'peq') : i + 1}</span>
+        <span class="fila-txt"><b>${esc(p.titulo)}</b><small>${esc(p.detalle)}</small></span>${ico('flecha', 'peq')}</a>`).join('')}</div>
+    </details>
+    ${seccion('Objetivos', a.ideas, 'ideas')}
+    <h3 class="sec">Línea principal</h3>
+    ${r.principal ? `<div class="tarjeta ejemplo">
+        <div class="ej-cab"><b>${esc(r.principal.nombre || 'Línea principal')}</b><a href="#/editar-linea/${a.id}?l=${r.principal.id}" class="btn-ico peq" aria-label="Editar">${ico('editar')}</a></div>
+        <div class="visor" id="visor-principal"></div>
+        ${r.principal.nota ? `<div class="md">${md(r.principal.nota)}</div>` : ''}
+        <div class="fila-btn">
+          <a class="chip" href="${esc(RP.urlAnalisis(r.principal.ej, color))}" target="_blank" rel="noopener">${ico('externo', 'peq')} Analizar en Lichess</a>
+          <a class="chip" href="${esc(RP.urlExplorador(fenFinal(r.principal.ej), color))}" target="_blank" rel="noopener">${ico('externo', 'peq')} Explorador al final</a>
+        </div></div>`
+      : `<a class="btn anadir-ej" href="#/editar-linea/${a.id}?l=nueva&tipo=principal">${ico('mas')} Crear la línea principal</a>`}
+    <h3 class="sec">Respuestas del rival <small>${r.secundarias.length || ''}</small></h3>
+    ${r.secundarias.length ? `<div class="lista">${r.secundarias.map(filaLinea).join('')}</div>` : '<p class="nada peq">Las alternativas del rival a tu línea principal.</p>'}
+    <a class="btn anadir-ej" href="#/editar-linea/${a.id}?l=nueva&tipo=secundaria">${ico('mas')} Añadir respuesta del rival</a>
+    <h3 class="sec">Trampas <small>${r.trampas.length || ''}</small></h3>
+    ${r.trampas.length ? `<div class="lista">${r.trampas.map(filaLinea).join('')}</div>` : '<p class="nada peq">Las que puedes tender y en las que no debes caer.</p>'}
+    <a class="btn anadir-ej" href="#/editar-linea/${a.id}?l=nueva&tipo=trampa">${ico('mas')} Añadir trampa</a>
+    ${seccion('Estructura de peones', a.estructura, 'estructura')}
+    ${seccion('Planes del medio juego', a.planes, 'planes')}
+    ${seccion('Rupturas', a.rupturas, 'rupturas')}
+    ${seccion('Tácticas típicas', a.tacticas, 'tacticas')}
+    ${(a.partidas_modelo || []).length ? `<h3 class="sec">Partidas modelo</h3><div class="enlaces">${a.partidas_modelo.map(p => p.url
+      ? `<a class="enlace" href="${esc(p.url)}" target="_blank" rel="noopener"><b>${esc(p.titulo || 'Partida')}</b><small>${ico('externo', 'peq')} Abrir</small></a>`
+      : `<span class="enlace"><b>${esc(p.titulo || 'Partida')}</b></span>`).join('')}</div>` : ''}
+    ${fichas.length ? `<h3 class="sec">Conceptos de tu cuaderno</h3><div class="chips">${fichas.map(c => `<a class="chip" href="#/concepto/${c.id}">${ico('enlace', 'peq')} ${esc(c.titulo)}</a>`).join('')}</div>` : ''}`;
+  if (r.principal?.ej) {
+    const vis = crearVisor(v.querySelector('#visor-principal'), r.principal.ej, { orientacion: color });
+    limpiezas.push(vis.cerrar);
+  }
+  v.querySelector('#revisada')?.addEventListener('click', async () => {
+    a.revisada = true;
+    await D.guardar('repertorio', a);
+    aviso('Apertura revisada con tu maestro');
+    pintar(true);
+  });
+}
+
+// Editar los datos y los textos de una apertura. Con ?campo=… se edita un solo
+// paso de la guía, con su explicación, para ir completándola poco a poco.
+function vEditarApertura(v, id, q) {
+  editando = true;
+  const nueva = id === 'nueva';
+  const a = nueva ? { nombre: '', color: q.get('color') === 'black' ? 'black' : 'white', rol: 'principal', lineas: [], conceptos: [], partidas_modelo: [] } : D.obtener('repertorio', id);
+  if (!a) return ir('#/repertorio');
+  if (nueva && aperturas().some(x => x.color === a.color && x.rol === 'principal')) a.rol = 'secundaria';
+  const campo = nueva ? null : q.get('campo');
+  const paso = campo && RP.PASOS.find(p => (p.campo || p.clave) === campo);
+  const mostrar = k => !campo || campo === k;
+  const ayuda = k => { const p = RP.PASOS.find(x => x.campo === k); return p ? `<small class="ayuda-paso">${esc(p.ayuda)}</small>` : ''; };
+  const area = (k, titulo, filas, ph) => mostrar(k) ? `<label>${titulo}${ayuda(k)}<textarea name="${k}" rows="${campo ? 9 : filas}" placeholder="${esc(ph)}">${esc(a[k] || '')}</textarea></label>` : '';
+  const todas = conceptos().sort((x, y) => x.titulo.localeCompare(y.titulo, 'es'));
+  const marcadas = new Set(a.conceptos || []);
+  let partidas = (a.partidas_modelo || []).map(p => ({ ...p }));
+  const volver = nueva ? '#/repertorio' : '#/apertura/' + id;
+  v.innerHTML = `
+    <div class="cab-vista">
+      <a href="${volver}" class="btn-ico" aria-label="Cancelar" id="volver">${ico('atras')}</a>
+      <h1>${nueva ? (a.color === 'white' ? 'Nueva apertura' : 'Nueva defensa') : paso ? esc(paso.titulo) : 'Editar apertura'}</h1>
+    </div>
+    ${paso && !paso.campo ? '' : ''}
+    <form id="f-apertura" class="form">
+      ${!campo ? `
+        <label>Nombre <small>como tú la llamas</small><input name="nombre" required maxlength="80" value="${esc(a.nombre)}" placeholder="${a.color === 'white' ? 'Italiana, Londres, Gambito de dama…' : 'Caro-Kann, Siciliana Najdorf, Nimzoindia…'}"></label>
+        <div class="dos">
+          <label>Color<select name="color"><option value="white" ${a.color === 'white' ? 'selected' : ''}>Con blancas</option><option value="black" ${a.color === 'black' ? 'selected' : ''}>Con negras</option></select></label>
+          <label>Papel<select name="rol"><option value="principal" ${a.rol === 'principal' ? 'selected' : ''}>Principal</option><option value="secundaria" ${a.rol === 'secundaria' ? 'selected' : ''}>Secundaria</option></select></label>
+        </div>
+        ${nueva ? `<p class="nota">Después de guardar, la app te irá pidiendo cada parte: primero las jugadas que la definen y luego la línea principal, las respuestas del rival, los planes, las trampas…</p>` : `<label>Código ECO <small>opcional, lo ves en el explorador de Lichess</small><input name="eco" maxlength="8" value="${esc(a.eco || '')}" placeholder="B12"></label>`}` : ''}
+      ${nueva ? '' : `
+        ${area('ideas', 'Objetivos de la apertura', 4, 'Qué busco con ella…')}
+        ${area('estructura', 'Estructura de peones', 3, 'Cómo quedan los peones…')}
+        ${area('planes', 'Planes del medio juego', 5, 'Mi plan: …\nEl plan del rival: …')}
+        ${area('rupturas', 'Rupturas', 3, '…c5 para atacar el centro…')}
+        ${area('tacticas', 'Tácticas típicas', 3, 'Clavada del Nc6 con el alfil…')}
+        ${mostrar('partidas') ? `<fieldset class="rel"><legend>Partidas modelo</legend>${ayuda('partidas')}
+          <div id="partidas"></div>
+          <button type="button" class="btn peq" id="mas-partida">${ico('mas', 'peq')} Añadir partida</button></fieldset>` : ''}
+        ${mostrar('conceptos') ? `<fieldset class="rel"><legend>Conceptos de tu cuaderno</legend>${ayuda('conceptos')}
+          ${todas.length ? `<input type="search" class="filtro-rel" placeholder="Filtrar fichas…">
+          <div class="rel-lista">${todas.map(c => `<label class="check"><input type="checkbox" value="${c.id}" ${marcadas.has(c.id) ? 'checked' : ''}><span>${esc(c.titulo)}</span></label>`).join('')}</div>`
+          : '<p class="nada peq">Aún no tienes fichas en tu cuaderno.</p>'}</fieldset>` : ''}
+        ${mostrar('revisada') ? `${campo ? `<p class="nota">${esc(RP.PASOS.find(p => p.clave === 'revisada').ayuda)}</p>` : ''}
+          <label class="check"><input type="checkbox" name="revisada" ${a.revisada ? 'checked' : ''}><span>Revisada con mi maestro</span></label>
+          ${campo ? `<a class="btn" href="#/pregunta/nueva?texto=${encodeURIComponent(`Repertorio · ${a.nombre}: `)}">${ico('guia', 'peq')} Apuntar una pregunta para el maestro</a>` : ''}` : ''}`}
+      <div class="botones">
+        <button class="btn primario" type="submit">Guardar</button>
+        ${!nueva && !campo ? `<button type="button" class="btn peligro" id="borrar-ap">${ico('borrar', 'peq')} Borrar apertura</button>` : ''}
+      </div>
+      ${campo ? `<a class="nota" href="#/editar-apertura/${id}">Editar toda la apertura</a>` : ''}
+    </form>`;
+  const f = v.querySelector('#f-apertura');
+  const pintarPartidas = () => {
+    const caja = v.querySelector('#partidas');
+    if (!caja) return;
+    caja.innerHTML = partidas.length ? partidas.map((p, i) => `<div class="partida-fila" data-i="${i}">
+        <input data-k="titulo" placeholder="Capablanca – Alekhine, 1927" value="${esc(p.titulo || '')}">
+        <input data-k="url" type="url" placeholder="https://lichess.org/…" value="${esc(p.url || '')}">
+        <button type="button" class="btn-ico peq" data-quitar="${i}" aria-label="Quitar">${ico('borrar')}</button></div>`).join('')
+      : '<p class="nada peq">Ninguna todavía.</p>';
+  };
+  pintarPartidas();
+  v.querySelector('#mas-partida')?.addEventListener('click', () => { partidas.push({ titulo: '', url: '' }); pintarPartidas(); v.querySelector('.partida-fila:last-child input')?.focus(); });
+  v.querySelector('#partidas')?.addEventListener('input', e => { const i = e.target.closest('[data-i]')?.dataset.i; if (i != null) partidas[i][e.target.dataset.k] = e.target.value; });
+  v.querySelector('#partidas')?.addEventListener('click', e => { const i = e.target.closest('[data-quitar]')?.dataset.quitar; if (i != null) { partidas.splice(+i, 1); pintarPartidas(); } });
+  v.querySelector('.filtro-rel')?.addEventListener('input', e => {
+    const t = norm(e.target.value);
+    v.querySelectorAll('.rel-lista .check').forEach(l => { l.hidden = t && !norm(l.textContent).includes(t); });
+  });
+  if (campo) f.querySelector(`[name="${campo}"]`)?.focus();
+  v.querySelector('#volver').addEventListener('click', () => { editando = false; });
+  f.addEventListener('submit', async e => {
+    e.preventDefault();
+    const val = k => (f.elements[k] ? f.elements[k].value.trim() : undefined);
+    if (!campo) {
+      a.nombre = val('nombre');
+      a.color = val('color'); a.rol = val('rol');
+      if (!nueva) a.eco = val('eco') || null;
+      if (!a.nombre) return alert('Escribe el nombre de la apertura.');
+    }
+    for (const k of ['ideas', 'estructura', 'planes', 'rupturas', 'tacticas']) if (f.elements[k]) a[k] = val(k) || null;
+    if (v.querySelector('#partidas')) a.partidas_modelo = partidas.map(p => ({ titulo: (p.titulo || '').trim(), url: (p.url || '').trim() })).filter(p => p.titulo || p.url);
+    if (v.querySelector('.rel-lista')) a.conceptos = [...v.querySelectorAll('.rel-lista input:checked')].map(i => i.value);
+    if (f.elements.revisada) a.revisada = f.elements.revisada.checked;
+    if (nueva) a.orden = aperturas().filter(x => x.color === a.color).length;
+    await D.guardar('repertorio', a);
+    editando = false;
+    if (nueva) { aviso('Apertura creada. Primer paso: juega las jugadas que la definen.'); return ir(`#/editar-linea/${a.id}?tronco=1`); }
+    aviso('Guardado');
+    ir('#/apertura/' + a.id);
+  });
+  v.querySelector('#borrar-ap')?.addEventListener('click', async () => {
+    if (!confirm(`¿Borrar «${a.nombre}» con todas sus líneas?`)) return;
+    await D.borrar('repertorio', a.id);
+    editando = false;
+    aviso('Apertura borrada');
+    ir('#/repertorio');
+  });
+}
+
+function vLinea(v, apId, q) {
+  const a = D.obtener('repertorio', apId);
+  const l = a && (a.lineas || []).find(x => x.id === q.get('l'));
+  if (!l) return ir(a ? '#/apertura/' + apId : '#/repertorio');
+  const ej = leerPgn(l.pgn);
+  if (!ej) return ir('#/apertura/' + apId);
+  const principal = (a.lineas || []).find(x => x.tipo === 'principal');
+  const sep = principal && l.tipo !== 'principal' ? RP.separacion(ej, leerPgn(principal.pgn)) : -1;
+  v.innerHTML = `
+    <div class="cab-vista">
+      <a href="#/apertura/${a.id}" class="btn-ico" aria-label="Volver">${ico('atras')}</a>
+      <div class="ej-tit"><h1>${esc(l.nombre || TIPO_LINEA[l.tipo])}</h1><small>${esc(a.nombre)} · ${TIPO_LINEA[l.tipo]}</small></div>
+      <a href="#/editar-linea/${a.id}?l=${l.id}" class="btn peq">${ico('editar', 'peq')} Editar</a>
+    </div>
+    ${sep >= 0 ? `<p class="nota">Se separa de tu línea principal en <b>${esc(RP.etiquetaPly(ej, sep, verSan))}</b>.</p>` : ''}
+    <div class="visor" id="visor-linea"></div>
+    ${l.nota ? `<div class="md">${md(l.nota)}</div>` : ''}
+    <div class="fila-btn">
+      <a class="chip" href="${esc(RP.urlAnalisis(ej, a.color))}" target="_blank" rel="noopener">${ico('externo', 'peq')} Analizar en Lichess</a>
+      <a class="chip" href="${esc(RP.urlExplorador(fenFinal(ej), a.color))}" target="_blank" rel="noopener">${ico('externo', 'peq')} Explorador al final</a>
+      <a class="chip" href="#/pregunta/nueva?texto=${encodeURIComponent(`${a.nombre} · ${l.nombre || TIPO_LINEA[l.tipo]}: `)}&pgn=${encodeURIComponent(l.pgn)}">${ico('guia', 'peq')} Preguntar al maestro</a>
+    </div>`;
+  const vis = crearVisor(v.querySelector('#visor-linea'), ej, { orientacion: a.color });
+  limpiezas.push(vis.cerrar);
+}
+
+// Editor de una línea (o de las jugadas que definen la apertura, con ?tronco=1)
+function vEditarLinea(v, apId, q) {
+  editando = true;
+  const a = D.obtener('repertorio', apId);
+  if (!a) return ir('#/repertorio');
+  a.lineas = a.lineas || [];
+  const esTronco = q.get('tronco') === '1';
+  const nueva = !esTronco && (q.get('l') || 'nueva') === 'nueva';
+  const l = esTronco ? null : nueva ? { id: D.nuevoId(), tipo: ['principal', 'secundaria', 'trampa'].includes(q.get('tipo')) ? q.get('tipo') : 'secundaria', nombre: '', nota: '', pgn: '' } : a.lineas.find(x => x.id === q.get('l'));
+  if (!esTronco && !l) return ir('#/apertura/' + apId);
+  if (nueva && l.tipo === 'principal' && a.lineas.some(x => x.tipo === 'principal')) l.tipo = 'secundaria';
+  // Una línea nueva empieza con las jugadas que definen tu apertura
+  let ej = (esTronco ? leerPgn(a.tronco) : nueva ? leerPgn(a.tronco) : leerPgn(l.pgn)) || ejemploVacio();
+  const pasoAyuda = esTronco ? RP.PASOS[0].ayuda : RP.PASOS.find(p => p.clave === (l.tipo === 'principal' ? 'principal' : l.tipo === 'trampa' ? 'trampas' : 'secundarias')).ayuda;
+  let cambios = false, ed;
+  v.innerHTML = `
+    <div class="cab-vista ej-cab">
+      <a href="#/apertura/${a.id}" class="btn-ico" aria-label="Volver" id="volver">${ico('atras')}</a>
+      <div class="ej-tit"><h1>${esTronco ? 'Jugadas que la definen' : nueva ? 'Nueva: ' + TIPO_LINEA[l.tipo].toLowerCase() : 'Editar línea'}</h1><small>${esc(a.nombre)}</small></div>
+      <button class="btn-ico" id="ampliar" aria-label="Ampliar">${ico('ampliar')}</button>
+      <button class="btn primario peq" id="guardar">Guardar</button>
+    </div>
+    <div id="editor" class="editor"></div>
+    <div class="ej-pie">
+      <details class="ayuda-linea"${nueva || esTronco ? ' open' : ''}><summary>Cómo hacerlo</summary><p>${esc(pasoAyuda)}</p>
+        <p class="nota">Juega las jugadas en el tablero (modo Jugar). Para comentar una jugada, selecciónala y escribe en «Comentario».</p></details>
+      <div class="fila-btn"><a class="chip" id="explorar" target="_blank" rel="noopener">${ico('externo', 'peq')} ¿Qué juega el rival aquí? Explorador</a></div>
+      ${esTronco ? '' : `
+        <label class="form solo"><span>Nombre de la línea <small>opcional</small></span>
+          <input id="l-nombre" maxlength="100" placeholder="${l.tipo === 'trampa' ? 'Trampa de …' : l.tipo === 'principal' ? 'Variante principal' : 'Si juega 3...Cf6'}" value="${esc(l.nombre || '')}"></label>
+        <label class="form solo"><span>Tipo</span><select id="l-tipo">${Object.entries(TIPO_LINEA).map(([k, t]) => `<option value="${k}" ${l.tipo === k ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+        <label class="form solo"><span>La idea <small>por qué la juegas, qué buscas, qué evitar</small></span>
+          <textarea id="l-nota" rows="3" placeholder="${l.tipo === 'trampa' ? 'Si el rival come el peón…' : 'Con …c5 ataco el centro antes de que…'}">${esc(l.nota || '')}</textarea></label>`}
+      <details class="pegar-pgn"><summary>Pegar un PGN</summary>
+        <p class="nota">Desde Lichess: en el tablero de análisis, «FEN y PGN», copia el PGN y pégalo aquí. Se toma la línea principal, sin variantes.</p>
+        <textarea id="pgn-txt" rows="4" placeholder="1. e4 c6 2. d4 d5 3. e5 Af5"></textarea>
+        <button type="button" class="btn peq" id="pgn-cargar">Cargar en el tablero</button></details>
+      ${!nueva && !esTronco ? `<button class="btn peligro" id="borrar">${ico('borrar', 'peq')} Borrar esta línea</button>` : ''}
+    </div>`;
+  const montarEditor = () => {
+    ed = crearEditor(v.querySelector('#editor'), ej, { orientacion: a.color, pedirPromocion, alCambiar: () => { cambios = true; } });
+  };
+  montarEditor();
+  limpiezas.push(() => ed.cerrar());
+  const ampliar = v.querySelector('#ampliar');
+  const ponerEnfoque = (si, guardarEleccion) => {
+    document.body.classList.toggle('enfoque', si);
+    ampliar.setAttribute('aria-label', si ? 'Reducir' : 'Ampliar');
+    ampliar.querySelector('path').setAttribute('d', si ? P.reducir : P.ampliar);
+    if (guardarEleccion) localStorage.setItem('mdp-enfoque', si ? '1' : '0');
+    window.scrollTo(0, 0);
+    ed.ajustar();
+  };
+  ampliar.addEventListener('click', () => ponerEnfoque(!document.body.classList.contains('enfoque'), true));
+  // Igual que en los ejemplos: en el móvil se abre ampliado, salvo que prefieras lo contrario
+  const eleccion = localStorage.getItem('mdp-enfoque');
+  ponerEnfoque(eleccion ? eleccion === '1' : window.innerWidth < 700, false);
+  limpiezas.push(() => document.body.classList.remove('enfoque'));
+  // El explorador se abre en la posición a la que has llegado
+  v.querySelector('#explorar').addEventListener('pointerdown', e => { e.currentTarget.href = RP.urlExplorador(fenFinal(ej), a.color); });
+  v.querySelector('#explorar').href = RP.urlExplorador(fenFinal(ej), a.color);
+  v.querySelectorAll('#l-nombre, #l-nota, #l-tipo').forEach(x => x.addEventListener('input', () => { cambios = true; }));
+  v.querySelector('#pgn-cargar').addEventListener('click', () => {
+    const txt = v.querySelector('#pgn-txt').value.trim();
+    if (!txt) return;
+    const nuevoEj = leerPgn(txt);
+    if (!nuevoEj || !nuevoEj.jugadas.length) return alert('No he podido leer jugadas en ese PGN. Comprueba que esté en notación inglesa (Nf3, Bb5…), como lo copia Lichess.');
+    ed.cerrar(); ej = nuevoEj; montarEditor(); cambios = true;
+    v.querySelector('.pegar-pgn').open = false;
+    aviso(`${ej.jugadas.length} jugadas cargadas`);
+  });
+  v.querySelector('#volver').addEventListener('click', e => {
+    if (cambios && !confirm('Hay cambios sin guardar. ¿Salir sin guardar?')) e.preventDefault();
+    else editando = false;
+  });
+  v.querySelector('#guardar').addEventListener('click', async () => {
+    const err = ed.confirmar();
+    if (err) return alert(err);
+    if (ej.fen0 !== FEN_INICIAL) return alert('Las líneas del repertorio empiezan desde la posición inicial. En el modo Posición, pulsa «Inicial».');
+    if (!ej.jugadas.length) return alert('Juega al menos una jugada en el tablero.');
+    if (esTronco) {
+      a.tronco = aPgn(ej);
+    } else {
+      l.nombre = v.querySelector('#l-nombre').value.trim() || null;
+      l.nota = v.querySelector('#l-nota').value.trim() || null;
+      l.tipo = v.querySelector('#l-tipo').value;
+      l.pgn = aPgn(ej);
+      const tronco = leerPgn(a.tronco);
+      if (tronco && tronco.jugadas.length && !RP.empiezaCon(ej, tronco)
+        && !confirm(`Esta línea no empieza con ${RP.jugadasTexto(tronco, verSan)}. ¿Guardarla igualmente?`)) return;
+      const otra = a.lineas.find(x => x.tipo === 'principal' && x.id !== l.id);
+      if (l.tipo === 'principal' && otra) {
+        if (!confirm('Ya tienes una línea principal. ¿Esta pasa a ser la principal y la otra, una respuesta del rival?')) return;
+        otra.tipo = 'secundaria';
+      }
+      if (nueva) a.lineas.push(l);
+    }
+    await D.guardar('repertorio', a);
+    editando = false;
+    aviso(esTronco ? 'Jugadas guardadas. Siguiente: los objetivos de la apertura.' : 'Línea guardada');
+    ir('#/apertura/' + a.id);
+  });
+  v.querySelector('#borrar')?.addEventListener('click', async () => {
+    if (!confirm('¿Borrar esta línea?')) return;
+    a.lineas = a.lineas.filter(x => x.id !== l.id);
+    await D.guardar('repertorio', a);
+    editando = false;
+    ir('#/apertura/' + a.id);
+  });
+}
+
 
 // ---------------------------------------------------------------------
 //  ARRANQUE

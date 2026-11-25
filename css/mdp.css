@@ -580,3 +580,51 @@ body.enfoque .ej-pie { margin-top: 12px; }
 
 @media (max-width: 480px) { .solo-ancho { display: none; } .sync.pend { padding: 6px 9px; } }
 .solo-ancho { font-style: normal; }
+
+/* ---------- Biblioteca sugerida, restaurar y zona peligrosa ---------- */
+.aviso-biblio { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; margin: 10px 0; border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--acento) 35%, transparent); background: color-mix(in srgb, var(--acento) 8%, transparent); font-size: 14.5px; }
+.aviso-biblio > span { flex: 1; min-width: 160px; }
+.aviso-biblio > .ico { color: var(--acento); }
+.subir-copia { cursor: pointer; margin-top: 4px; }
+.peligro-zona { border: 1px dashed color-mix(in srgb, var(--peligro) 50%, transparent); border-radius: var(--radio); padding: 10px 14px; }
+.peligro-zona summary { cursor: pointer; color: var(--peligro); font-weight: 700; }
+.peligro-zona[open] { display: flex; flex-direction: column; gap: 10px; }
+.peligro-zona p { margin: 0; font-size: 14.5px; }
+.peligro-zona label { display: flex; flex-direction: column; gap: 5px; font-size: 14px; }
+
+/* ---------- Repertorio (fase 3) ---------- */
+.fila-ap { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--linea); }
+.fila-ap:last-child { border-bottom: 0; }
+.fila-ap .fila-txt { gap: 4px; }
+.fila-ap .progreso-barra { height: 6px; margin-top: 2px; }
+.fila-ap small.sig { font-style: normal; font-family: var(--sans); font-size: 12.5px; }
+.rol { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 1px 7px; border-radius: 99px;
+  border: 1px solid var(--linea); color: var(--suave); vertical-align: 2px; }
+.rol.principal { color: var(--acento); border-color: color-mix(in srgb, var(--acento) 45%, transparent); }
+.cobertura { list-style: none; margin: 10px 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.cobertura li { display: flex; gap: 8px; align-items: flex-start; }
+.cobertura li .ico { flex: none; margin-top: 2px; }
+.cobertura .hecho { color: var(--ok); }
+.cobertura .medio .ico { color: var(--acento); }
+.cobertura .falta .ico { color: var(--peligro); }
+.tronco { font-family: var(--serif); font-size: 17px; margin: 4px 0 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.progreso-barra.grande { height: 10px; margin-top: 6px; }
+.ap-cab .nota { margin: 6px 0 0; }
+.pista.siguiente { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.pista.siguiente p { margin: 0; font-size: 15.5px; }
+.guia-ap { margin: 14px 0; }
+.guia-ap summary { cursor: pointer; font-weight: 700; padding: 6px 0 10px; }
+.paso .paso-n { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 700;
+  border: 1.5px solid var(--linea); color: var(--suave); }
+.paso.hecho .paso-n { background: var(--ok); border-color: var(--ok); color: #fff; }
+.paso.medio .paso-n { border-color: var(--acento); color: var(--acento); }
+.paso.hecho .fila-txt b { color: var(--suave); font-weight: 500; }
+.ayuda-paso { display: block; font-weight: 400; color: var(--suave); font-size: 13.5px; line-height: 1.45; margin: 2px 0 4px; }
+.partida-fila { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; margin-bottom: 6px; }
+@media (max-width: 480px) { .partida-fila { grid-template-columns: 1fr auto; } .partida-fila input[data-k="url"] { grid-column: 1; } .partida-fila .btn-ico { grid-row: 1 / span 2; grid-column: 2; } }
+.ayuda-linea, .pegar-pgn { border: 1px solid var(--linea); border-radius: 12px; padding: 8px 12px; margin: 8px 0; background: var(--papel); }
+.ayuda-linea summary, .pegar-pgn summary { cursor: pointer; font-weight: 600; font-size: 14.5px; }
+.ayuda-linea p { margin: 6px 0; font-size: 14.5px; }
+.pegar-pgn textarea { width: 100%; margin: 6px 0; }
+.fila-txt .rol { align-self: flex-start; }
