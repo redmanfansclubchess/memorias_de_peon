@@ -2,9 +2,9 @@
 //  MdP · sw.js — guarda la app en el dispositivo para usarla sin conexión.
 //  Al publicar una versión nueva, cambia VERSION para que se actualice.
 // =====================================================================
-const VERSION = 'mdp-1.6.0';
+const VERSION = 'mdp-2.0.0';
 const APP = [
-  './', './index.html', './css/mdp.css', './js/app.js', './js/datos.js', './js/tablero.js', './js/biblioteca.js',
+  './', './index.html', './css/mdp.css', './js/app.js', './js/datos.js', './js/tablero.js', './js/biblioteca.js', './js/repaso.js',
   './manifest.json', './favicon-32.png', './favicon-192.png', './apple-touch-icon.png',
 ];
 const LIBRERIAS = [

@@ -455,6 +455,56 @@ export function crearEditor(contenedor, ej, { orientacion = 'white', alCambiar =
 }
 
 // ---------------------------------------------------------------------
+//  EJERCICIO (repaso): «juegas tú, ¿qué harías?»
+//  Muestra la posición inicial del ejemplo sin flechas; la solución es la
+//  primera jugada guardada. Llama a alResponder({ acierto, intentos }).
+// ---------------------------------------------------------------------
+export function crearEjercicio(contenedor, ej, { alResponder = () => {}, pedirPromocion } = {}) {
+  const fen = ej.fen0;
+  const turno = colorDe(fen);
+  const sol = ej.jugadas[0];
+  contenedor.innerHTML = `<div class="tablero"></div>`;
+  let intentos = 0, terminado = false;
+  const chess = new Chess(fen);
+  const { api, cerrar } = montar(contenedor.querySelector('.tablero'), {
+    fen, orientation: turno, turnColor: turno, check: chess.inCheck() ? turno : false,
+    movable: { free: false, color: turno, dests: destinos(chess), showDests: true, events: { after: mover } },
+    draggable: { enabled: true }, drawable: { enabled: true, eraseOnClick: true },
+  });
+  async function mover(orig, dest) {
+    if (terminado) return;
+    const pieza = chess.get(orig);
+    let promotion;
+    if (pieza && pieza.type === 'p' && (dest[1] === '8' || dest[1] === '1'))
+      promotion = sol.uci.length > 4 ? sol.uci[4] : (pedirPromocion ? await pedirPromocion(turno) : 'q');
+    const uci = orig + dest + (promotion || '');
+    intentos++;
+    if (uci === sol.uci || (orig + dest) === sol.uci.slice(0, 4) && !promotion) {
+      terminado = true;
+      api.set({ fen: sol.fen, lastMove: [orig, dest], movable: { color: undefined, dests: new Map() } });
+      api.setAutoShapes(sol.formas || []);
+      alResponder({ acierto: true, intentos });
+    } else {
+      api.set({ fen, lastMove: undefined, movable: { color: turno, dests: destinos(new Chess(fen)) } });
+      api.setAutoShapes([{ orig: dest, brush: 'red' }]);
+      if (intentos >= 2) {
+        terminado = true;
+        mostrarSolucion();
+        alResponder({ acierto: false, intentos });
+      } else alResponder({ acierto: false, intentos, otraVez: true });
+    }
+  }
+  function mostrarSolucion() {
+    terminado = true;
+    api.set({ fen: sol.fen, lastMove: [sol.uci.slice(0, 2), sol.uci.slice(2, 4)], movable: { color: undefined, dests: new Map() } });
+    api.setAutoShapes([{ orig: sol.uci.slice(0, 2), dest: sol.uci.slice(2, 4), brush: 'green' }, ...(sol.formas || [])]);
+  }
+  return { cerrar, mostrarSolucion, turno, solucion: () => etiquetaJugada(ej, 1) };
+}
+// Un ejemplo sirve de ejercicio si tiene al menos una jugada
+export const sirveDeEjercicio = ej => ej.jugadas.length > 0;
+
+// ---------------------------------------------------------------------
 //  Diagrama fijo (para imprimir): casillas, piezas de Lichess y flechas
 // ---------------------------------------------------------------------
 const ROLES = { k: 'king', q: 'queen', r: 'rook', b: 'bishop', n: 'knight', p: 'pawn' };

@@ -512,3 +512,71 @@ body.enfoque .ej-pie { margin-top: 12px; }
 .estado.maestro { color: #a8741a; border: 1px solid color-mix(in srgb, #c98a12 45%, transparent); background: color-mix(in srgb, #c98a12 12%, transparent); }
 .atajos { grid-template-columns: repeat(5, 1fr); }
 .atajos a { font-size: 11.5px; }
+
+/* =====================================================================
+   FASE 2 · REPASO, PROGRESO, TÉCNICAS Y PREGUNTAS
+   ===================================================================== */
+:root { --bien: #3f8a3a; --regular: #c98a12; --mal: #b3352b; }
+.atajos { grid-template-columns: repeat(3, 1fr); }
+
+/* Tarjeta «Repaso de hoy» */
+.repaso-hoy { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; border-left: 4px solid var(--acento); }
+.rh-txt { flex: 1; min-width: 150px; display: flex; flex-direction: column; }
+.rh-txt b { font-family: var(--serif); font-size: 24px; line-height: 1.15; }
+.rh-txt small { color: var(--suave); }
+.rh-btn { display: flex; gap: 8px; flex-wrap: wrap; }
+.dos-enlaces { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.dos-enlaces .tarjeta { margin: 0; }
+
+/* Sesión */
+.rep-cab { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.rep-barra { flex: 1; height: 8px; background: var(--linea); border-radius: 99px; overflow: hidden; }
+.rep-barra span, .progreso-barra span { display: block; height: 100%; background: var(--acento); border-radius: 99px; transition: width .3s; }
+.progreso-barra { height: 10px; background: var(--linea); border-radius: 99px; overflow: hidden; }
+.rep-tarjeta { background: var(--papel); border: 1px solid var(--linea); border-top: 4px solid var(--c); border-radius: var(--radio); padding: 16px; box-shadow: var(--sombra); }
+.rep-pregunta { color: var(--suave); margin: 8px 0 12px; }
+.rep-pregunta b { color: var(--texto); }
+.rep-tablero { max-width: 520px; margin: 0 auto; }
+.rep-notas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 6px; }
+.rep-notas .btn { padding: 14px 6px; color: #fff; border: 0; }
+.rep-notas .mal { background: var(--mal); } .rep-notas .regular { background: var(--regular); } .rep-notas .bien { background: var(--bien); }
+.rep-aviso { margin: 10px 0 0; font-weight: 600; }
+.rep-aviso.mal { color: var(--mal); }
+.rep-pistas { margin-top: 10px; }
+.pista-rep { margin: 6px 0; padding: 8px 12px; border-radius: 10px; background: color-mix(in srgb, var(--acento) 10%, transparent); font-family: var(--serif); }
+#rep-ayuda { margin-top: 12px; }
+.rep-resultado { font-weight: 700; font-size: 18px; margin: 12px 0 4px; }
+.rep-resultado.bien { color: var(--bien); } .rep-resultado.regular { color: var(--regular); } .rep-resultado.mal { color: var(--mal); }
+.rep-solucion { margin: 4px 0; }
+.rep-final { text-align: center; }
+.rep-nota { display: flex; align-items: baseline; justify-content: center; gap: 6px; margin: 6px 0; }
+.rep-nota b { font-family: var(--serif); font-size: 72px; line-height: 1; color: var(--acento); }
+.rep-nota small { font-size: 22px; color: var(--suave); }
+.rep-msg { font-family: var(--serif); font-size: 20px; margin: 0 0 12px; }
+.rep-final .lista { text-align: left; margin: 12px 0; }
+.rep-final .botones { justify-content: center; }
+.cifras b.ok { color: var(--bien); } .cifras b.reg { color: var(--regular); } .cifras b.ko { color: var(--mal); }
+.res-punto { width: 12px; height: 12px; border-radius: 50%; flex: none; background: var(--linea); }
+.res-punto.bien { background: var(--bien); } .res-punto.regular { background: var(--regular); } .res-punto.mal { background: var(--mal); }
+
+/* Selector segmentado (estado de la ficha, técnicas) */
+.segmento { display: inline-flex; background: var(--linea); border-radius: 10px; padding: 3px; gap: 2px; flex-wrap: wrap; }
+.segmento button { border: 0; background: none; padding: 6px 10px; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--suave); cursor: pointer; }
+.segmento button.on { background: var(--papel); color: var(--texto); box-shadow: var(--sombra); }
+.segmento button.on.domino { color: var(--bien); } .segmento button.on.fallo { color: var(--mal); } .segmento button.on.repasar { color: var(--regular); }
+.mi-estado { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 6px 0 4px; }
+.mi-estado > span { font-size: 13px; font-weight: 600; color: var(--suave); text-transform: uppercase; letter-spacing: .06em; }
+
+/* Técnicas */
+.tec-fila { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--linea); flex-wrap: wrap; }
+.tec-fila:last-child { border-bottom: 0; }
+.tec-fila.hecha .tec-txt b { color: var(--bien); }
+.tec-txt { flex: 1; min-width: 160px; display: flex; flex-direction: column; }
+.tec-enl { font-size: 13px; color: var(--suave); }
+.tec-enl a { color: var(--acento); }
+
+/* Preguntas */
+.fila-c.respondida .fila-txt b { color: var(--suave); font-weight: 500; }
+
+@media (max-width: 480px) { .solo-ancho { display: none; } .sync.pend { padding: 6px 9px; } }
+.solo-ancho { font-style: normal; }
