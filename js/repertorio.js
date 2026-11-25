@@ -7,6 +7,9 @@
 // =====================================================================
 
 export const MAX_POR_COLOR = 3;
+// Una línea entra en el repaso cuando llega al menos a tu 5.ª jugada
+export const MIN_PROPIAS = 5;
+export const jugadasPropias = (ej, color) => (ej ? (color === 'white' ? Math.ceil(ej.jugadas.length / 2) : Math.floor(ej.jugadas.length / 2)) : 0);
 
 // Las jugadas se comparan en notación inglesa (SAN), como las guarda el tablero.
 const L = 'https://lichess.org';

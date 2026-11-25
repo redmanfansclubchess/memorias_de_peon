@@ -6,9 +6,9 @@ import * as D from './datos.js';
 import { BIBLIOTECA } from './biblioteca.js';
 import * as R from './repaso.js';
 import * as RP from './repertorio.js';
-import { FEN_INICIAL, crearVisor, crearEditor, crearEjercicio, sirveDeEjercicio, dePgn, aPgn, ejemploVacio, usarFiguras, verSan, diagrama, textoJugadas, escapar as esc } from './tablero.js';
+import { FEN_INICIAL, crearVisor, crearEditor, crearEjercicio, crearEntrenoLinea, sirveDeEjercicio, dePgn, aPgn, ejemploVacio, usarFiguras, verSan, diagrama, textoJugadas, escapar as esc } from './tablero.js';
 
-export const VERSION = '3.0.0 (fase 3: repertorio)';
+export const VERSION = '3.1.0 (fase 3: repertorio)';
 const app = document.getElementById('app');
 
 // ---------------------------------------------------------------------
@@ -191,7 +191,7 @@ function pintarSync() {
 const RUTAS = {
   inicio: vInicio, conceptos: vConceptos, bloque: vBloque, concepto: vConcepto, editar: vEditarConcepto,
   ejemplo: vEjemplo, catalogo: vCatalogo, entrenar: vEntrenar, ajustes: vAjustes,
-  repertorio: vRepertorio, apertura: vApertura, 'editar-apertura': vEditarApertura, linea: vLinea, 'editar-linea': vEditarLinea,
+  repertorio: vRepertorio, apertura: vApertura, 'editar-apertura': vEditarApertura, linea: vLinea, 'editar-linea': vEditarLinea, 'imprimir-repertorio': vImprimirRepertorio,
   clases: vClases, clase: vClase, notas: vNotas, glosario: vGlosario, rutina: vRutina, guia: vGuia, imprimir: vImprimir,
   biblioteca: vBiblioteca,
   repaso: vRepaso, progreso: vProgreso, tecnicas: vTecnicas, preguntas: vPreguntas, pregunta: vPregunta,
@@ -213,7 +213,7 @@ function pintar(conservarScroll) {
   document.querySelectorAll('.barra a').forEach(a => {
     const r = a.dataset.r;
     a.classList.toggle('on', r === nombre || (r === 'conceptos' && ['bloque', 'concepto', 'editar', 'ejemplo', 'catalogo', 'imprimir', 'biblioteca'].includes(nombre))
-      || (r === 'repertorio' && ['apertura', 'editar-apertura', 'linea', 'editar-linea'].includes(nombre)) || (r === 'clases' && ['clase', 'preguntas', 'pregunta'].includes(nombre)) || (r === 'entrenar' && ['repaso', 'progreso', 'tecnicas'].includes(nombre)) || (r === 'inicio' && ['notas', 'glosario', 'rutina', 'guia'].includes(nombre)));
+      || (r === 'repertorio' && ['apertura', 'editar-apertura', 'linea', 'editar-linea', 'imprimir-repertorio'].includes(nombre)) || (r === 'clases' && ['clase', 'preguntas', 'pregunta'].includes(nombre)) || (r === 'entrenar' && ['repaso', 'progreso', 'tecnicas'].includes(nombre)) || (r === 'inicio' && ['notas', 'glosario', 'rutina', 'guia'].includes(nombre)));
   });
   (RUTAS[nombre] || vInicio)(vista, id, new URLSearchParams(q || ''));
   window.scrollTo(0, conservarScroll === true ? scroll : 0);
@@ -1368,7 +1368,8 @@ function vGuia(v) {
         <p>Para crear ejercicios de tablero, marca «Usar como ejercicio de repaso» en un ejemplo: la primera jugada será la solución.</p></section>
       <section class="tarjeta"><h2>Repertorio</h2>
         <p>Tus aperturas, elegidas por ti: hasta 3 con blancas y 3 defensas con negras. La app no te propone ninguna; te guía para que cada una quede completa, paso a paso: <b>las jugadas que la definen</b>, objetivos, <b>línea principal</b>, <b>respuestas del rival</b>, estructura, planes, rupturas, <b>trampas</b>, tácticas, partidas modelo, conceptos de tu cuaderno y, al final, revisarla con tu maestro.</p>
-        <p>Cada apertura muestra su porcentaje y el <b>siguiente paso</b>. En cada línea tienes enlaces para comprobarla en Lichess: el tablero de análisis y el <b>explorador</b>, donde ves qué juegan de verdad los rivales. También puedes pegar un PGN copiado de Lichess.</p></section>
+        <p>Cada apertura muestra su porcentaje y el <b>siguiente paso</b>. En cada línea tienes enlaces para comprobarla en Lichess: el tablero de análisis y el <b>explorador</b>, donde ves qué juegan de verdad los rivales. También puedes pegar un PGN copiado de Lichess.</p>
+        <p><b>Entrenar</b>: la app hace las jugadas del rival y tú las tuyas, con dos intentos por jugada; la pista es tu comentario, nunca la jugada. Cada línea que llega al menos a tu 5.ª jugada entra en el repaso diario: la que te sale bien tarda más en volver y la que fallas vuelve mañana. Con <b>Entrenar esta apertura</b> repasas todas sus líneas cuando quieras, primero las que peor llevas. El icono de impresora saca el repertorio en PDF.</p></section>
       <section class="tarjeta"><h2>En clase</h2>
         <p><b>Nota rápida</b> (en Inicio) para apuntar al vuelo; luego, en <a href="#/notas">Notas</a>, la conviertes en ficha. En <a href="#/clases">Clases</a> tienes el diario: lo que visteis, deberes y las fichas de cada día.</p></section>
       <section class="tarjeta"><h2>Sin conexión</h2>
@@ -1695,6 +1696,7 @@ const tarjetas = () => D.lista('tarjetas');
 const conceptoElegible = c => c.origen !== 'mdp' || ejemplosDe(c.id).length > 0;   // las translúcidas no entran
 function ejemploDeFila(e) { try { return dePgn(e.pgn || `[FEN "${e.fen_inicial}"]`); } catch (err) { return null; } }
 function fichaDeTarjeta(t) {
+  if (t.tipo === 'linea') return null;
   if (t.tipo === 'concepto') return D.obtener('conceptos', t.ref_id);
   const e = D.obtener('ejemplos', t.ref_id);
   return e && D.obtener('conceptos', e.concepto_id);
@@ -1720,6 +1722,11 @@ async function crearTarjetasQueFalten() {
         const ej = ejemploDeFila(e);
         if (ej && sirveDeEjercicio(ej)) quiero.set(await idDeterminista(`${usuario.id}:ejemplo:${e.id}`), { tipo: 'ejemplo', ref_id: e.id });
       }
+      for (const a of aperturas()) {
+        for (const l of a.lineas || []) {
+          if (lineaEntrenable(a, leerPgn(l.pgn))) quiero.set(await idDeterminista(`${usuario.id}:linea:${l.id}`), { tipo: 'linea', ref_id: l.id });
+        }
+      }
       for (const [id, x] of quiero) {
         const t = D.obtenerAunBorrado('tarjetas', id);
         if (!t) await D.guardar('tarjetas', { id, ...x, ply: 0, facilidad: 2.5, intervalo_dias: 0, repeticiones: 0, proxima: hoy, aciertos: 0, fallos: 0 });
@@ -1737,6 +1744,11 @@ async function registrarRespuesta(t, res) {
   if (c) {
     const estado = R.estadoDe(tarjetasDeFicha(c));
     if (c.estado !== estado) { c.estado = estado; await D.guardar('conceptos', c); }
+  }
+  const ln = lineaDeTarjeta(t);
+  if (ln) {   // el estado de la apertura sale de cómo llevas sus líneas
+    const estado = R.estadoDe(tarjetasDeApertura(ln.a));
+    if (ln.a.estado !== estado) { ln.a.estado = estado; await D.guardar('repertorio', ln.a); }
   }
 }
 
@@ -1763,13 +1775,29 @@ function tarjetaRepasoHoy() {
 async function vRepaso(v, _id, q) {
   editando = true;
   const n = q.get('n') === '5' ? R.SESION_RAPIDA : R.SESION_NORMAL;
+  // «Entrenar esta apertura»: todas sus líneas, primero las que peor llevas
+  const apertura = q.get('ap') ? D.obtener('repertorio', q.get('ap')) : null;
+  const salida = apertura ? '#/apertura/' + apertura.id : '#/inicio';
   v.innerHTML = '<p class="nada">Preparando tu repaso…</p>';
   await prepararTarjetas();
   if (!v.isConnected) return;
-  let sesion = R.seleccionar(tarjetas(), n);
-  if (!sesion.length && q.get('adelantar') === '1')
-    sesion = tarjetas().sort((a, b) => String(a.proxima).localeCompare(String(b.proxima))).slice(0, n);
-  sesion = sesion.filter(t => fichaDeTarjeta(t));
+  let sesion;
+  if (apertura) sesion = R.ordenarParaEntrenar(tarjetasDeApertura(apertura));
+  else {
+    sesion = R.seleccionar(tarjetas(), n);
+    if (!sesion.length && q.get('adelantar') === '1')
+      sesion = tarjetas().sort((a, b) => String(a.proxima).localeCompare(String(b.proxima))).slice(0, n);
+  }
+  sesion = sesion.filter(t => fichaDeTarjeta(t) || lineaDeTarjeta(t));
+  if (!sesion.length && apertura) {
+    editando = false;
+    v.innerHTML = `
+      <div class="cab-vista"><a href="${salida}" class="btn-ico">${ico('atras')}</a><h1>Entrenar</h1></div>
+      <div class="tarjeta vacia"><h2>Aún no hay líneas para entrenar</h2>
+        <p>Entran las líneas de «${esc(apertura.nombre)}» que llegan al menos a tu ${RP.MIN_PROPIAS}.ª jugada.</p>
+        <a class="btn primario" href="${salida}">Volver a la apertura</a></div>`;
+    return;
+  }
   if (!sesion.length) {
     editando = false;
     v.innerHTML = `
@@ -1778,7 +1806,7 @@ async function vRepaso(v, _id, q) {
           <p>Tus tarjetas volverán cuando toque. Si quieres, puedes adelantar trabajo.</p>
           <a class="btn primario" href="#/repaso?n=${n}&adelantar=1">Repasar por adelantado</a></div>`
         : `<div class="tarjeta vacia"><h2>Aún no hay tarjetas</h2>
-          <p>Entran en el repaso tus fichas y las de la biblioteca que ya has trabajado con tu ejemplo. Además, en cualquier ejemplo puedes marcar «Usar como ejercicio de repaso».</p>
+          <p>Entran en el repaso tus fichas y las de la biblioteca que ya has trabajado con tu ejemplo, y las líneas de tu repertorio que llegan al menos a tu ${RP.MIN_PROPIAS}.ª jugada. Además, en cualquier ejemplo puedes marcar «Usar como ejercicio de repaso».</p>
           <a class="btn primario" href="#/conceptos">Ir a mis fichas</a></div>`}`;
     return;
   }
@@ -1805,6 +1833,7 @@ async function vRepaso(v, _id, q) {
 
   function pintarTarjeta() {
     const t = sesion[i];
+    if (t.tipo === 'linea') return pintarLinea(t);
     const c = fichaDeTarjeta(t);
     const b = bloqueRaiz(c.bloque_id);
     const color = b ? col(b.color) : 'var(--suave)';
@@ -1875,12 +1904,74 @@ async function vRepaso(v, _id, q) {
     }
   }
 
+  // Una línea del repertorio: la app juega las del rival, tú las tuyas
+  function pintarLinea(t) {
+    const { a, l, ej } = lineaDeTarjeta(t);
+    let pistas = 0, hecho = false;
+    v.innerHTML = cabecera() + `
+      <article class="rep-tarjeta" style="--c:var(--acento)">
+        <span class="etq-bloque">${a.color === 'white' ? '♔' : '♚'} ${esc(a.nombre)} · ${TIPO_LINEA[l.tipo]}</span>
+        <p class="rep-pregunta"><b>${esc(l.nombre || TIPO_LINEA[l.tipo])}</b> · Juegas con ${a.color === 'white' ? 'blancas' : 'negras'}; el rival juega solo.</p>
+        <div class="rep-tablero"></div>
+        <p class="rep-prog" id="rep-prog"></p>
+        <p class="rep-aviso" id="rep-aviso" hidden></p>
+        <div class="rep-pistas" id="rep-pistas"></div>
+        <div class="fila-btn" id="rep-ayuda">
+          <button class="btn" id="rep-pista">${ico('guia', 'peq')} Pista</button>
+          <button class="btn" id="rep-nose">No lo sé</button>
+        </div>
+        <div id="rep-fin" hidden></div>
+      </article>`;
+    const aviso = (txt, cls) => { const x = v.querySelector('#rep-aviso'); x.textContent = txt; x.className = 'rep-aviso ' + (cls || ''); x.hidden = !txt; };
+    const total = RP.jugadasPropias(ej, a.color);
+    const prog = () => {   // cuenta solo tus jugadas
+      const hechas = a.color === 'white' ? Math.ceil(entreno.ply() / 2) : Math.floor(entreno.ply() / 2);
+      v.querySelector('#rep-prog').textContent = hechas >= total ? `${total} de ${total} jugadas tuyas` : `Tu jugada ${hechas + 1} de ${total}`;
+    };
+    const entreno = crearEntrenoLinea(v.querySelector('.rep-tablero'), ej, {
+      color: a.color, pedirPromocion,
+      alJugada: ({ ok, otraVez, perdida, jugada }) => {
+        v.querySelector('#rep-pistas').innerHTML = '';
+        if (ok) aviso('');
+        else if (otraVez) aviso('No es esa. Te queda un intento.', 'mal');
+        else if (perdida) aviso(`La buena era ${jugada}. Seguimos.`, 'mal');
+        prog();
+      },
+      alTerminar: ({ errores, perdidas }) => {
+        if (hecho) return; hecho = true;
+        const res = perdidas ? 'mal' : errores || pistas ? 'regular' : 'bien';
+        const texto = res === 'bien' ? '¡Línea perfecta!' : res === 'regular' ? 'Completada, con algún tropiezo o pista: cuenta como Regular.' : `${perdidas === 1 ? 'Se te escapó 1 jugada' : `Se te escaparon ${perdidas} jugadas`}. Esta línea volverá mañana.`;
+        v.querySelector('#rep-ayuda').hidden = true;
+        const fin = v.querySelector('#rep-fin');
+        fin.innerHTML = `<p class="rep-resultado ${res}">${texto}</p>
+          <p class="p-jug rep-linea-txt">${textoJugadas(ej)}</p>
+          ${l.nota ? `<p class="comentario-jug">${esc(l.nota)}</p>` : ''}
+          <p class="nota"><a href="#/linea/${a.id}?l=${l.id}">Ver la línea</a> · <a href="#/apertura/${a.id}">${esc(a.nombre)}</a></p>
+          <button class="btn primario ancho" id="rep-sig">Siguiente</button>`;
+        fin.hidden = false;
+        fin.querySelector('#rep-sig').addEventListener('click', () => siguiente(res));
+      },
+    });
+    cerrarTablero = entreno.cerrar;
+    prog();
+    v.querySelector('#rep-pista').addEventListener('click', () => {
+      const txt = entreno.pista();
+      const caja = v.querySelector('#rep-pistas');
+      if (txt) { pistas++; caja.innerHTML = `<p class="pista-rep"><b>Pista:</b> ${esc(txt)}</p>`; }
+      else if (l.nota && !caja.innerHTML) { pistas++; caja.innerHTML = `<p class="pista-rep"><b>La idea de la línea:</b> ${esc(l.nota)}</p>`; }
+      else caja.innerHTML = '<p class="pista-rep">No hay pista para esta jugada. Escribe un comentario en ella al editar la línea y la tendrás la próxima vez.</p>';
+    });
+    v.querySelector('#rep-nose').addEventListener('click', () => entreno.noLoSe());
+  }
+
   function final() {
     editando = false;
     const nt = R.nota(resultados);
     const cuenta = r => resultados.filter(x => x === r).length;
-    const sesiones = [...(ajustes().sesiones || []), { fecha: R.hoyISO(), n: resultados.length, nota: nt }].slice(-60);
-    guardarAjustes({ sesiones });
+    if (!apertura) {
+      const sesiones = [...(ajustes().sesiones || []), { fecha: R.hoyISO(), n: resultados.length, nota: nt }].slice(-60);
+      guardarAjustes({ sesiones });
+    }
     const ra = R.racha([...diasRepasados(), R.hoyISO()]);
     const msg = nt >= 9 ? '¡Excelente!' : nt >= 7 ? 'Muy bien' : nt >= 5 ? 'Aprobado: sigue así' : 'Hoy ha costado. Lo fallado volverá mañana, y así se aprende.';
     const quedan = R.pendientes(tarjetas()).length;
@@ -1895,10 +1986,15 @@ async function vRepaso(v, _id, q) {
           <div><b class="ko">${cuenta('mal')}</b><span>mal</span></div>
         </div>
         <p class="nota">Racha: ${ra} ${ra === 1 ? 'día' : 'días seguidos'}.</p>
-        <div class="lista">${sesion.map((t, k) => { const c = fichaDeTarjeta(t); return `<a class="fila-c" href="#/concepto/${c.id}"><span class="res-punto ${resultados[k]}"></span><span class="fila-txt"><b>${esc(c.titulo)}</b><small>${t.tipo === 'ejemplo' ? 'Ejercicio en el tablero' : 'Tarjeta de concepto'}</small></span>${ico('flecha', 'peq')}</a>`; }).join('')}</div>
+        <div class="lista">${sesion.map((t, k) => {
+          const ln = lineaDeTarjeta(t);
+          if (ln) return `<a class="fila-c" href="#/linea/${ln.a.id}?l=${ln.l.id}"><span class="res-punto ${resultados[k]}"></span><span class="fila-txt"><b>${esc(ln.l.nombre || TIPO_LINEA[ln.l.tipo])}</b><small>${esc(ln.a.nombre)} · ${TIPO_LINEA[ln.l.tipo]}</small></span>${ico('flecha', 'peq')}</a>`;
+          const c = fichaDeTarjeta(t);
+          return `<a class="fila-c" href="#/concepto/${c.id}"><span class="res-punto ${resultados[k]}"></span><span class="fila-txt"><b>${esc(c.titulo)}</b><small>${t.tipo === 'ejemplo' ? 'Ejercicio en el tablero' : 'Tarjeta de concepto'}</small></span>${ico('flecha', 'peq')}</a>`;
+        }).join('')}</div>
         <div class="botones">
-          <a class="btn primario" href="#/inicio">Volver a Inicio</a>
-          ${quedan ? `<a class="btn" href="#/repaso?n=5">Otra ronda rápida</a>` : ''}
+          <a class="btn primario" href="${salida}">${apertura ? 'Volver a la apertura' : 'Volver a Inicio'}</a>
+          ${!apertura && quedan ? `<a class="btn" href="#/repaso?n=5">Otra ronda rápida</a>` : ''}
         </div>
       </div>`;
   }
@@ -1907,7 +2003,7 @@ async function vRepaso(v, _id, q) {
     const b = e.target.closest('[data-res]');
     if (b) return siguiente(b.dataset.res);
     if (e.target.closest('#rep-salir')) {
-      if (!resultados.length || confirm('¿Salir del repaso? Lo que ya has respondido queda guardado.')) { editando = false; ir('#/inicio'); }
+      if (!resultados.length || confirm('¿Salir del repaso? Lo que ya has respondido queda guardado.')) { editando = false; ir(salida); }
     }
   });
   limpiezas.push(() => { if (cerrarTablero) cerrarTablero(); });
@@ -2090,6 +2186,19 @@ const TIPO_LINEA = { principal: 'Línea principal', secundaria: 'Respuesta del r
 const ESTADO_PASO = { hecho: ['check', 'Hecho'], medio: ['reloj', 'A medias'], falta: ['mas', 'Falta'] };
 const pasoUrl = (a, p) => (p.ir ? p.ir(a) : `#/editar-apertura/${a.id}?campo=${p.campo || p.clave}`);
 const fenFinal = ej => (ej.jugadas.length ? ej.jugadas[ej.jugadas.length - 1].fen : ej.fen0);
+// Las líneas también son tarjetas de repaso (desde el principio de la partida)
+const lineaEntrenable = (a, ej) => !!ej && ej.fen0 === FEN_INICIAL && RP.jugadasPropias(ej, a.color) >= RP.MIN_PROPIAS;
+function lineaDeTarjeta(t) {
+  if (!t || t.tipo !== 'linea') return null;
+  for (const a of aperturas()) {
+    const l = (a.lineas || []).find(x => x.id === t.ref_id);
+    if (l) { const ej = leerPgn(l.pgn); return ej ? { a, l, ej } : null; }
+  }
+  return null;
+}
+const tarjetasDeApertura = a => { const ids = new Set((a.lineas || []).map(l => l.id)); return tarjetas().filter(t => t.tipo === 'linea' && ids.has(t.ref_id)); };
+const tarjetaDeLinea = l => tarjetas().find(t => t.tipo === 'linea' && t.ref_id === l.id);
+const RES_TXT = { bien: 'Te sale bien', regular: 'Regular', mal: 'Fallada' };
 const filaAvisos = l => l.map(x => `<li class="${x.tipo}">${ico(ESTADO_PASO[x.tipo][0], 'peq')}<span>${esc(x.texto)}</span></li>`).join('');
 
 function vRepertorio(v) {
@@ -2112,7 +2221,7 @@ function vRepertorio(v) {
       <a class="btn anadir-ej" href="#/editar-apertura/nueva?color=${color}">${ico('mas')} ${color === 'white' ? 'Añadir apertura con blancas' : 'Añadir defensa con negras'}</a>`;
   };
   v.innerHTML = `
-    <div class="cab-vista"><h1>Repertorio</h1></div>
+    <div class="cab-vista"><h1>Repertorio</h1>${todas.length ? `<span class="hueco"></span><a href="#/imprimir-repertorio" class="btn-ico" aria-label="Imprimir">${ico('imprimir')}</a>` : ''}</div>
     ${todas.length ? '' : `
       <div class="tarjeta dia vacia">
         <span class="etq">Tu repertorio, a tu manera</span>
@@ -2130,19 +2239,28 @@ function vApertura(v, id) {
   const color = a.color;
   const sig = r.siguiente;
   const fichas = (a.conceptos || []).map(cid => D.obtener('conceptos', cid)).filter(Boolean);
+  const estadoLinea = l => {
+    if (!lineaEntrenable(a, l.ej)) return `<span class="res-punto corta" title="Aún corta para entrenar"></span>`;
+    const t = tarjetaDeLinea(l);
+    return `<span class="res-punto ${t?.ultimo_resultado || ''}" title="${t?.ultimo_resultado ? RES_TXT[t.ultimo_resultado] : 'Sin entrenar'}"></span>`;
+  };
   const filaLinea = l => {
     const sep = r.principal && l.tipo !== 'principal' && l.ej ? RP.separacion(l.ej, r.principal.ej) : -1;
     const n = l.ej ? l.ej.jugadas.length : 0;
-    return `<a class="fila-c" href="#/linea/${a.id}?l=${l.id}">
+    const faltan = RP.MIN_PROPIAS - RP.jugadasPropias(l.ej, color);
+    return `<a class="fila-c" href="#/linea/${a.id}?l=${l.id}">${estadoLinea(l)}
       <span class="fila-txt"><b>${esc(l.nombre || TIPO_LINEA[l.tipo])}</b>
-      <small>${sep >= 0 ? `Se separa en ${esc(RP.etiquetaPly(l.ej, sep, verSan))} · ` : ''}hasta la jugada ${Math.ceil(n / 2) || 0}${l.nota ? ' · ' + esc(l.nota.slice(0, 60)) : ''}</small></span>
+      <small>${sep >= 0 ? `Se separa en ${esc(RP.etiquetaPly(l.ej, sep, verSan))} · ` : ''}hasta la jugada ${Math.ceil(n / 2) || 0}${faltan > 0 ? ` · para entrenarla, ${faltan} ${faltan === 1 ? 'jugada tuya más' : 'jugadas tuyas más'}` : ''}${l.nota ? ' · ' + esc(l.nota.slice(0, 60)) : ''}</small></span>
       ${ico('flecha', 'peq')}</a>`;
   };
+  const entrenables = (a.lineas || []).filter(l => lineaEntrenable(a, leerPgn(l.pgn)));
+  const hoyToca = R.pendientes(tarjetasDeApertura(a)).length;
   const seccion = (titulo, contenido, clave) => contenido ? `<h3 class="sec">${titulo} <a class="btn-ico peq" href="#/editar-apertura/${a.id}?campo=${clave}" aria-label="Editar">${ico('editar')}</a></h3><div class="md">${md(contenido)}</div>` : '';
   v.innerHTML = `
     <div class="cab-vista">
       <a href="#/repertorio" class="btn-ico" aria-label="Volver">${ico('atras')}</a>
       <span class="hueco"></span>
+      <a href="#/imprimir-repertorio?ap=${a.id}" class="btn-ico" aria-label="Imprimir">${ico('imprimir')}</a>
       <a href="#/editar-apertura/${a.id}" class="btn peq">${ico('editar', 'peq')} Editar</a>
     </div>
     <article class="ficha ap-cab">
@@ -2160,6 +2278,8 @@ function vApertura(v, id) {
         <a class="btn peq" href="#/pregunta/nueva?texto=${encodeURIComponent(`Repertorio · ${a.nombre}: `)}">Apuntar una pregunta</a></div>`
         : `<a class="btn primario peq" href="${pasoUrl(a, sig)}">Hacerlo ahora ${ico('flecha', 'peq')}</a>`}</div>`
       : `<div class="pista siguiente"><b>¡Apertura completa!</b><p>Ahora toca jugarla y repasarla. Cuando tu maestro te corrija algo, edítalo: la guía te avisará si falta algo.</p></div>`}
+    ${entrenables.length ? `<a class="tarjeta practicar" href="#/repaso?ap=${a.id}">${ico('entrenar')}<span><b>Entrenar esta apertura</b>
+        <small>${entrenables.length} ${entrenables.length === 1 ? 'línea' : 'líneas'}${hoyToca ? ` · ${hoyToca} ${hoyToca === 1 ? 'toca' : 'tocan'} hoy` : ''} · primero las que peor llevas</small></span>${ico('flecha', 'peq')}</a>` : ''}
     ${r.avisosLineas.length ? `<ul class="cobertura">${r.avisosLineas.map(x => `<li class="medio">${ico('reloj', 'peq')}<span>${esc(x.texto)}</span></li>`).join('')}</ul>` : ''}
     <details class="guia-ap"${r.pct < 100 ? ' open' : ''}><summary>La guía: ${r.pasos.filter(p => p.estado === 'hecho').length} de ${r.pasos.length} pasos</summary>
       <div class="lista">${r.pasos.map((p, i) => `<a class="fila-c paso ${p.estado}" href="${p.clave === 'revisada' ? '#/editar-apertura/' + a.id + '?campo=revisada' : pasoUrl(a, p)}">
@@ -2169,7 +2289,7 @@ function vApertura(v, id) {
     ${seccion('Objetivos', a.ideas, 'ideas')}
     <h3 class="sec">Línea principal</h3>
     ${r.principal ? `<div class="tarjeta ejemplo">
-        <div class="ej-cab"><b>${esc(r.principal.nombre || 'Línea principal')}</b><a href="#/editar-linea/${a.id}?l=${r.principal.id}" class="btn-ico peq" aria-label="Editar">${ico('editar')}</a></div>
+        <div class="ej-cab">${estadoLinea(r.principal)}<b>${esc(r.principal.nombre || 'Línea principal')}</b><a href="#/editar-linea/${a.id}?l=${r.principal.id}" class="btn-ico peq" aria-label="Editar">${ico('editar')}</a></div>
         <div class="visor" id="visor-principal"></div>
         ${r.principal.nota ? `<div class="md">${md(r.principal.nota)}</div>` : ''}
         <div class="fila-btn">
@@ -2195,12 +2315,74 @@ function vApertura(v, id) {
     const vis = crearVisor(v.querySelector('#visor-principal'), r.principal.ej, { orientacion: color });
     limpiezas.push(vis.cerrar);
   }
+  const antes = tarjetasDeApertura(a).length;
+  prepararTarjetas().then(() => { if (v.isConnected && tarjetasDeApertura(a).length !== antes) pintar(true); });
   v.querySelector('#revisada')?.addEventListener('click', async () => {
     a.revisada = true;
     await D.guardar('repertorio', a);
     aviso('Apertura revisada con tu maestro');
     pintar(true);
   });
+}
+
+// Imprimir el repertorio (o una apertura): guía, líneas en notación y diagramas
+function vImprimirRepertorio(v, _id, q) {
+  const sel = q.get('ap') || 'todas';
+  const conDiag = q.get('diag') !== '0';
+  const lista = sel === 'todas' ? aperturas().sort((a, b) => (a.color === b.color ? 0 : a.color === 'white' ? -1 : 1)) : [D.obtener('repertorio', sel)].filter(Boolean);
+  const volver = sel === 'todas' ? '#/repertorio' : '#/apertura/' + sel;
+  const bloqueTxt = (tit, t) => t ? `<h3 class="p-sub">${tit}</h3><div class="md">${md(t)}</div>` : '';
+  const lineaHtml = (a, l) => {
+    const ej = leerPgn(l.pgn);
+    if (!ej) return '';
+    return `<div class="p-ej">${conDiag ? diagrama(ej, { orientacion: a.color, ply: ej.jugadas.length }) : ''}
+      <div class="p-ej-txt"><b>${esc(l.nombre || TIPO_LINEA[l.tipo])}</b> <small>· ${TIPO_LINEA[l.tipo]}</small>
+      <p class="p-jug">${textoJugadas(ej)}</p>${l.nota ? `<p>${esc(l.nota)}</p>` : ''}</div></div>`;
+  };
+  const apHtml = a => {
+    const r = RP.analizar(a, leerPgn, verSan);
+    const orden = ['principal', 'secundaria', 'trampa'];
+    const lineas = [...(a.lineas || [])].sort((x, y) => orden.indexOf(x.tipo) - orden.indexOf(y.tipo));
+    const fichas = (a.conceptos || []).map(cid => D.obtener('conceptos', cid)).filter(Boolean);
+    return `<article class="p-ficha p-apertura" style="--c:${a.color === 'white' ? '#b9a27c' : '#2a241d'}">
+      <div class="p-cab"><span>${COLOR_TXT[a.color]} · ${a.rol === 'principal' ? 'Principal' : 'Secundaria'}${a.eco ? ' · ' + esc(a.eco) : ''} · preparada al ${r.pct}%</span></div>
+      <h2>${esc(a.nombre)}</h2>
+      ${r.tronco && r.tronco.jugadas.length ? `<blockquote>${esc(RP.jugadasTexto(r.tronco, verSan))}</blockquote>` : ''}
+      ${bloqueTxt('Objetivos', a.ideas)}
+      ${lineas.length ? `<h3 class="p-sub">Líneas</h3>${lineas.map(l => lineaHtml(a, l)).join('')}` : ''}
+      ${bloqueTxt('Estructura de peones', a.estructura)}
+      ${bloqueTxt('Planes del medio juego', a.planes)}
+      ${bloqueTxt('Rupturas', a.rupturas)}
+      ${bloqueTxt('Tácticas típicas', a.tacticas)}
+      ${(a.partidas_modelo || []).length ? `<h3 class="p-sub">Partidas modelo</h3><ul>${a.partidas_modelo.map(pm => `<li>${esc(pm.titulo || pm.url)}</li>`).join('')}</ul>` : ''}
+      ${fichas.length ? `<h3 class="p-sub">Conceptos</h3><p>${fichas.map(c => esc(c.titulo)).join(' · ')}</p>` : ''}
+    </article>`;
+  };
+  v.innerHTML = `
+    <div class="no-imp">
+      <div class="cab-vista"><a href="${volver}" class="btn-ico">${ico('atras')}</a><h1>Imprimir repertorio</h1></div>
+      <div class="form"><label>Qué imprimir
+        <select id="p-sel"><option value="todas" ${sel === 'todas' ? 'selected' : ''}>Todo el repertorio</option>
+        ${aperturas().map(a => `<option value="${a.id}" ${sel === a.id ? 'selected' : ''}>${a.color === 'white' ? '♔' : '♚'} ${esc(a.nombre)}</option>`).join('')}</select></label></div>
+      <label class="check"><input type="checkbox" id="p-diag" ${conDiag ? 'checked' : ''}><span>Un diagrama al final de cada línea</span></label>
+      <p class="nota">Cada apertura empieza en una página nueva. En la ventana de impresión elige «Guardar como PDF» si lo quieres en archivo.</p>
+      <button class="btn primario ancho" id="p-imp">${ico('imprimir', 'peq')} Imprimir o guardar en PDF</button>
+      <h3 class="sec">Vista previa</h3>
+    </div>
+    <div class="hoja">
+      <header class="p-portada"><span class="mono">M<i>d</i>P</span><div><b>Memorias de Peón · Repertorio</b><small>${sel === 'todas' ? 'Todo el repertorio' : esc(lista[0]?.nombre || '')} · ${new Date().toLocaleDateString('es-ES')}</small></div></header>
+      ${lista.map(apHtml).join('') || '<p class="nada">Aún no tienes aperturas.</p>'}
+      <footer class="p-pie">Memorias de Peón · Casilla a casilla · by Manuel Esteve</footer>
+    </div>`;
+  const recargar = () => {
+    const p = new URLSearchParams({ ap: v.querySelector('#p-sel').value });
+    if (!v.querySelector('#p-diag').checked) p.set('diag', '0');
+    history.replaceState(null, '', '#/imprimir-repertorio?' + p.toString());
+    pintar(true);
+  };
+  v.querySelector('#p-sel').addEventListener('change', recargar);
+  v.querySelector('#p-diag').addEventListener('change', recargar);
+  v.querySelector('#p-imp').addEventListener('click', () => window.print());
 }
 
 // Editar los datos y los textos de una apertura. Con ?campo=… se edita un solo

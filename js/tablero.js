@@ -505,6 +505,97 @@ export function crearEjercicio(contenedor, ej, { alResponder = () => {}, pedirPr
 export const sirveDeEjercicio = ej => ej.jugadas.length > 0;
 
 // ---------------------------------------------------------------------
+//  ENTRENAR UNA LÍNEA DEL REPERTORIO
+//  La app juega las jugadas del rival; tú, las tuyas, de principio a fin.
+//  Dos intentos por jugada: si no sale, se muestra la buena y se sigue.
+//  alJugada({ ok, otraVez, perdida, ply })  ·  alTerminar({ errores, perdidas })
+// ---------------------------------------------------------------------
+export function crearEntrenoLinea(contenedor, ej, { color = 'white', pedirPromocion, alJugada = () => {}, alTerminar = () => {} } = {}) {
+  contenedor.innerHTML = `<div class="tablero"></div>`;
+  const turnoEn = ply => colorDe(fenDe(ej, ply));
+  let ply = 0, intentos = 0, errores = 0, perdidas = 0, terminado = false, espera = null;
+  const { api, cerrar } = montar(contenedor.querySelector('.tablero'), {
+    fen: ej.fen0, orientation: color, turnColor: turnoEn(0),
+    movable: { free: false, color: undefined, dests: new Map(), showDests: true, events: { after: mover } },
+    draggable: { enabled: true }, drawable: { enabled: true, eraseOnClick: true },
+  });
+  const ponerPosicion = (formas = []) => {
+    const fen = fenDe(ej, ply), j = ply ? ej.jugadas[ply - 1] : null;
+    const chess = new Chess(fen), turno = colorDe(fen);
+    const mio = ply < ej.jugadas.length && turno === color && !terminado;
+    api.set({ fen, turnColor: turno, lastMove: j ? [j.uci.slice(0, 2), j.uci.slice(2, 4)] : undefined, check: chess.inCheck() ? turno : false,
+      movable: { color: mio ? color : undefined, dests: mio ? destinos(chess) : new Map() } });
+    api.setAutoShapes(formas);
+  };
+  function avanzar() {
+    if (ply >= ej.jugadas.length) {
+      terminado = true; ponerPosicion();
+      alTerminar({ errores, perdidas });
+      return;
+    }
+    if (turnoEn(ply) !== color) {        // juega el rival
+      ponerPosicion();
+      espera = setTimeout(() => { ply++; ponerPosicion(); avanzar(); }, 550);
+      return;
+    }
+    intentos = 0;
+    ponerPosicion();
+  }
+  async function mover(orig, dest) {
+    if (terminado || ply >= ej.jugadas.length) return;
+    const sol = ej.jugadas[ply];
+    if (turnoEn(ply) !== color) return;
+    const pieza = new Chess(fenDe(ej, ply)).get(orig);
+    let promotion;
+    if (pieza && pieza.type === 'p' && (dest[1] === '8' || dest[1] === '1'))
+      promotion = sol.uci.length > 4 ? sol.uci[4] : (pedirPromocion ? await pedirPromocion(color) : 'q');
+    intentos++;
+    if (orig + dest + (promotion || '') === sol.uci || (!promotion && orig + dest === sol.uci.slice(0, 4))) {
+      ply++;
+      alJugada({ ok: true, ply });
+      ponerPosicion(sol.formas || []);
+      avanzar();
+      return;
+    }
+    errores++;
+    if (intentos < 2) {
+      ponerPosicion([{ orig: dest, brush: 'red' }]);
+      alJugada({ ok: false, otraVez: true, ply });
+      return;
+    }
+    ensenar();
+  }
+  // Segundo fallo o «No lo sé»: se enseña la jugada buena y se continúa
+  function ensenar() {
+    const sol = ej.jugadas[ply];
+    perdidas++;
+    ply++;
+    ponerPosicion([{ orig: sol.uci.slice(0, 2), dest: sol.uci.slice(2, 4), brush: 'green' }]);
+    alJugada({ ok: false, perdida: true, ply, jugada: etiquetaJugada(ej, ply) });
+    espera = setTimeout(avanzar, 1200);
+  }
+  // La pista es texto: tu comentario de esa jugada o de la anterior del rival; nunca la jugada.
+  function pista() {
+    if (terminado || ply >= ej.jugadas.length) return null;
+    const propio = (ej.jugadas[ply].comentario || '').trim();
+    const previo = ply ? (ej.jugadas[ply - 1].comentario || '').trim() : (ej.comentario0 || '').trim();
+    return propio || previo || null;
+  }
+  avanzar();
+  return {
+    cerrar: () => { clearTimeout(espera); cerrar(); },
+    pista,
+    ply: () => ply,
+    total: () => ej.jugadas.length,
+    noLoSe() {
+      if (terminado || ply >= ej.jugadas.length || turnoEn(ply) !== color) return;
+      errores++;
+      ensenar();
+    },
+  };
+}
+
+// ---------------------------------------------------------------------
 //  Diagrama fijo (para imprimir): casillas, piezas de Lichess y flechas
 // ---------------------------------------------------------------------
 const ROLES = { k: 'king', q: 'queen', r: 'rook', b: 'bishop', n: 'knight', p: 'pawn' };

@@ -628,3 +628,17 @@ body.enfoque .ej-pie { margin-top: 12px; }
 .ayuda-linea p { margin: 6px 0; font-size: 14.5px; }
 .pegar-pgn textarea { width: 100%; margin: 6px 0; }
 .fila-txt .rol { align-self: flex-start; }
+
+/* ---------- Repertorio: entrenar e imprimir ---------- */
+.res-punto.corta { background: transparent; border: 1.5px dashed var(--suave); }
+.tarjeta .ej-cab { gap: 8px; }
+.tarjeta .ej-cab b { flex: 1; }
+.rep-prog { text-align: center; color: var(--suave); font-size: 13.5px; margin: 6px 0 0; }
+.rep-linea-txt { font-family: var(--serif); font-size: 15px; line-height: 1.6; }
+.rep-linea-txt i { color: var(--suave); }
+.p-apertura { break-inside: auto; page-break-inside: auto; }
+.p-apertura + .p-apertura { break-before: page; page-break-before: always; }
+.p-sub { font-size: 10pt; text-transform: uppercase; letter-spacing: .06em; color: #555; margin: 10px 0 3px; }
+.p-apertura ul { margin: 0 0 4px; padding-left: 18px; font-size: 10.5pt; }
+.p-apertura > p { font-size: 10.5pt; margin: 0 0 4px; }
+.p-ej-txt small { color: #666; }

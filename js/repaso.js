@@ -57,6 +57,14 @@ export function seleccionar(tarjetas, n, hoy = hoyISO(), azar = Math.random) {
   return [...vistas, ...nuevas].slice(0, n);
 }
 
+// Para entrenar una apertura entera: primero lo que peor llevas
+// (fallado, regular, sin estrenar y, al final, lo que sale bien), y dentro, lo que antes toca.
+const PRIORIDAD = { mal: 0, regular: 1, undefined: 2, null: 2, bien: 3 };
+export function ordenarParaEntrenar(tarjetas) {
+  return [...tarjetas].sort((a, b) => (PRIORIDAD[a.ultimo_resultado] ?? 2) - (PRIORIDAD[b.ultimo_resultado] ?? 2)
+    || String(a.proxima || '').localeCompare(String(b.proxima || '')));
+}
+
 // Nota sobre 10: bien = 1, regular = 0,5, mal = 0
 export function nota(resultados) {
   if (!resultados.length) return 0;
