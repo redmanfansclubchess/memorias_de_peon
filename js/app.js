@@ -9,7 +9,7 @@ import * as RP from './repertorio.js';
 import * as PA from './partidas.js';
 import { FEN_INICIAL, crearVisor, crearEditor, crearEjercicio, crearEntrenoLinea, sirveDeEjercicio, dePgn, aPgn, ejemploVacio, usarFiguras, verSan, diagrama, textoJugadas, escapar as esc } from './tablero.js';
 
-export const VERSION = '4.1.0 (primeros pasos y ayuda)';
+export const VERSION = '4.2.0 (fichas: sin repeticiones)';
 const app = document.getElementById('app');
 
 // ---------------------------------------------------------------------
@@ -83,12 +83,18 @@ function md(texto) {
 const ordenar = (a, b) => (a.orden ?? 0) - (b.orden ?? 0) || String(a.nombre || a.titulo).localeCompare(b.nombre || b.titulo, 'es');
 const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 const ir = h => { location.hash = h; };
-function aviso(texto) {
+function aviso(texto, accion) {
   document.querySelectorAll('.toast').forEach(x => x.remove());   // un aviso nuevo sustituye al anterior
   const t = document.createElement('div');
   t.className = 'toast'; t.textContent = texto;
+  if (accion) {   // { texto, href }: un botón dentro del aviso
+    const a = document.createElement('a');
+    a.className = 'toast-accion'; a.href = accion.href; a.textContent = accion.texto;
+    a.addEventListener('click', () => t.remove());
+    t.append(' ', a);
+  }
   document.body.appendChild(t);
-  const ms = texto.length > 60 ? 6000 : 2200;
+  const ms = accion ? 8000 : texto.length > 60 ? 6000 : 2200;
   setTimeout(() => t.classList.add('fuera'), ms);
   setTimeout(() => t.remove(), ms + 500);
 }
@@ -109,6 +115,45 @@ function enBloqueActivo(c) {
 // Fichas con las que trabajas: las de tus bloques activos y las que ya son tuyas
 // (propias o trabajadas). Las de la biblioteca sin trabajar que quedaron en reserva no cuentan.
 const fichasDeTrabajo = () => conceptos().filter(c => enBloqueActivo(c) || conceptoElegible(c));
+// Fichas de la biblioteca en tus temas activos que aún no has trabajado (sin ejemplo tuyo)
+const porTrabajar = () => conceptos().filter(c => c.origen === 'mdp' && enBloqueActivo(c) && !ejemplosDe(c.id).length);
+const ubicacion = c => { const t = c.bloque_id && D.obtener('bloques', c.bloque_id), b = bloqueRaiz(c.bloque_id); return [b?.nombre, t?.padre_id ? t.nombre : null].filter(Boolean).join(' · ') || 'Bandeja'; };
+
+// ¿Se parecen dos nombres? Entiende variantes y erratas: «clavar», «clavado»
+// o «clavda» → «Clavada». Devuelve 0 (igual) … 3 (parecido) o Infinity.
+function distanciaEdicion(a, b, tope) {
+  let fila = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const nueva = [i];
+    let minimo = i;
+    for (let j = 1; j <= b.length; j++) {
+      nueva[j] = Math.min(fila[j] + 1, nueva[j - 1] + 1, fila[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      minimo = Math.min(minimo, nueva[j]);
+    }
+    if (minimo > tope) return tope + 1;   // ya no puede parecerse: se corta antes
+    fila = nueva;
+  }
+  return fila[b.length];
+}
+function parecido(texto, nombre) {
+  const a = norm(texto).replace(/\s+/g, ' ').trim(), b = norm(nombre).replace(/\s+/g, ' ').trim();
+  if (a.length < 3 || !b) return Infinity;
+  if (a === b) return 0;
+  if (b.startsWith(a) || b.split(' ').some(w => w.startsWith(a)) || (a.length >= 5 && a.startsWith(b))) return 1;
+  const tope = a.length <= 4 ? 1 : a.length <= 8 ? 2 : 3;
+  if (Math.abs(a.length - b.length) <= tope && distanciaEdicion(a, b, tope) <= tope) return 2;
+  let k = 0; while (k < a.length && k < b.length && a[k] === b[k]) k++;   // misma raíz
+  return k >= 4 && k >= 0.7 * Math.min(a.length, b.length) ? 3 : Infinity;
+}
+const parecidoA = (texto, x) => Math.min(parecido(texto, x.titulo), ...(x.alias || []).map(al => parecido(texto, al)));
+// Fichas de tu cuaderno y de la biblioteca (que aún no tienes) con un nombre parecido
+function nombresParecidos(texto, excluir) {
+  const fichas = conceptos().filter(c => c.id !== excluir).map(c => [parecidoA(texto, { titulo: c.titulo, alias: biblioItem(c.original?.id)?.alias }), c])
+    .filter(([n]) => n < Infinity).sort((x, y) => x[0] - y[0] || x[1].titulo.localeCompare(y[1].titulo, 'es')).slice(0, 8);
+  const biblio = BIBLIOTECA.filter(it => !fichaDeBiblio(it)).map(it => [parecidoA(texto, it), it])
+    .filter(([n]) => n < Infinity).sort((x, y) => x[0] - y[0]).slice(0, 5);
+  return { fichas, biblio };
+}
 function bloqueRaiz(id) {
   const b = id && D.obtener('bloques', id);
   return b ? (b.padre_id ? D.obtener('bloques', b.padre_id) : b) : null;
@@ -361,8 +406,15 @@ function vInicio(v) {
       <div><b>${nEj}</b><span>ejemplos</span></div>
       <div><b>${bloquesActivos().length}</b><span>bloques</span></div>
     </div>
+    ${seccionPorTrabajar()}
     ${recientes.length ? `<h3 class="sec">Últimas fichas</h3><div class="lista">${recientes.map(filaConcepto).join('')}</div>` : ''}`;
   v.querySelector('#nota-rapida').addEventListener('click', () => abrirNotaRapida());
+  v.addEventListener('click', e => {   // «Ver las fichas por trabajar» (desde Primeros pasos)
+    if (!e.target.closest('[data-pt]')) return;
+    const sec = v.querySelector('#por-trabajar');
+    sec?.querySelector('details')?.setAttribute('open', '');
+    sec?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
   v.querySelector('#pp-ocultar')?.addEventListener('click', async () => {
     await guardarAjustes({ primerosPasos: false });
     aviso('Ocultados. Puedes volver a mostrarlos en Ajustes → Ayuda.');
@@ -426,7 +478,7 @@ function vConceptos(v, _id, q) {
 // ---------------------------------------------------------------------
 //  BLOQUE: sus temas (plegables) y fichas
 // ---------------------------------------------------------------------
-function vBloque(v, id) {
+function vBloque(v, id, q = new URLSearchParams()) {
   if (id === 'bandeja') {
     const lista = conceptos().filter(c => !c.bloque_id).sort(ordenar);
     v.innerHTML = `
@@ -466,6 +518,13 @@ function vBloque(v, id) {
     plegados[s.dataset.id] = s.classList.contains('plegado');
     localStorage.setItem('mdp-plegados', JSON.stringify(plegados));
   }));
+  // Llegas desde Bloques a un tema concreto: se despliega y se muestra
+  const destino = q.get('tema') && v.querySelector(`.grupo[data-id="${CSS.escape(q.get('tema'))}"]`);
+  if (destino) {
+    destino.classList.remove('plegado');
+    destino.classList.add('resaltado');
+    requestAnimationFrame(() => destino.scrollIntoView({ block: 'start' }));
+  }
 }
 
 // ---------------------------------------------------------------------
@@ -668,17 +727,29 @@ function vEditarConcepto(v, id, q) {
       </div>
     </form>`;
   const f = v.querySelector('#f-concepto');
-  // Si el nombre coincide con una ficha de la biblioteca, se ofrece su teoría
+  // Mientras escribes el nombre: fichas parecidas que ya tienes (para no repetirlas)
+  // y teoría de la biblioteca que aún no está en tu cuaderno
   const cajaBiblio = document.createElement('div');
-  cajaBiblio.className = 'aviso-biblio'; cajaBiblio.hidden = true;
+  cajaBiblio.className = 'aviso-biblio parecidos'; cajaBiblio.hidden = true;
   f.titulo.closest('label').after(cajaBiblio);
-  const buscarEnBiblio = () => {
-    const it = BIBLIOTECA.find(x => norm(x.titulo) === norm(f.titulo.value.trim()) || (x.alias || []).some(a => norm(a) === norm(f.titulo.value.trim())));
-    cajaBiblio.hidden = !it || (!nuevo && c.original?.id === it?.id);
-    if (it) cajaBiblio.innerHTML = `${ico('libro', 'peq')} <span>La biblioteca tiene teoría de <b>${esc(it.titulo)}</b>.</span> <button type="button" class="btn peq" data-usar="${it.id}">Usar la teoría de la biblioteca</button>`;
+  const buscarParecidos = () => {
+    const texto = f.titulo.value.trim();
+    const { fichas, biblio } = nombresParecidos(texto, nuevo ? null : id);
+    const biblioUtil = biblio.filter(([, it]) => nuevo || !c.original);
+    cajaBiblio.hidden = !fichas.length && !biblioUtil.length;
+    if (cajaBiblio.hidden) return;
+    cajaBiblio.innerHTML = `
+      ${fichas.length ? `<p class="par-tit">${ico('conceptos', 'peq')} <span><b>Ya ${fichas.length === 1 ? 'tienes esta ficha' : 'tienes estas fichas'} en tu cuaderno</b> — ¿es alguna?</span></p>
+        ${fichas.map(([, x]) => `<div class="par-fila"><span><b>${esc(x.titulo)}</b><small>${esc(ubicacion(x))}${x.origen === 'mdp' && !ejemplosDe(x.id).length ? ' · de la biblioteca, por trabajar' : ''}</small></span>
+          <a class="btn peq" href="#/concepto/${x.id}" data-salir>Abrirla</a></div>`).join('')}` : ''}
+      ${biblioUtil.length ? `<p class="par-tit">${ico('libro', 'peq')} <span><b>En la biblioteca</b> (aún no en tu cuaderno)</span></p>
+        ${biblioUtil.map(([, it]) => `<div class="par-fila"><span><b>${esc(it.titulo)}</b><small>${esc(it.bloque)} · ${esc(it.tema)}</small></span>
+          <button type="button" class="btn peq" data-usar="${it.id}">Usar su teoría</button></div>`).join('')}` : ''}
+      <p class="nota">Si es otra cosa, sigue y guarda tu ficha nueva.</p>`;
   };
-  f.titulo.addEventListener('input', buscarEnBiblio);
+  f.titulo.addEventListener('input', buscarParecidos);
   cajaBiblio.addEventListener('click', e => {
+    if (e.target.closest('[data-salir]')) { editando = false; return; }
     const it = biblioItem(e.target.closest('[data-usar]')?.dataset.usar);
     if (!it) return;
     if (f.principio.value.trim() || f.explicacion.value.trim()) {
@@ -691,7 +762,7 @@ function vEditarConcepto(v, id, q) {
     cajaBiblio.hidden = true;
     aviso('Teoría de la biblioteca añadida. Puedes cambiarla a tu manera.');
   });
-  buscarEnBiblio();
+  buscarParecidos();
   const avisoTema = () => { v.querySelector('#aviso-tema').hidden = !f.bloque.value || temasDe(f.bloque.value, true).length > 0; };
   f.bloque.addEventListener('change', () => {
     f.tema.innerHTML = opcionesTema(f.bloque.value, '');
@@ -705,6 +776,10 @@ function vEditarConcepto(v, id, q) {
   });
   f.addEventListener('submit', async e => {
     e.preventDefault();
+    if (nuevo) {
+      const [n, igual] = nombresParecidos(f.titulo.value.trim(), null).fichas[0] || [];
+      if (igual && n <= 2 && !confirm(`Ya tienes «${igual.titulo}» en tu cuaderno (${ubicacion(igual)}). ¿Crear otra ficha igualmente?`)) return;
+    }
     Object.assign(c, {
       titulo: f.titulo.value.trim(),
       bloque_id: f.tema.value || f.bloque.value || null,
@@ -847,6 +922,9 @@ function vEjemplo(v, id, q) {
 function vCatalogo(v, _id, q) {
   editando = true;
   const abiertos = new Set(q.get('abrir') ? [q.get('abrir')] : []);
+  // Fichas que verás al abrir el bloque: las de sus temas activos y las sueltas
+  const nVisibles = id => { const act = new Set(temasDe(id, true).map(t => t.id)); return conceptosDeBloque(id).filter(c => c.bloque_id === id || act.has(c.bloque_id)).length; };
+  const verlas = fila => ({ texto: 'Verlas', href: fila.padre_id ? `#/bloque/${fila.padre_id}?tema=${fila.id}` : `#/bloque/${fila.id}` });
   const pintarCat = () => {
     const lista = bloques();
     v.innerHTML = `
@@ -867,6 +945,7 @@ function vCatalogo(v, _id, q) {
               <span><b>${esc(b.nombre)}</b><small>${temas.filter(t => t.activo).length}/${temas.length} temas activos · ${conceptosDeBloque(b.id).length} fichas</small></span></button>
             <label class="interruptor" aria-label="Activo"><input type="checkbox" data-acc="activo" data-id="${b.id}" ${b.activo ? 'checked' : ''}><span></span></label>
           </div>
+          ${b.activo ? `<a class="cat-ir" href="#/bloque/${b.id}">Ver sus ${nVisibles(b.id)} fichas ${ico('flecha', 'peq')}</a>` : ''}
           ${abierto ? `
           <div class="cat-cuerpo">
             <div class="temas">
@@ -875,6 +954,7 @@ function vCatalogo(v, _id, q) {
                   <input class="tema-nom" data-acc="nombre" data-id="${t.id}" value="${esc(t.nombre)}" aria-label="Nombre del tema">
                   <button class="btn-ico peq" data-acc="subir" data-id="${t.id}" ${j ? '' : 'disabled'} aria-label="Subir">${ico('arriba')}</button>
                   <button class="btn-ico peq" data-acc="borrar" data-id="${t.id}" aria-label="Borrar tema">${ico('borrar')}</button>
+                  ${b.activo && t.activo ? `<a class="tema-ir" href="#/bloque/${b.id}?tema=${t.id}" aria-label="Ver las fichas de ${esc(t.nombre)}">${conceptos().filter(c => c.bloque_id === t.id).length} fichas ${ico('flecha', 'peq')}</a>` : ''}
                   <label class="interruptor peq"><input type="checkbox" data-acc="activo" data-id="${t.id}" ${t.activo ? 'checked' : ''}><span></span></label>
                 </div>`).join('')}
               <form class="tema nuevo" data-acc="nuevo-tema"><input name="n" placeholder="Nuevo tema…"><button class="btn peq">Añadir</button></form>
@@ -952,7 +1032,7 @@ function vCatalogo(v, _id, q) {
       if (!fila.padre_id && el.checked && !temasDe(fila.id).some(t => t.activo)) abiertos.add(fila.id);
       if (el.checked) {
         const n = await sembrarBiblioteca();
-        if (n) aviso(`Han aparecido ${n} fichas sugeridas. Se verán translúcidas hasta que les añadas tu ejemplo.`);
+        if (n) aviso(`Han aparecido ${n} fichas sugeridas, translúcidas hasta que les añadas tu ejemplo.`, verlas(fila));
       }
       pintarCat();
     }
@@ -963,15 +1043,16 @@ function vCatalogo(v, _id, q) {
     e.preventDefault();
     const f = e.target, nombre = f.n.value.trim();
     if (!nombre) return;
+    let nueva;
     if (f.id === 'nuevo-bloque') {
-      const nb = await D.guardar('bloques', { nombre, color: 'gris', icono: 'libro', orden: bloques().length + 1, activo: true, padre_id: null });
-      abiertos.add(nb.id);
+      nueva = await D.guardar('bloques', { nombre, color: 'gris', icono: 'libro', orden: bloques().length + 1, activo: true, padre_id: null });
+      abiertos.add(nueva.id);
     } else {
       const b = D.obtener('bloques', f.closest('.cat').dataset.id);
-      await D.guardar('bloques', { nombre, padre_id: b.id, color: b.color, orden: temasDe(b.id).length + 1, activo: true });
+      nueva = await D.guardar('bloques', { nombre, padre_id: b.id, color: b.color, orden: temasDe(b.id).length + 1, activo: true });
     }
     const n = await sembrarBiblioteca();
-    if (n) aviso(`Han aparecido ${n} fichas sugeridas. Se verán translúcidas hasta que les añadas tu ejemplo.`);
+    if (n) aviso(`Han aparecido ${n} fichas sugeridas, translúcidas hasta que les añadas tu ejemplo.`, verlas(nueva));
     pintarCat();
   });
   pintarCat();
@@ -1591,12 +1672,14 @@ const PRIMEROS_PASOS = [
   { titulo: 'Elige tus bloques y temas', ir: () => '#/catalogo',
     ayuda: 'Activa solo lo que estés trabajando con tu maestro. Al activar un tema aparecen, translúcidas, las fichas de la biblioteca de ese tema.',
     hecho: () => D.lista('bloques').some(t => t.padre_id && t.activo && D.obtener('bloques', t.padre_id)?.activo) },
-  { titulo: 'Tu primera ficha', ir: () => '#/editar/nuevo',
-    ayuda: 'Un concepto de tus clases, con tus palabras. O abre una ficha translúcida de la biblioteca y adáptala a lo que te explicó el maestro.',
+  { titulo: 'Trabaja tu primera ficha', ir: () => (porTrabajar().length ? '#pt' : '#/editar/nuevo'),
+    ayuda: () => (porTrabajar().length
+      ? `Tienes ${porTrabajar().length} fichas de la biblioteca en tus temas activos, abajo en «Por trabajar». Abre una, léela y adáptala con Editar a lo que te dijo tu maestro. Si te enseñó algo que no está, crea una ficha nueva.`
+      : 'Un concepto de tus clases, con tus palabras. Si su nombre ya está en tu cuaderno o en la biblioteca, la app te lo dirá.'),
     hecho: () => conceptos().some(c => c.origen !== 'mdp' || adaptada(c) || ejemplosDe(c.id).length) },
   { titulo: 'Un ejemplo en el tablero',
     ir: () => {   // a tu ficha más reciente (o a una de tus bloques activos)
-      const c = [...conceptos().filter(conceptoElegible)].sort((x, y) => String(y.editado_en).localeCompare(String(x.editado_en)))[0] || fichasDeTrabajo()[0];
+      const c = [...conceptos().filter(conceptoElegible)].sort((x, y) => String(y.editado_en).localeCompare(String(x.editado_en)))[0] || porTrabajar()[0];
       return c ? `#/ejemplo/nuevo?concepto=${c.id}` : '#/conceptos';
     },
     ayuda: 'Dentro de una ficha, «Añadir ejemplo en el tablero». Con su ejemplo, la ficha queda Trabajada y entra en el repaso.',
@@ -1615,6 +1698,21 @@ const PRIMEROS_PASOS = [
     hecho: () => D.lista('registro_repaso').length > 0 },
 ];
 
+function seccionPorTrabajar() {
+  const lista = porTrabajar();
+  if (!lista.length) return '';
+  const grupos = new Map();
+  for (const c of lista.sort(ordenar)) { if (!grupos.has(c.bloque_id)) grupos.set(c.bloque_id, []); grupos.get(c.bloque_id).push(c); }
+  const orden = id => { const t = D.obtener('bloques', id), b = bloqueRaiz(id); return (b?.orden || 0) * 1000 + (t?.padre_id ? t.orden || 0 : 0); };
+  return `<section id="por-trabajar">
+      <h3 class="sec">Por trabajar <small>${lista.length}</small></h3>
+      <p class="nota">Fichas de la biblioteca en tus temas activos. Ábrelas, léelas, adáptalas con Editar a lo que te dijo tu maestro y añádeles tu ejemplo.</p>
+      ${[...grupos].sort((x, y) => orden(x[0]) - orden(y[0])).map(([tid, fichas], i) => `
+        <details class="pt-grupo"${i === 0 ? ' open' : ''}><summary>${esc(ubicacion(fichas[0]))} <small>${fichas.length}</small></summary>
+          <div class="lista">${fichas.map(filaConcepto).join('')}</div></details>`).join('')}
+    </section>`;
+}
+
 function tarjetaPrimerosPasos() {
   if (ajustes().primerosPasos === false) return '';
   const pasos = PRIMEROS_PASOS.map(p => ({ ...p, ok: p.hecho() }));
@@ -1629,8 +1727,10 @@ function tarjetaPrimerosPasos() {
         const url = !p.ok && p.ir();
         return `<div class="pp-paso${p.ok ? ' hecho' : ''}${p === sig ? ' actual' : ''}">
           <span class="paso-n">${p.ok ? ico('check', 'peq') : i + 1}</span>
-          <div class="pp-txt"><b>${esc(p.titulo)}</b>${p === sig ? `<small>${esc(p.ayuda)}</small>${url ? `<a class="btn primario peq" href="${url}">Hacerlo ahora ${ico('flecha', 'peq')}</a>` : ''}` : ''}</div>
-          ${p !== sig && !p.ok && url ? `<a class="btn-ico peq" href="${url}" aria-label="Ir">${ico('flecha', 'peq')}</a>` : ''}
+          <div class="pp-txt"><b>${esc(p.titulo)}</b>${p === sig ? `<small>${esc(typeof p.ayuda === 'function' ? p.ayuda() : p.ayuda)}</small>${
+            url === '#pt' ? `<span class="fila-btn"><button class="btn primario peq" data-pt>Ver las ${porTrabajar().length} fichas por trabajar</button><a class="btn peq" href="#/editar/nuevo">Crear una nueva</a></span>`
+            : url ? `<a class="btn primario peq" href="${url}">Hacerlo ahora ${ico('flecha', 'peq')}</a>` : ''}` : ''}</div>
+          ${p !== sig && !p.ok && url ? (url === '#pt' ? `<button class="btn-ico peq" data-pt aria-label="Ver">${ico('flecha', 'peq')}</button>` : `<a class="btn-ico peq" href="${url}" aria-label="Ir">${ico('flecha', 'peq')}</a>`) : ''}
         </div>`;
       }).join('')}</div>
       <p class="nota">Se marcan solos al hacerlos. Cuando termines, esta tarjeta desaparece.</p>

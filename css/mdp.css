@@ -685,3 +685,24 @@ body.enfoque .ej-pie { margin-top: 12px; }
 .btn-ayuda { flex: none; width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--linea); background: var(--papel); color: var(--suave);
   font-weight: 700; font-size: 14px; line-height: 1; display: grid; place-items: center; cursor: pointer; margin-left: 6px; }
 .btn-ayuda:hover { color: var(--acento); border-color: var(--acento); }
+
+/* ---------- Bloques: el camino hacia las fichas ---------- */
+.cat-ir { display: inline-flex; align-items: center; gap: 4px; margin: 0 14px 12px 70px; font-weight: 600; font-size: 14px; color: var(--acento); }
+.tema-ir { flex: none; display: inline-flex; align-items: center; gap: 2px; font-size: 13px; font-weight: 600; color: var(--acento); white-space: nowrap; padding: 4px 6px; border-radius: 8px; }
+.tema-ir:hover, .cat-ir:hover { background: color-mix(in srgb, var(--acento) 10%, transparent); }
+.toast-accion { color: inherit; font-weight: 800; text-decoration: underline; text-underline-offset: 3px; margin-left: 6px; white-space: nowrap; }
+.grupo.resaltado .grupo-cab { color: var(--acento); }
+@media (max-width: 480px) { .cat-ir { margin-left: 14px; } }
+
+/* ---------- Fichas: nombres parecidos y «Por trabajar» ---------- */
+.parecidos { flex-direction: column; align-items: stretch; gap: 6px; }
+.parecidos .par-tit { margin: 2px 0 0; display: flex; align-items: flex-start; gap: 6px; }
+.parecidos .par-tit .ico { flex: none; margin-top: 3px; }
+.par-fila { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid color-mix(in srgb, var(--acento) 20%, transparent); }
+.par-fila > span { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.par-fila small { color: var(--suave); font-size: 12.5px; }
+.parecidos .nota { margin: 2px 0 0; }
+.pt-grupo { margin: 0 0 10px; }
+.pt-grupo summary { cursor: pointer; font-weight: 700; padding: 6px 0; }
+.pt-grupo summary small { color: var(--suave); font-weight: 500; margin-left: 4px; }
+.pp-txt .fila-btn { margin-top: 6px; }
