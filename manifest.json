@@ -1,7 +1,7 @@
 {
   "name": "MdP · Memorias de Peón",
   "short_name": "MdP",
-  "description": "Casilla a casilla. Cuaderno de ajedrez: conceptos, ejemplos, repertorio y entrenamiento.",
+  "description": "Todo peón propio es un obstáculo. Casilla a casilla: cuaderno de ajedrez de conceptos, ejemplos, repertorio y entrenamiento.",
   "lang": "es",
   "start_url": "./",
   "scope": "./",

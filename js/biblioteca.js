@@ -5,8 +5,10 @@
 //  que se le añade un ejemplo propio. Textos propios de MdP.
 //  Tanda 1 · Táctica (18 fichas)
 //  Tanda 2 · Estructuras de peones (17 fichas)
+//  Tanda 3 · Estrategia (20 fichas), con el principio del maestro:
+//            «Todo peón propio es un obstáculo» (maestro: true)
 // =====================================================================
-export const BIBLIOTECA_VERSION = '2';
+export const BIBLIOTECA_VERSION = '3';
 
 export const BIBLIOTECA = [
   // ================================================================
@@ -437,5 +439,240 @@ export const BIBLIOTECA = [
 - **Inconvenientes**: la casilla de detrás del peón e queda débil (e4 para las blancas, e5 para las negras), y el alfil del color de los peones queda malo, encerrado tras ellos.
 - Los planes giran en torno a esas dos casillas: ocupar la fuerte y vigilar la débil.`,
     pista: 'Monta un Stonewall blanco y coloca un caballo en e5 apoyado por los peones d4 y f4.',
+  },
+  // ================================================================
+  //  ESTRATEGIA (tanda 3)
+  // ================================================================
+
+  // ------------------------------------------------ Piezas buenas y malas
+  {
+    id: 'estr-peon-obstaculo', bloque: 'Estrategia', tema: 'Piezas buenas y malas', maestro: true,
+    titulo: 'Todo peón propio es un obstáculo', en: 'Every own pawn is an obstacle', lichess: '',
+    alias: ['peón propio es un obstáculo', 'peones propios', 'peón obstáculo'],
+    def: 'Tus propios peones cortan las líneas de tus piezas: cada uno debe estar donde ayude, no donde estorbe.',
+    principio: 'Todo peón propio es un obstáculo.',
+    explicacion: `Los peones son la única pieza que no puede retroceder, y además **ocupan casillas y cortan líneas a tus propias piezas**: tapan la diagonal de un alfil, la columna de una torre o el camino de la dama.
+- **Antes de mover un peón**, pregúntate a qué pieza tuya le va a quitar o le va a dar espacio. Un avance de peón es para siempre.
+- **Un alfil detrás de sus propios peones** del mismo color de casilla se convierte en un alfil malo: el peón es su obstáculo.
+- **Una torre detrás de un peón propio** apenas sirve; por eso las torres buscan columnas abiertas, sin peones propios.
+- Cada avance de peón deja casillas que **ese peón ya nunca podrá controlar**: el rival puede usarlas.
+**Por eso**: mueve los peones con un plan (abrir líneas, ganar espacio, romper la estructura rival), no por mover; y coloca tus piezas donde tus propios peones no las encierren.`,
+    pista: 'Monta una posición con un alfil encerrado tras sus propios peones del mismo color y otra en la que esos peones avancen y lo liberen.',
+  },
+  {
+    id: 'estr-alfil-malo', bloque: 'Estrategia', tema: 'Piezas buenas y malas',
+    titulo: 'Alfil bueno y alfil malo', en: 'Good and bad bishop', lichess: '', alias: ['alfil malo', 'alfil bueno'],
+    def: 'Un alfil es malo cuando sus propios peones centrales están en casillas de su color y le quitan movilidad.',
+    principio: 'Pon tus peones en casillas del color contrario a tu alfil.',
+    explicacion: `Un alfil es **malo** cuando sus propios peones, sobre todo los centrales y bloqueados, están en casillas de su mismo color: chocan con ellos y se queda sin diagonales.
+- Es **bueno** cuando sus peones están en casillas del color contrario y él tiene las diagonales libres.
+- Un alfil malo puede ser útil para defender, pero en los finales suele ser una desventaja seria.
+**Cómo mejorarlo**: sácalo por delante de la cadena de peones, cámbialo por una pieza rival o cambia la estructura con una ruptura.
+**Contra un alfil malo**: fija sus peones en casillas de su color y cambia tus piezas activas solo si te conviene el final.`,
+    pista: 'Monta una estructura cerrada en la que uno de los alfiles quede detrás de sus peones del mismo color.',
+  },
+  {
+    id: 'estr-pareja-alfiles', bloque: 'Estrategia', tema: 'Piezas buenas y malas',
+    titulo: 'Pareja de alfiles', en: 'Bishop pair', lichess: '', alias: ['los dos alfiles', 'dos alfiles'],
+    def: 'Tener los dos alfiles frente a alfil y caballo o dos caballos: ventaja en posiciones abiertas.',
+    principio: 'Con la pareja de alfiles, abre la posición.',
+    explicacion: `Los dos alfiles juntos **controlan casillas de los dos colores** y se complementan muy bien.
+- Son especialmente fuertes en **posiciones abiertas** y en los finales con peones en los dos flancos.
+- Quien los tiene suele buscar abrir el juego con rupturas de peón.
+- Quien juega contra ellos intenta mantener la posición cerrada, instalar caballos en casillas fuertes o cambiar uno de los alfiles.`,
+    pista: 'Monta un final abierto con peones en ambos flancos: dos alfiles contra alfil y caballo.',
+  },
+  {
+    id: 'estr-caballo-alfil', bloque: 'Estrategia', tema: 'Piezas buenas y malas',
+    titulo: 'Caballo contra alfil', en: 'Knight versus bishop', lichess: '', alias: [],
+    def: 'El caballo prefiere posiciones cerradas y casillas fuertes; el alfil, posiciones abiertas y peones en los dos flancos.',
+    principio: 'Posición cerrada, caballo; posición abierta, alfil.',
+    explicacion: `Valen más o menos lo mismo, pero no son iguales: **depende de la estructura de peones**.
+- **El caballo** es mejor en posiciones cerradas, con peones bloqueados, y cuando tiene una **casilla fuerte** (un puesto avanzado) desde la que no lo pueden echar.
+- **El alfil** es mejor en posiciones abiertas, cuando hay peones en los dos flancos y cuando el caballo no tiene puntos de apoyo.
+- Un alfil malo, encerrado tras sus peones, suele ser peor que un buen caballo.`,
+    pista: 'Monta un caballo instalado en un puesto avanzado frente a un alfil malo encerrado por sus peones.',
+  },
+
+  // ------------------------------------------------ Centro y espacio
+  {
+    id: 'estr-centro', bloque: 'Estrategia', tema: 'Centro y espacio',
+    titulo: 'Control del centro', en: 'Control of the center', lichess: '', alias: ['el centro', 'centro', 'casillas centrales'],
+    def: 'Dominar e4, d4, e5 y d5 con peones y piezas: desde el centro, las piezas llegan antes a todas partes.',
+    principio: 'Quien domina el centro, domina la partida.',
+    explicacion: `Las casillas **e4, d4, e5 y d5** son las más importantes del tablero: desde ellas las piezas tienen más alcance y llegan antes a cualquier flanco.
+- El centro se puede **ocupar** con peones o **controlar** a distancia con piezas (como en las defensas hipermodernas).
+- Un buen centro da **espacio** y hace más difíciles los ataques en los flancos.
+- **Ante un ataque en un flanco, reacciona en el centro**: es el antídoto clásico.`,
+    pista: 'Monta una posición en la que un bando ataca en un flanco y el otro responde con una ruptura central.',
+  },
+  {
+    id: 'estr-tipos-centro', bloque: 'Estrategia', tema: 'Centro y espacio',
+    titulo: 'Centro abierto y centro cerrado', en: 'Open and closed center', lichess: '', alias: ['centro cerrado', 'centro abierto'],
+    def: 'El tipo de centro decide los planes: abierto favorece la táctica y los alfiles; cerrado, los planes en los flancos.',
+    principio: 'Mira el centro antes de elegir el plan.',
+    explicacion: `La forma del centro decide dónde y cómo se juega.
+- **Centro abierto** (sin peones centrales o con pocos): juego rápido y táctico; importan el desarrollo, los alfiles y la seguridad del rey.
+- **Centro cerrado** (peones bloqueados): el juego se traslada a los **flancos**; cada bando ataca donde apunta su cadena de peones, y los caballos ganan valor.
+- **Centro móvil** (peones centrales que pueden avanzar): su avance puede ser decisivo, y el rival intenta frenarlo o atacarlo.
+- **Centro fijo o en tensión**: todo gira en torno a quién cambia primero y cuándo.`,
+    pista: 'Monta un centro cerrado (por ejemplo, d5-e4 contra d6-e5) y piensa en qué flanco juega cada bando.',
+  },
+  {
+    id: 'estr-espacio', bloque: 'Estrategia', tema: 'Centro y espacio',
+    titulo: 'Ventaja de espacio', en: 'Space advantage', lichess: '', alias: ['ventajas de espacio', 'espacio'],
+    def: 'Tener más terreno detrás de tus peones: tus piezas maniobran mejor y las del rival se estorban.',
+    principio: 'Con más espacio, evita los cambios; con menos, búscalos.',
+    explicacion: `Tienes más espacio cuando tus peones están más avanzados y dejan más terreno libre detrás para tus piezas.
+- **Quien tiene más espacio** maniobra con comodidad y puede pasar de un flanco a otro; le conviene **evitar los cambios** para que el rival siga apretado.
+- **Quien tiene menos espacio** tiene piezas que se estorban; le conviene **cambiar piezas** y preparar una ruptura que libere su posición.
+- El espacio solo es ventaja si se puede mantener: los peones muy avanzados también pueden convertirse en objetivos.`,
+    pista: 'Monta una posición con mucho espacio para un bando y piensa qué piezas debería cambiar el otro para respirar.',
+  },
+
+  // ------------------------------------------------ Casillas fuertes y débiles
+  {
+    id: 'estr-puesto-avanzado', bloque: 'Estrategia', tema: 'Casillas fuertes y débiles',
+    titulo: 'Puesto avanzado', en: 'Outpost', lichess: '', alias: ['casilla fuerte', 'casillas fuertes'],
+    def: 'Casilla en campo rival, apoyada por un peón propio, desde la que ningún peón enemigo puede echarte.',
+    principio: 'Un caballo en un puesto avanzado vale más que una torre pasiva.',
+    explicacion: `Es una casilla en el campo del rival que **ningún peón enemigo puede atacar** y que está **apoyada por un peón propio**.
+- Es el lugar ideal para un **caballo**: desde allí controla casillas clave y no hay forma sencilla de echarlo.
+- Para conseguirlo, a menudo hay que cambiar la pieza rival que podría disputarlo.
+- Para evitarlo, vigila los avances de tus peones: cada avance puede crear un puesto avanzado para el rival.`,
+    pista: 'Monta un caballo blanco en d5 apoyado por un peón en e4, sin peones negros que puedan atacarlo.',
+  },
+  {
+    id: 'estr-casilla-debil', bloque: 'Estrategia', tema: 'Casillas fuertes y débiles',
+    titulo: 'Casilla débil', en: 'Weak square (hole)', lichess: '', alias: ['casillas débiles', 'agujero'],
+    def: 'Casilla de tu campo que ninguno de tus peones puede ya proteger.',
+    principio: 'Lo que tus peones ya no defienden, lo ocupará el rival.',
+    explicacion: `Una casilla es débil (un **agujero**) cuando ninguno de tus peones puede ya protegerla, porque los de las columnas vecinas han avanzado o han desaparecido.
+- El rival puede instalar en ella una pieza, sobre todo un caballo, sin que puedas echarla con un peón.
+- Las más peligrosas son las que están **cerca de tu rey** o en el **centro**.
+- Si la casilla débil está delante de un peón retrasado o aislado, la debilidad es doble.
+**Defensa**: vigila la casilla con piezas, cambia las piezas rivales que puedan llegar a ella o, si es posible, ocúpala tú primero.`,
+    pista: 'Monta una posición en la que, tras el avance de un peón negro, la casilla d6 o f6 se convierta en un agujero.',
+  },
+  {
+    id: 'estr-complejo-color', bloque: 'Estrategia', tema: 'Casillas fuertes y débiles',
+    titulo: 'Debilidad de un color', en: 'Weak color complex', lichess: '', alias: ['complejo de casillas débiles', 'casillas de un color'],
+    def: 'Varias casillas débiles del mismo color, normalmente tras perder el alfil de ese color.',
+    principio: 'Sin el alfil de un color, cuida las casillas de ese color.',
+    explicacion: `Cuando un bando pierde o cambia el alfil de un color y sus peones están en casillas del otro color, **todas las casillas del color del alfil desaparecido** quedan sin vigilancia.
+- Las piezas rivales, sobre todo la dama y el alfil del mismo color, se cuelan por esas casillas.
+- Es muy peligroso **alrededor del enroque**: por ejemplo, sin el alfil de casillas negras tras …g6, las casillas f6, h6 y g7 se debilitan.
+**Por eso**: piensa dos veces antes de cambiar el alfil que defiende las casillas alrededor de tu rey.`,
+    pista: 'Monta un enroque negro con …g6 en el que el alfil negro de casillas oscuras ya no esté, y una dama blanca que entre por h6.',
+  },
+
+  // ------------------------------------------------ Columnas y filas
+  {
+    id: 'estr-columna-abierta', bloque: 'Estrategia', tema: 'Columnas y filas',
+    titulo: 'Columna abierta', en: 'Open file', lichess: '', alias: ['columnas abiertas', 'doblar torres'],
+    def: 'Columna sin peones: la autopista natural de las torres.',
+    principio: 'Las torres, a las columnas abiertas.',
+    explicacion: `Una columna abierta es la que no tiene peones de ningún bando.
+- Es el lugar natural de las **torres**: desde allí pueden penetrar en el campo rival.
+- **Doblar torres** (una detrás de otra) en la columna aumenta mucho su fuerza.
+- Quien controla la columna suele acabar entrando en la séptima fila.
+**Si el rival domina la columna**: disputa las casillas de entrada con piezas menores o planta una torre propia enfrente.`,
+    pista: 'Monta una columna abierta con tus dos torres dobladas y la casilla de entrada en séptima libre.',
+  },
+  {
+    id: 'estr-semiabierta', bloque: 'Estrategia', tema: 'Columnas y filas',
+    titulo: 'Columna semiabierta', en: 'Half-open file', lichess: '', alias: ['columnas semiabiertas'],
+    def: 'Columna sin peones propios pero con un peón rival: sirve para presionar ese peón.',
+    principio: 'Por la columna semiabierta, presiona el peón del rival.',
+    explicacion: `Una columna es semiabierta para ti cuando no tiene peones tuyos pero sí uno del rival.
+- Tus torres pueden **presionar ese peón** de frente, sobre todo si es débil (retrasado, aislado o la base de una cadena).
+- Muchas aperturas giran en torno a ellas: la columna c en la Siciliana para las negras, la columna c en la Carlsbad para las blancas.`,
+    pista: 'Monta la columna c semiabierta en una Siciliana, con una torre negra presionando el peón blanco de c2 o c3.',
+  },
+  {
+    id: 'estr-septima', bloque: 'Estrategia', tema: 'Columnas y filas',
+    titulo: 'Torre en séptima', en: 'Rook on the seventh rank', lichess: '', alias: ['séptima fila', 'torres en séptima'],
+    def: 'Una torre en la séptima fila ataca los peones rivales y encierra a su rey.',
+    principio: 'Una torre en séptima es un tormento; dos, muchas veces, la partida.',
+    explicacion: `La séptima fila (la segunda para las negras) es donde están los peones del rival que aún no se han movido.
+- Una torre allí **ataca esos peones** y **encierra al rey** rival en la última fila.
+- **Dos torres en séptima** suelen ser decisivas: amenazan peones y mates.
+- Se llega a ella normalmente a través de una columna abierta.`,
+    pista: 'Monta un final de torres con tu torre en séptima atacando los peones rivales y su rey encerrado en la octava.',
+  },
+  {
+    id: 'estr-ligar-torres', bloque: 'Estrategia', tema: 'Columnas y filas',
+    titulo: 'Ligar torres', en: 'Connecting the rooks', lichess: '', alias: ['torres ligadas', 'conectar las torres'],
+    def: 'Despejar la primera fila para que las dos torres se vean y se protejan.',
+    principio: 'Cuando tus torres se ven, el desarrollo ha terminado.',
+    explicacion: `Las torres están ligadas cuando no hay ninguna pieza entre ellas en la primera fila, de modo que se defienden mutuamente.
+- Es la **señal de que el desarrollo ha terminado**: piezas menores fuera, rey enrocado y dama movida.
+- A partir de ahí, las torres pueden ir juntas a las columnas abiertas o doblarse.
+- Con las torres ligadas, la primera fila también queda mejor protegida contra los mates del pasillo.`,
+    pista: 'Monta una posición recién desarrollada con las torres ligadas y una columna abierta a la que llevarlas.',
+  },
+
+  // ------------------------------------------------ Coordinación de piezas
+  {
+    id: 'estr-peor-pieza', bloque: 'Estrategia', tema: 'Coordinación de piezas',
+    titulo: 'Mejorar la peor pieza', en: 'Improve your worst piece', lichess: 'quietMove', alias: ['la peor pieza', 'peor pieza'],
+    def: 'Si no hay nada concreto, busca tu pieza menos activa y llévala a una casilla mejor.',
+    principio: 'Cuando no sepas qué hacer, mejora tu peor pieza.',
+    explicacion: `Si en la posición no hay táctica ni un plan inmediato, una regla muy útil es buscar **tu pieza peor colocada** y llevarla a una buena casilla.
+- Una posición es tan fuerte como su pieza más débil: una sola pieza inactiva puede costar la partida.
+- A veces la mejora necesita varias jugadas (una **maniobra**): el caballo que va de b1 a d2, f1 y g3, o la torre que se activa por la tercera fila.
+- La misma pregunta, al revés: ¿cuál es la peor pieza del rival? Intenta que siga siendo mala.`,
+    pista: 'Monta una posición tranquila con una pieza tuya claramente inactiva y planifica la maniobra para activarla.',
+  },
+  {
+    id: 'estr-centralizacion', bloque: 'Estrategia', tema: 'Coordinación de piezas',
+    titulo: 'Centralización', en: 'Centralization', lichess: '', alias: ['centralizar'],
+    def: 'Llevar las piezas hacia el centro, donde tienen más alcance y llegan antes a cualquier flanco.',
+    principio: 'Un caballo en el borde es un caballo triste: centraliza tus piezas.',
+    explicacion: `Las piezas en el centro tienen **más casillas a su alcance** y pueden acudir rápido a cualquier flanco.
+- Un caballo en el centro controla ocho casillas; en una esquina, solo dos. De ahí el dicho de que un caballo en el borde es un caballo triste.
+- La dama y el rey en los finales también ganan muchísimo en el centro.
+- Antes de atacar en un flanco, conviene tener las piezas centralizadas, listas para acudir.`,
+    pista: 'Monta un caballo en el borde y busca la maniobra más corta para centralizarlo.',
+  },
+
+  // ------------------------------------------------ Iniciativa y profilaxis
+  {
+    id: 'estr-iniciativa', bloque: 'Estrategia', tema: 'Iniciativa y profilaxis',
+    titulo: 'Iniciativa', en: 'Initiative', lichess: '', alias: ['tener la iniciativa'],
+    def: 'Ser quien crea amenazas y obliga al rival a responder.',
+    principio: 'Quien amenaza, decide; quien responde, sufre.',
+    explicacion: `Tienes la iniciativa cuando eres tú quien **crea amenazas** y el rival se limita a responderlas.
+- Con la iniciativa marcas el ritmo de la partida: el rival no tiene tiempo para sus planes.
+- A veces merece la pena **entregar material** para conseguirla o mantenerla.
+- La iniciativa se pierde con jugadas lentas: cuando la tienes, busca amenazas concretas.
+**Si la tiene el rival**: busca cambios, cierra líneas y prepara un contraataque en el momento oportuno.`,
+    pista: 'Monta una posición en la que entregar un peón te dé ventaja de desarrollo y amenazas continuas.',
+  },
+  {
+    id: 'estr-profilaxis', bloque: 'Estrategia', tema: 'Iniciativa y profilaxis',
+    titulo: 'Profilaxis', en: 'Prophylaxis', lichess: 'quietMove', alias: ['jugada profiláctica', 'profiláctica'],
+    def: 'Prevenir el plan del rival antes de que llegue a ejecutarlo.',
+    principio: 'Antes de jugar, pregúntate qué quiere hacer tu rival.',
+    explicacion: `Es la costumbre de preguntarse, en cada jugada, **qué quiere hacer el rival**, y de impedirlo antes de que suceda.
+- Una jugada profiláctica puede parecer tranquila: mover el rey a una casilla más segura, tapar una casilla de entrada, cambiar una pieza clave.
+- Es especialmente útil cuando la posición es estable y el rival depende de un único plan o de una ruptura.
+- La pregunta de oro: «si ahora le tocara jugar a él, ¿qué haría?».`,
+    pista: 'Monta una posición en la que el rival prepare una ruptura y busca la jugada que la impida antes de que llegue.',
+  },
+
+  // ------------------------------------------------ Los cambios
+  {
+    id: 'estr-cambios', bloque: 'Estrategia', tema: 'Los cambios',
+    titulo: 'Qué piezas cambiar', en: 'Which pieces to exchange', lichess: '', alias: ['los cambios', 'cambiar piezas'],
+    def: 'Cada cambio modifica la posición: cambia las piezas buenas del rival y conserva las tuyas.',
+    principio: 'No cambies por cambiar: cambia para mejorar tu posición.',
+    explicacion: `Cada cambio de piezas transforma la posición. Antes de cambiar, pregúntate **a quién beneficia**.
+- **Con ventaja de material**: cambia piezas, no peones. Cuantas menos piezas queden, más pesa tu ventaja.
+- **Con menos espacio**: los cambios te dan aire.
+- **Si atacas**: evita cambiar tus piezas de ataque; **si defiendes**, busca cambiar las piezas atacantes del rival.
+- **Cambia la pieza buena del rival** por una tuya peor (por ejemplo, tu alfil malo por su buen caballo).
+- **Cambia el defensor** de una debilidad o de una casilla clave.`,
+    pista: 'Monta una posición en la que un cambio concreto deje al rival con un alfil malo contra tu buen caballo.',
   },
 ];

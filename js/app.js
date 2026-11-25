@@ -6,7 +6,7 @@ import * as D from './datos.js';
 import { BIBLIOTECA } from './biblioteca.js';
 import { crearVisor, crearEditor, dePgn, aPgn, ejemploVacio, usarFiguras, diagrama, textoJugadas, escapar as esc } from './tablero.js';
 
-export const VERSION = '1.3.0 (biblioteca 2)';
+export const VERSION = '1.4.1 (biblioteca 3)';
 const app = document.getElementById('app');
 
 // ---------------------------------------------------------------------
@@ -146,7 +146,7 @@ function marco() {
     <header class="cab">
       <a href="#/inicio" class="marca" aria-label="Inicio">
         <span class="mono">M<i>d</i>P</span>
-        <span class="marca-txt"><b>Memorias de Peón</b><small class="lema-cab">Casilla a casilla</small><small class="autor">by Manuel Esteve</small></span>
+        <span class="marca-txt"><b>Memorias de Peón</b><small class="lema-cab">Todo peón propio es un obstáculo</small><small class="autor">Casilla a casilla · by Manuel Esteve</small></span>
       </a>
       <button class="btn-ico" id="lupa" aria-label="Buscar">${ico('buscar')}</button>
       <button class="sync" id="sync"></button>
@@ -190,6 +190,7 @@ const RUTAS = {
   ejemplo: vEjemplo, catalogo: vCatalogo, entrenar: vEntrenar, ajustes: vAjustes,
   repertorio: () => vPronto('Repertorio', 'Tus aperturas con blancas y negras en árbol de variantes, con ideas, planes y entrenamiento. Llega en la fase 3.'),
   clases: vClases, clase: vClase, notas: vNotas, glosario: vGlosario, rutina: vRutina, guia: vGuia, imprimir: vImprimir,
+  biblioteca: vBiblioteca,
 };
 
 function pintar(conservarScroll) {
@@ -207,7 +208,7 @@ function pintar(conservarScroll) {
   viejo.replaceWith(vista);
   document.querySelectorAll('.barra a').forEach(a => {
     const r = a.dataset.r;
-    a.classList.toggle('on', r === nombre || (r === 'conceptos' && ['bloque', 'concepto', 'editar', 'ejemplo', 'catalogo', 'imprimir'].includes(nombre))
+    a.classList.toggle('on', r === nombre || (r === 'conceptos' && ['bloque', 'concepto', 'editar', 'ejemplo', 'catalogo', 'imprimir', 'biblioteca'].includes(nombre))
       || (r === 'clases' && nombre === 'clase') || (r === 'inicio' && ['notas', 'glosario', 'rutina', 'guia'].includes(nombre)));
   });
   (RUTAS[nombre] || vInicio)(vista, id, new URLSearchParams(q || ''));
@@ -225,8 +226,8 @@ function vEntrar(reentrar = false) {
     <div class="entrar">
       <div class="logo-grande"><span class="mono">M<i>d</i>P</span></div>
       <h1 class="titulo-app">Memorias de Peón</h1>
-      <p class="lema">Casilla a casilla</p>
-      <p class="autor-entrar">by Manuel Esteve</p>
+      <p class="lema">Todo peón propio es un obstáculo</p>
+      <p class="autor-entrar">Casilla a casilla · by Manuel Esteve</p>
       <form id="f-entrar" class="tarjeta">
         <label>Correo<input type="email" name="email" autocomplete="username" required value="${esc(guardado?.email || '')}"></label>
         <label>Contraseña<input type="password" name="clave" autocomplete="current-password" required></label>
@@ -327,6 +328,7 @@ function vInicio(v) {
     </div>
     ${notasPendientes ? `<a class="tarjeta aviso-notas" href="#/notas">${ico('nota')}<span><b>${notasPendientes} ${notasPendientes === 1 ? 'nota rápida' : 'notas rápidas'} por ordenar</b><small>Conviértelas en fichas cuando tengas un rato</small></span>${ico('flecha', 'peq')}</a>` : ''}
     <div class="atajos">
+      <a href="#/biblioteca">${ico('libro')}<span>Biblioteca</span></a>
       <a href="#/rutina">${ico('rutina')}<span>Rutina</span></a>
       <a href="#/glosario">${ico('glosario')}<span>Glosario</span></a>
       <a href="#/notas">${ico('nota')}<span>Notas</span></a>
@@ -350,6 +352,7 @@ function vConceptos(v, _id, q) {
   v.innerHTML = `
     <div class="cab-vista"><h1>Conceptos</h1>
       <a class="btn-ico" href="#/imprimir" aria-label="Imprimir">${ico('imprimir')}</a>
+      <a class="btn peq" href="#/biblioteca">${ico('libro', 'peq')} Biblioteca</a>
       <a class="btn peq" href="#/catalogo">Bloques</a>
     </div>
     <label class="buscador">${ico('buscar')}<input type="search" id="buscar" placeholder="Buscar: enfilada, peón aislado…" value="${esc(q.get('q') || '')}"></label>
@@ -478,7 +481,7 @@ function vConcepto(v, id) {
       <div class="etqs">
         <span class="etq-bloque">${b ? esc(b.nombre) + (tema ? ' · ' + esc(tema.nombre) : '') : 'Bandeja'}</span>
         <span class="estado ${ejemplos.length ? 'hecho' : ''}">${ejemplos.length ? ico('check', 'peq') + ' Trabajada' : 'Pendiente de ejemplo'}</span>
-        ${c.origen === 'mdp' ? `<span class="estado mdp">${adaptada(c) ? 'Biblioteca MdP · adaptada' : 'Sugerida por MdP'}</span>` : ''}
+        ${c.origen === 'mdp' ? (biblioItem(c.original?.id)?.maestro ? '<span class="estado maestro">★ Principio del maestro</span>' : `<span class="estado mdp">${adaptada(c) ? 'Biblioteca MdP · adaptada' : 'Sugerida por MdP'}</span>`) : ''}
       </div>
       <h1 class="ficha-tit">${esc(c.titulo)}</h1>
       ${termino && termino.en ? `<p class="ficha-en"><span class="g-en">${esc(termino.en)}</span> en inglés · <a href="#/glosario?q=${encodeURIComponent(termino.es)}">glosario</a></p>` : ''}
@@ -1126,27 +1129,18 @@ function vClase(v, id, q) {
 // Términos básicos. Los que define la biblioteca (biblioteca.js) no se repiten aquí.
 const GLOSARIO = [
   ['Ahogado', 'Stalemate', 'El bando que mueve no tiene jugadas legales y no está en jaque: tablas.'],
-  ['Alfil bueno / malo', 'Good / bad bishop', 'Malo si sus propios peones están en casillas de su color y le quitan movilidad.'],
   ['Apertura', 'Opening', 'Primera fase: desarrollo, centro y seguridad del rey.'],
   ['Bloqueo', 'Blockade', 'Situar una pieza delante de un peón para frenarlo. Ideal: el caballo.'],
-  ['Casilla débil / fuerte', 'Weak / strong square', 'Casilla que ningún peón contrario puede ya atacar: perfecta para una pieza.'],
-  ['Centro', 'Center', 'Las casillas e4, d4, e5 y d5, y su entorno.'],
-  ['Columna abierta / semiabierta', 'Open / half-open file', 'Sin peones / sin peones propios. Autopista para torres.'],
   ['Desarrollo', 'Development', 'Sacar las piezas de sus casillas iniciales a puestos activos.'],
   ['Enroque', 'Castling', 'Movimiento de rey y torre que protege al rey y activa la torre.'],
   ['Enroques opuestos', 'Opposite-side castling', 'Cada rey en un flanco: carrera de ataques con peones.'],
   ['Final', 'Endgame', 'Fase con poco material, donde el rey se vuelve una pieza activa.'],
   ['Fortaleza', 'Fortress', 'Posición defensiva que el rival no puede romper aunque tenga más material.'],
   ['Gambito', 'Gambit', 'Sacrificio de material en la apertura a cambio de desarrollo o iniciativa.'],
-  ['Iniciativa', 'Initiative', 'Capacidad de imponer amenazas y obligar al rival a responder.'],
   ['Jugadas candidatas', 'Candidate moves', 'Las pocas jugadas serias que conviene analizar en una posición.'],
   ['Jugadas forzantes', 'Forcing moves', 'Jaques, capturas y amenazas: lo primero que hay que mirar.'],
-  ['Ligar torres', 'Connect the rooks', 'Despejar la primera fila para que las torres se protejan entre sí.'],
   ['Medio juego', 'Middlegame', 'Fase de planes, ataques y maniobras tras el desarrollo.'],
   ['Oposición', 'Opposition', 'Reyes enfrentados con una casilla en medio: quien no mueve la gana.'],
-  ['Pareja de alfiles', 'Bishop pair', 'Tener los dos alfiles; ventaja en posiciones abiertas.'],
-  ['Profilaxis', 'Prophylaxis', 'Prevenir los planes del rival antes de que ocurran.'],
-  ['Puesto avanzado', 'Outpost', 'Casilla fuerte en campo enemigo, apoyada por un peón propio.'],
   ['Sacrificio', 'Sacrifice', 'Entregar material a cambio de ataque, posición o mate.'],
   ['Tablas', 'Draw', 'Final de partida sin ganador.'],
   ['Triangulación', 'Triangulation', 'Maniobra del rey para perder un tiempo y ganar la oposición.'],
@@ -1157,14 +1151,16 @@ function vGlosario(v, _id, q) {
   const todos = [...mapa.values()].filter(t => t.def || t.en).sort((a, b) => a.es.localeCompare(b.es, 'es'));
   v.innerHTML = `
     <div class="cab-vista"><a href="#/inicio" class="btn-ico">${ico('atras')}</a><h1>Glosario</h1></div>
-    <p class="intro">${todos.length} términos. Toca «Ver ficha» para ir a tu ficha, o «Crear ficha» si aún no la tienes.</p>
+    <p class="intro">${todos.length} términos. «Ver ficha» abre tu ficha con tus ejemplos; «Ver en la biblioteca», la teoría de serie.</p>
     <label class="buscador">${ico('buscar')}<input type="search" id="g-buscar" placeholder="Busca en español o en inglés" value="${esc(q.get('q') || '')}"></label>
     <div class="lista glosario">${todos.map(t => `
       <div class="g-fila" data-t="${esc(norm(t.es + ' ' + (t.en || '') + ' ' + (t.def || '') + ' ' + t.alias.join(' ')))}">
         <div><b>${esc(t.es)}</b> <span class="g-en">${esc(t.en || '')}</span>${t.propio ? ' <span class="estado">mío</span>' : ''}</div>
         <small>${esc(t.def || '')}</small>
         <div class="g-acc">
-          ${t.ficha ? `<a class="chip" href="#/concepto/${t.ficha}">${ico('conceptos', 'peq')} Ver ficha</a>` : `<a class="chip" href="#/editar/nuevo?titulo=${encodeURIComponent(t.es)}">${ico('mas', 'peq')} Crear ficha</a>`}
+          ${t.ficha ? `<a class="chip" href="#/concepto/${t.ficha}">${ico('conceptos', 'peq')} Ver ficha</a>`
+            : t.biblio ? `<a class="chip" href="#/biblioteca/${t.biblio}">${ico('libro', 'peq')} Ver en la biblioteca</a>`
+            : `<a class="chip" href="#/editar/nuevo?titulo=${encodeURIComponent(t.es)}">${ico('mas', 'peq')} Crear ficha</a>`}
           ${t.propio ? `<button class="btn-ico peq g-borrar" data-id="${t.propio}" aria-label="Borrar">${ico('borrar')}</button>` : ''}
         </div>
       </div>`).join('')}</div>
@@ -1238,6 +1234,8 @@ function vGuia(v) {
       <section class="tarjeta"><h2>Cómo se ordena</h2>
         <p class="ruta-guia">Bloque → Tema → Ficha</p>
         <p>Ejemplo: <b>Táctica</b> → <b>Motivos tácticos</b> → <b>Enfilada</b>. Bloques y temas son las carpetas; las fichas, tus apuntes. Actívalos o déjalos en reserva en <a href="#/catalogo">Conceptos → Bloques</a>.</p></section>
+      <section class="tarjeta"><h2>La biblioteca</h2>
+        <p>En <a href="#/biblioteca">Biblioteca</a> tienes la teoría de serie, ordenada por bloques y temas. Lo que está en reserva lo puedes leer igualmente y añadirlo a tu cuaderno con un toque. Las fichas de serie aparecen translúcidas hasta que les añades tu propio ejemplo: el tablero lo pones tú.</p></section>
       <section class="tarjeta"><h2>Una ficha</h2>
         <p><b>Nombre del concepto</b> (Enfilada), <b>principio</b> (la frase clave), <b>explicación</b> (con **negrita**, *cursiva* y listas «- »), etiquetas, la clase en que lo viste y su enlace a los puzzles de Lichess.</p>
         <p>Una ficha está <b>Trabajada</b> cuando le añades al menos un ejemplo tuyo.</p></section>
@@ -1335,8 +1333,7 @@ async function sembrarBiblioteca() {
   try {
     const titulos = new Set(conceptos().map(c => norm(c.titulo)));
     for (const it of BIBLIOTECA) {
-      const b = bloques().find(x => norm(x.nombre) === norm(it.bloque));
-      const t = b && temasDe(b.id).find(x => norm(x.nombre) === norm(it.tema));
+      const { b, t } = ubicar(it);
       if (!b || !t || !b.activo || !t.activo) continue;
       const id = await idDeterminista(usuario.id + ':' + it.id);
       if (D.obtenerAunBorrado('conceptos', id)) continue;            // ya está (o la borraste tú)
@@ -1424,7 +1421,9 @@ function abrirTermino(k, mapa = terminos()) {
       ${dg ? `<div class="t-dg">${dg}<small>${esc(e.titulo || 'Tu ejemplo')}</small></div>` : (c ? '<p class="nota">Esta ficha aún no tiene ejemplo tuyo.</p>' : '')}
       <div class="botones">
         <button class="btn" data-cerrar>Cerrar</button>
-        ${c ? `<a class="btn primario" href="#/concepto/${c.id}">Abrir ficha</a>` : `<a class="btn primario" href="#/editar/nuevo?titulo=${encodeURIComponent(t.es)}">Crear ficha</a>`}
+        ${c ? `<a class="btn primario" href="#/concepto/${c.id}">Abrir ficha</a>`
+          : t.biblio ? `<a class="btn primario" href="#/biblioteca/${t.biblio}">Ver en la biblioteca</a>`
+          : `<a class="btn primario" href="#/editar/nuevo?titulo=${encodeURIComponent(t.es)}">Crear ficha</a>`}
       </div></div>`;
   d.addEventListener('click', ev => { if (ev.target === d || ev.target.closest('[data-cerrar]') || ev.target.closest('a')) d.remove(); });
   document.body.appendChild(d);
@@ -1459,10 +1458,106 @@ function abrirBuscador() {
     const nt = top(D.lista('notas_rapidas'), n => puntuar((n.texto || '').split('\n')[0], n.texto));
     const grupo = (tit, html) => html ? `<h3 class="sec">${tit}</h3><div class="lista">${html}</div>` : '';
     res.innerHTML = (grupo('Fichas', fichas.map(filaConcepto).join('')) +
-      grupo('Glosario', gl.map(([k, t]) => `<a class="fila-c" href="${t.ficha ? '#/concepto/' + t.ficha : '#/glosario?q=' + encodeURIComponent(t.es)}">${ico('glosario', 'peq')}<span class="fila-txt"><b>${esc(t.es)} <span class="g-en">${esc(t.en || '')}</span></b><small>${esc(t.def || '')}</small></span></a>`).join('')) +
+      grupo('Glosario y biblioteca', gl.map(([k, t]) => `<a class="fila-c" href="${t.ficha ? '#/concepto/' + t.ficha : t.biblio ? '#/biblioteca/' + t.biblio : '#/glosario?q=' + encodeURIComponent(t.es)}">${ico('glosario', 'peq')}<span class="fila-txt"><b>${esc(t.es)} <span class="g-en">${esc(t.en || '')}</span></b><small>${esc(t.def || '')}</small></span></a>`).join('')) +
       grupo('Clases', cl.map(k => `<a class="fila-c" href="#/clase/${k.id}">${ico('clases', 'peq')}<span class="fila-txt"><b>${esc(k.titulo || 'Clase')}</b><small>${fechaLarga(k.fecha)}</small></span></a>`).join('')) +
       grupo('Notas', nt.map(n => `<a class="fila-c" href="#/notas">${ico('nota', 'peq')}<span class="fila-txt"><b>${esc((n.texto || '').split('\n')[0])}</b></span></a>`).join(''))) ||
       `<p class="nada">Nada con «${esc(inp.value)}».</p>`;
+  });
+}
+
+// ---------------------------------------------------------------------
+//  BIBLIOTECA: ver toda la teoría de serie, esté o no en tu cuaderno
+// ---------------------------------------------------------------------
+const ESTILO_CATALOGO = {
+  'Táctica': ['rojo', 'rayo'], 'Ataque y defensa del rey': ['coral', 'corona'], 'Estructuras de peones': ['violeta', 'peon'],
+  'Estrategia': ['azul', 'brujula'], 'Aperturas': ['verde', 'libro'], 'Finales': ['ambar', 'bandera'],
+  'Técnica': ['teal', 'martillo'], 'Cálculo y visualización': ['rosa', 'ojo'], 'Juego práctico': ['gris', 'reloj'],
+};
+const biblioItem = id => BIBLIOTECA.find(x => x.id === id) || null;
+function ubicar(it) {
+  const b = bloques().find(x => norm(x.nombre) === norm(it.bloque));
+  const t = b && temasDe(b.id).find(x => norm(x.nombre) === norm(it.tema));
+  return { b, t };
+}
+const fichaDeBiblio = it => conceptos().find(c => c.original?.id === it.id) || conceptos().find(c => norm(c.titulo) === norm(it.titulo)) || null;
+const colorBiblio = it => { const { b } = ubicar(it); return col(b ? b.color : (ESTILO_CATALOGO[it.bloque] || ['gris'])[0]); };
+
+// Añade una ficha de la biblioteca a tu cuaderno: activa su bloque y su tema
+async function anadirDeBiblioteca(it) {
+  let { b, t } = ubicar(it);
+  const [color, icono] = ESTILO_CATALOGO[it.bloque] || ['gris', 'libro'];
+  if (!b) b = await D.guardar('bloques', { nombre: it.bloque, color, icono, orden: bloques().length + 1, activo: true, padre_id: null });
+  else if (!b.activo) { b.activo = true; await D.guardar('bloques', b); }
+  if (!t) t = await D.guardar('bloques', { nombre: it.tema, padre_id: b.id, color: b.color, orden: temasDe(b.id).length + 1, activo: true });
+  else if (!t.activo) { t.activo = true; await D.guardar('bloques', t); }
+  const borrada = D.obtenerAunBorrado('conceptos', await idDeterminista(usuario.id + ':' + it.id));
+  if (borrada && borrada.borrado_en) { borrada.borrado_en = null; borrada.bloque_id = t.id; await D.guardar('conceptos', borrada); }
+  await sembrarBiblioteca();
+  return fichaDeBiblio(it);
+}
+
+function vBiblioteca(v, id, q) {
+  if (id) return vBiblioItem(v, id);
+  const bloquesB = [...new Set(BIBLIOTECA.map(x => x.bloque))];
+  const enCuaderno = BIBLIOTECA.filter(fichaDeBiblio).length;
+  v.innerHTML = `
+    <div class="cab-vista"><a href="#/conceptos" class="btn-ico">${ico('atras')}</a><h1>Biblioteca</h1></div>
+    <p class="intro">${BIBLIOTECA.length} fichas de teoría de serie · ${enCuaderno} ya en tu cuaderno. Las demás están en reserva: aparecen al activar su tema o con «Añadir a mi cuaderno».</p>
+    <label class="buscador">${ico('buscar')}<input type="search" id="b-buscar" placeholder="Filtrar: clavada, peón pasado…" value="${esc(q.get('q') || '')}"></label>
+    ${bloquesB.map(nb => {
+      const items = BIBLIOTECA.filter(x => x.bloque === nb);
+      const temas = [...new Set(items.map(x => x.tema))];
+      return `<section class="b-bloque" style="--c:${colorBiblio(items[0])}">
+        <h2 class="b-tit"><span class="bl-ico">${ico((ESTILO_CATALOGO[nb] || [, 'libro'])[1])}</span>${esc(nb)}</h2>
+        ${temas.map(tm => `<h3 class="sec">${esc(tm)}</h3><div class="lista">${items.filter(x => x.tema === tm).map(it => {
+          const c = fichaDeBiblio(it);
+          const est = c ? (ejemplosDe(c.id).length ? `<span class="estado hecho">${ico('check', 'peq')} Trabajada</span>` : '<span class="estado">En tu cuaderno</span>') : '<span class="estado reserva">En reserva</span>';
+          return `<a class="fila-c b-fila" href="${c ? '#/concepto/' + c.id : '#/biblioteca/' + it.id}" data-t="${esc(norm([it.titulo, it.en, it.principio, (it.alias || []).join(' ')].join(' ')))}">
+            <span class="punto" style="--c:${colorBiblio(it)}"></span>
+            <span class="fila-txt"><b>${it.maestro ? '★ ' : ''}${esc(it.titulo)}</b><small>${esc(it.principio)}</small></span>${est}</a>`;
+        }).join('')}</div>`).join('')}
+      </section>`;
+    }).join('')}`;
+  const inp = v.querySelector('#b-buscar');
+  const filtrar = () => {
+    const t = norm(inp.value.trim());
+    v.querySelectorAll('.b-fila').forEach(f => { f.hidden = t && !f.dataset.t.includes(t); });
+    v.querySelectorAll('.b-bloque .lista').forEach(l => { const s = l.previousElementSibling; const vis = [...l.children].some(f => !f.hidden); l.hidden = !vis; s.hidden = !vis; });
+    v.querySelectorAll('.b-bloque').forEach(s => { s.hidden = ![...s.querySelectorAll('.b-fila')].some(f => !f.hidden); });
+  };
+  inp.addEventListener('input', filtrar);
+  filtrar();
+}
+
+function vBiblioItem(v, id) {
+  const it = biblioItem(id);
+  if (!it) return ir('#/biblioteca');
+  const c = fichaDeBiblio(it);
+  if (c) return ir('#/concepto/' + c.id);       // ya está en tu cuaderno: se abre tu ficha
+  const mapa = terminos();
+  v.innerHTML = `
+    <div class="cab-vista"><a href="#/biblioteca" class="btn-ico" aria-label="Volver">${ico('atras')}</a><span class="hueco"></span></div>
+    <article class="ficha" style="--c:${colorBiblio(it)}">
+      <div class="etqs">
+        <span class="etq-bloque">${esc(it.bloque)} · ${esc(it.tema)}</span>
+        <span class="estado reserva">En reserva</span>
+        ${it.maestro ? '<span class="estado maestro">★ Principio del maestro</span>' : '<span class="estado mdp">Biblioteca MdP</span>'}
+      </div>
+      <h1 class="ficha-tit">${esc(it.titulo)}</h1>
+      ${it.en ? `<p class="ficha-en"><span class="g-en">${esc(it.en)}</span> en inglés</p>` : ''}
+      <blockquote class="principio">${esc(it.principio)}</blockquote>
+      <div class="md">${enlazar(md(it.explicacion), mapa, norm(it.titulo))}</div>
+    </article>
+    <div class="pista"><b>Pista para tu ejemplo</b><p>${esc(it.pista)}</p></div>
+    ${it.lichess ? `<a class="tarjeta practicar" href="https://lichess.org/training/${encodeURIComponent(it.lichess)}" target="_blank" rel="noopener">${ico('entrenar')}<span><b>Practicar en Lichess</b><small>Puzzles de ${esc(nombreTemaLichess(it.lichess))}</small></span>${ico('externo', 'peq')}</a>` : ''}
+    <button class="btn primario ancho" id="anadir">${ico('mas', 'peq')} Añadir a mi cuaderno</button>
+    <p class="nota">Se activará el tema «${esc(it.tema)}» y aparecerán también sus otras fichas, translúcidas hasta que les añadas tu ejemplo.</p>`;
+  v.querySelectorAll('.enl').forEach(bt => bt.addEventListener('click', () => abrirTermino(bt.dataset.k, mapa)));
+  v.querySelector('#anadir').addEventListener('click', async e => {
+    e.target.disabled = true;
+    const f = await anadirDeBiblioteca(it);
+    aviso('Añadida a tu cuaderno. Ahora créale tu ejemplo en el tablero.');
+    ir(f ? '#/concepto/' + f.id : '#/conceptos');
   });
 }
 

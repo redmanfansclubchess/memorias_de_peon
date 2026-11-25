@@ -52,8 +52,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .marca .mono { width: 52px; height: 52px; font-size: 20px; border-radius: 13px; }
 .marca-txt { display: flex; flex-direction: column; min-width: 0; }
 .marca-txt b { font-family: var(--serif); font-size: 19px; line-height: 1.1; white-space: nowrap; }
-.marca-txt .lema-cab { color: var(--acento); font-size: 14.5px; font-style: italic; font-family: var(--serif); line-height: 1.25; }
-.marca-txt .autor { color: var(--suave); opacity: .65; font-size: 10.5px; letter-spacing: .02em; line-height: 1.2; }
+.marca-txt .lema-cab { color: var(--acento); font-size: 13px; font-style: italic; font-family: var(--serif); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.marca-txt .autor { color: var(--suave); opacity: .7; font-size: 10.5px; letter-spacing: .02em; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 480px) { .marca-txt b { font-size: 17.5px; } .marca-txt .lema-cab { font-size: 12px; } .marca-txt .autor { font-size: 9.5px; letter-spacing: 0; } .marca { gap: 8px; min-width: 0; } .marca .mono { width: 48px; height: 48px; font-size: 18px; } .cab { gap: 2px; padding-left: 12px; padding-right: 8px; } .cab .btn-ico { width: 36px; } }
 .sync { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--linea); background: var(--papel);
   border-radius: 99px; padding: 5px 10px; font-size: 13px; cursor: pointer; white-space: nowrap; }
 .sync .ico { width: 16px; height: 16px; }
@@ -297,7 +298,7 @@ legend { font-family: var(--serif); font-weight: 600; font-size: 17px; padding: 
 .entrar { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; text-align: center; }
 .logo-grande .mono { width: 96px; height: 96px; font-size: 38px; border-radius: 24px; box-shadow: 0 10px 30px rgba(59,42,29,.35); }
 .titulo-app { font-size: 32px; margin-top: 18px; }
-.lema { font-family: var(--serif); font-style: italic; color: var(--acento); margin: 2px 0 2px; font-size: 20px; }
+.lema { font-family: var(--serif); font-style: italic; color: var(--acento); margin: 4px 0 4px; font-size: 19px; }
 .autor-entrar { color: var(--suave); opacity: .65; font-size: 12px; margin: 0 0 24px; }
 .entrar form { width: 100%; max-width: 360px; text-align: left; display: flex; flex-direction: column; gap: 12px; }
 .entrar label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; font-size: 14px; }
@@ -500,5 +501,14 @@ body.enfoque .ej-pie { margin-top: 12px; }
 .bg-caja .sec { margin-top: 14px; }
 .cab #lupa { margin-left: auto; }
 .cab .marca { flex: 1 1 auto; }
-@media (max-width: 420px) { .sync span { display: none; } .sync { padding: 6px 8px; } }
-@media (max-width: 420px) { .sync.pend span, .sync.error span { display: inline; } }
+@media (max-width: 480px) { .sync span { display: none; } .sync { padding: 6px 8px; } }
+@media (max-width: 480px) { .sync.pend span { display: inline; } }
+
+/* ---------- Pantalla Biblioteca ---------- */
+.b-bloque { margin-bottom: 22px; }
+.b-tit { display: flex; align-items: center; gap: 10px; font-size: 22px; margin: 18px 0 4px; }
+.b-fila .estado { flex: none; }
+.estado.reserva { color: var(--suave); border-style: dashed; }
+.estado.maestro { color: #a8741a; border: 1px solid color-mix(in srgb, #c98a12 45%, transparent); background: color-mix(in srgb, #c98a12 12%, transparent); }
+.atajos { grid-template-columns: repeat(5, 1fr); }
+.atajos a { font-size: 11.5px; }
