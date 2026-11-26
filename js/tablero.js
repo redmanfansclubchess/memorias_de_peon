@@ -175,6 +175,94 @@ function listaJugadas(ej, actual) {
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 // ---------------------------------------------------------------------
+//  VARIANTES: un PGN con variantes ⇄ varias líneas (cada línea, un camino
+//  desde el principio). Así se guardan las líneas del repertorio y así se
+//  intercambian con Lichess.
+// ---------------------------------------------------------------------
+// Lee un PGN con variantes y devuelve una línea (ejemplo) por cada rama
+export function pgnARamas(pgn) {
+  pgn = pgn || '';
+  const fenTag = pgn.match(/\[FEN\s+"([^"]+)"\]/);
+  const fen0 = fenTag ? fenTag[1] : FEN_INICIAL;
+  const cuerpo = pgn.replace(/\[[A-Za-z]+\s+"[^"]*"\]/g, ' ');
+  const raiz = { hijos: [], padre: null, comentario: '', formas: [] };
+  const pila = [];
+  let actual = raiz, ultimo = null, i = 0;
+  while (i < cuerpo.length) {
+    const c = cuerpo[i];
+    if (c === '{') {
+      const fin = cuerpo.indexOf('}', i);
+      const { formas, texto } = leerFormas(cuerpo.slice(i + 1, fin < 0 ? cuerpo.length : fin));
+      i = fin < 0 ? cuerpo.length : fin + 1;
+      const destino = ultimo || actual;
+      destino.comentario = [destino.comentario, texto].filter(Boolean).join(' ');
+      destino.formas.push(...formas);
+      continue;
+    }
+    if (c === '(') { pila.push({ actual, ultimo }); if (ultimo) actual = ultimo.padre; ultimo = null; i++; continue; }   // alternativa a la última jugada
+    if (c === ')') { const e = pila.pop(); if (e) ({ actual, ultimo } = e); i++; continue; }
+    if (/\s/.test(c)) { i++; continue; }
+    let fin = i;
+    while (fin < cuerpo.length && !/[\s{}()]/.test(cuerpo[fin])) fin++;
+    const limpio = cuerpo.slice(i, fin).replace(/^\d+\.+/, '').replace(/[!?]+$/, '');
+    i = fin;
+    if (!limpio || /^\$\d+$/.test(limpio) || /^(1-0|0-1|1\/2-1\/2|\*)$/.test(limpio)) continue;
+    const nodo = { san: limpio, hijos: [], padre: actual, comentario: '', formas: [] };
+    actual.hijos.push(nodo);
+    actual = nodo; ultimo = nodo;
+  }
+  const caminos = [];
+  const recorrer = (n, camino) => { if (!n.hijos.length) { if (camino.length) caminos.push(camino); return; } n.hijos.forEach(h => recorrer(h, [...camino, h])); };
+  recorrer(raiz, []);
+  return caminos.map(camino => {
+    const ej = ejemploVacio(fen0);
+    ej.comentario0 = raiz.comentario; ej.formas0 = [...raiz.formas];
+    const chess = new Chess(fen0);
+    for (const n of camino) {
+      let m = null;
+      try { m = chess.move(n.san); } catch (e) { try { m = chess.move(deEspanol(n.san)); } catch (e2) { m = null; } }
+      if (!m) break;
+      ej.jugadas.push({ san: m.san, uci: m.from + m.to + (m.promotion || ''), fen: chess.fen(), comentario: n.comentario, formas: [...n.formas] });
+    }
+    return ej;
+  }).filter(ej => ej.jugadas.length);
+}
+
+// Junta varias líneas en un PGN con variantes. La primera es la principal.
+// lineas: [{ ej, nombre, nota }]; el nombre y la idea de cada línea van al final de su rama.
+export function lineasAPgn(lineas, cabeceras = {}) {
+  const fen0 = lineas[0]?.ej.fen0 || FEN_INICIAL;
+  const raiz = { hijos: [] };
+  for (const { ej, nombre, nota } of lineas) {
+    let n = raiz;
+    for (const j of ej.jugadas) {
+      let h = n.hijos.find(x => x.san === j.san);
+      if (!h) { h = { san: j.san, comentario: j.comentario || '', formas: j.formas || [], hijos: [], fin: [] }; n.hijos.push(h); }
+      else if (!h.comentario && j.comentario) { h.comentario = j.comentario; h.formas = j.formas || []; }
+      n = h;
+    }
+    const etiqueta = [nombre && `«${nombre}»`, nota].filter(Boolean).join(' — ');
+    if (etiqueta && n !== raiz) n.fin.push(etiqueta);
+  }
+  const p = fen0.split(' ');
+  const blancasPrimero = (p[1] || 'w') === 'w', num0 = parseInt(p[5] || '1', 10) || 1;
+  const esBlanca = ply => (ply % 2 === 0) === blancasPrimero;
+  const numero = ply => num0 + Math.floor((ply + (blancasPrimero ? 0 : 1)) / 2);
+  const conNota = n => !!(n.comentario || n.fin.length || n.formas.length);
+  const jugada = (n, ply, forzar) => (esBlanca(ply) ? ` ${numero(ply)}.` : forzar ? ` ${numero(ply)}...` : '') + ` ${n.san}` + comentarioPgn([n.comentario, ...n.fin].filter(Boolean).join(' '), n.formas);
+  const escribir = (n, ply, forzar) => {
+    if (!n.hijos.length) return '';
+    const [principal, ...otras] = n.hijos;
+    let t = jugada(principal, ply, forzar);
+    for (const o of otras) t += ` (${(jugada(o, ply, true) + escribir(o, ply + 1, conNota(o))).trim()})`;
+    return t + escribir(principal, ply + 1, otras.length > 0 || conNota(principal));
+  };
+  let cab = Object.entries(cabeceras).filter(([, v]) => v).map(([k, v]) => `[${k} "${String(v).replace(/"/g, "'")}"]`).join('\n');
+  if (fen0 !== FEN_INICIAL) cab += `\n[SetUp "1"]\n[FEN "${fen0}"]`;
+  return `${cab}\n\n${escribir(raiz, 0, true).trim()} *`;
+}
+
+// ---------------------------------------------------------------------
 //  VISOR: ver un ejemplo y pasar las jugadas
 // ---------------------------------------------------------------------
 export function crearVisor(contenedor, ej, { orientacion = 'white', ply: plyInicial = 0, alMover = () => {} } = {}) {
@@ -505,11 +593,15 @@ export const sirveDeEjercicio = ej => ej.jugadas.length > 0;
 //  La app juega las jugadas del rival; tú, las tuyas, de principio a fin.
 //  Dos intentos por jugada: si no sale, se muestra la buena y se sigue.
 //  alJugada({ ok, otraVez, perdida, ply })  ·  alTerminar({ errores, perdidas })
+//  aprender: la primera vez, cada jugada tuya se enseña con una flecha y tu
+//  comentario (alTurno), y solo tienes que repetirla; no cuenta como fallo.
+//  fin: se para en esa jugada (para entrenar solo un trozo de la línea).
 // ---------------------------------------------------------------------
-export function crearEntrenoLinea(contenedor, ej, { color = 'white', inicio = 0, pedirPromocion, alJugada = () => {}, alRival = () => {}, alTerminar = () => {} } = {}) {
+export function crearEntrenoLinea(contenedor, ej, { color = 'white', inicio = 0, fin = Infinity, aprender = false, pedirPromocion, alJugada = () => {}, alRival = () => {}, alTurno = () => {}, alTerminar = () => {} } = {}) {
   contenedor.innerHTML = `<div class="tablero"></div>`;
   const turnoEn = ply => colorDe(fenDe(ej, ply));
-  let ply = Math.max(0, Math.min(inicio, ej.jugadas.length)), intentos = 0, errores = 0, perdidas = 0, terminado = false, espera = null;
+  const ultima = Math.min(fin, ej.jugadas.length);   // hasta dónde se entrena
+  let ply = Math.max(0, Math.min(inicio, ultima)), intentos = 0, errores = 0, perdidas = 0, terminado = false, espera = null;
   const { api, cerrar } = montar(contenedor.querySelector('.tablero'), {
     fen: fenDe(ej, ply), orientation: color, turnColor: turnoEn(ply),
     movable: { free: false, color: undefined, dests: new Map(), showDests: true, events: { after: mover } },
@@ -518,13 +610,14 @@ export function crearEntrenoLinea(contenedor, ej, { color = 'white', inicio = 0,
   const ponerPosicion = (formas = []) => {
     const fen = fenDe(ej, ply), j = ply ? ej.jugadas[ply - 1] : null;
     const chess = new Chess(fen), turno = colorDe(fen);
-    const mio = ply < ej.jugadas.length && turno === color && !terminado;
+    const mio = ply < ultima && turno === color && !terminado;
     api.set({ fen, turnColor: turno, lastMove: j ? [j.uci.slice(0, 2), j.uci.slice(2, 4)] : undefined, check: chess.inCheck() ? turno : false,
       movable: { color: mio ? color : undefined, dests: mio ? destinos(chess) : new Map() } });
     api.setAutoShapes(formas);
   };
+  const flechaBuena = () => { const s = ej.jugadas[ply]; return { orig: s.uci.slice(0, 2), dest: s.uci.slice(2, 4), brush: 'green' }; };
   function avanzar() {
-    if (ply >= ej.jugadas.length) {
+    if (ply >= ultima) {
       terminado = true; ponerPosicion();
       alTerminar({ errores, perdidas });
       return;
@@ -535,10 +628,11 @@ export function crearEntrenoLinea(contenedor, ej, { color = 'white', inicio = 0,
       return;
     }
     intentos = 0;
-    ponerPosicion();
+    if (aprender) { ponerPosicion([flechaBuena()]); alTurno({ ply, comentario: ej.jugadas[ply].comentario || '' }); }
+    else ponerPosicion();
   }
   async function mover(orig, dest) {
-    if (terminado || ply >= ej.jugadas.length) return;
+    if (terminado || ply >= ultima) return;
     const sol = ej.jugadas[ply];
     if (turnoEn(ply) !== color) return;
     const pieza = new Chess(fenDe(ej, ply)).get(orig);
@@ -551,6 +645,11 @@ export function crearEntrenoLinea(contenedor, ej, { color = 'white', inicio = 0,
       alJugada({ ok: true, ply });
       ponerPosicion(sol.formas || []);
       avanzar();
+      return;
+    }
+    if (aprender) {   // aprendiendo no se falla: se vuelve a enseñar la flecha
+      ponerPosicion([{ orig: dest, brush: 'red' }, flechaBuena()]);
+      alJugada({ ok: false, otraVez: true, ply, aprender: true });
       return;
     }
     errores++;
@@ -572,7 +671,7 @@ export function crearEntrenoLinea(contenedor, ej, { color = 'white', inicio = 0,
   }
   // La pista es texto: tu comentario de esa jugada o de la anterior del rival; nunca la jugada.
   function pista() {
-    if (terminado || ply >= ej.jugadas.length) return null;
+    if (terminado || ply >= ultima) return null;
     const propio = (ej.jugadas[ply].comentario || '').trim();
     const previo = ply ? (ej.jugadas[ply - 1].comentario || '').trim() : (ej.comentario0 || '').trim();
     return propio || previo || null;
@@ -582,9 +681,9 @@ export function crearEntrenoLinea(contenedor, ej, { color = 'white', inicio = 0,
     cerrar: () => { clearTimeout(espera); cerrar(); },
     pista,
     ply: () => ply,
-    total: () => ej.jugadas.length,
+    total: () => ultima,
     noLoSe() {
-      if (terminado || ply >= ej.jugadas.length || turnoEn(ply) !== color) return;
+      if (terminado || aprender || ply >= ultima || turnoEn(ply) !== color) return;
       errores++;
       ensenar();
     },

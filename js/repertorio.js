@@ -6,7 +6,11 @@
 //  by Manuel Esteve
 // =====================================================================
 
-export const MAX_POR_COLOR = 3;
+export const MAX_POR_COLOR = 5;                         // por color: 3 principales y 2 secundarias
+export const MAX_ROL = { principal: 3, secundaria: 2 };
+// Profundidad recomendada (en jugadas). Es un aviso: si te pasas, se entrena hasta aquí.
+export const LIMITE_JUGADAS = { principal: 15, secundaria: 10 };
+export const limitePlies = a => (LIMITE_JUGADAS[a.rol] || LIMITE_JUGADAS.principal) * 2;
 // Una línea entra en el repaso cuando llega al menos a tu 5.ª jugada
 export const MIN_PROPIAS = 5;
 export const jugadasPropias = (ej, color) => (ej ? (color === 'white' ? Math.ceil(ej.jugadas.length / 2) : Math.floor(ej.jugadas.length / 2)) : 0);
@@ -97,7 +101,10 @@ export function cobertura(aperturas, leer, ver = s => s) {
     if (!contra.has('c4') && !contra.has('Nf3')) avisos.black.push({ tipo: 'medio', texto: `Más adelante, prepara algo contra 1.c4 y 1.${ver('Nf3')} (a menudo basta con un sistema que sirva para las dos).` });
   }
   for (const [c, lista] of [['white', blancas], ['black', negras]]) {
+    const n = rol => lista.filter(a => a.rol === rol).length;
     if (lista.length > MAX_POR_COLOR) avisos[c].push({ tipo: 'medio', texto: `Tienes ${lista.length} con ${c === 'white' ? 'blancas' : 'negras'}. Mejor pocas y bien trabajadas: hasta ${MAX_POR_COLOR}.` });
+    else if (n('principal') > MAX_ROL.principal) avisos[c].push({ tipo: 'medio', texto: `Tienes ${n('principal')} principales: mejor ${MAX_ROL.principal} principales y el resto como secundarias.` });
+    else if (n('secundaria') > MAX_ROL.secundaria) avisos[c].push({ tipo: 'medio', texto: `Tienes ${n('secundaria')} secundarias: mejor no más de ${MAX_ROL.secundaria}.` });
   }
   return avisos;
 }
@@ -209,5 +216,29 @@ export function analizar(a, leer, ver = s => s) {
     if (!l.ej || !tronco || !nT) continue;
     if (!empiezaCon(l.ej, tronco)) avisosLineas.push({ id: l.id, texto: `«${l.nombre || 'Sin nombre'}» no empieza con ${jugadasTexto(tronco, ver)}.` });
   }
+  const lim = LIMITE_JUGADAS[a.rol] || LIMITE_JUGADAS.principal;
+  for (const l of lineas) {
+    if (l.ej && l.ej.jugadas.length > lim * 2) avisosLineas.push({ id: l.id, texto: `«${l.nombre || 'Sin nombre'}» llega a la jugada ${Math.ceil(l.ej.jugadas.length / 2)}: en una apertura ${a.rol}, mejor hasta la ${lim}. Se entrena hasta ahí.` });
+  }
   return { pasos, pct: Math.round(puntos / pasos.length * 100), siguiente, principal, secundarias, trampas, tronco, avisosLineas };
+}
+
+// ---------------------------------------------------------------------
+//  EL ÁRBOL: las líneas se juntan donde coinciden y se abren donde se separan
+// ---------------------------------------------------------------------
+//  lineas: [{ l, ej }] (la principal primero). Cada nodo: { san, ply, hijos, lineas }
+//  (lineas = las que terminan en ese nodo).
+export function arbol(lineas) {
+  const raiz = { san: null, ply: 0, hijos: [], lineas: [] };
+  for (const x of lineas) {
+    if (!x.ej) continue;
+    let n = raiz;
+    x.ej.jugadas.forEach((j, i) => {
+      let h = n.hijos.find(y => y.san === j.san);
+      if (!h) { h = { san: j.san, ply: i + 1, hijos: [], lineas: [] }; n.hijos.push(h); }
+      n = h;
+    });
+    if (n !== raiz) n.lineas.push(x.l);
+  }
+  return raiz;
 }
