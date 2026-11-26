@@ -9,7 +9,7 @@ import * as RP from './repertorio.js';
 import * as PA from './partidas.js';
 import { FEN_INICIAL, crearVisor, crearEditor, crearEntrenoLinea, etiquetaJugada, sirveDeEjercicio, dePgn, aPgn, pgnARamas, lineasAPgn, ejemploVacio, validarFen, usarNotacion, verSan, diagrama, textoJugadas, escapar as esc } from './tablero.js';
 
-export const VERSION = '5.0.0 (entrenador de repertorio)';
+export const VERSION = '5.1.0 (contexto y tipos de error)';
 const app = document.getElementById('app');
 
 // ---------------------------------------------------------------------
@@ -3229,7 +3229,7 @@ function vPartida(v, id) {
   }[paso.clave] || null);
   const filaMomento = m => `<a class="fila-c" href="#/momento/${m.id}"><span class="tipo-m ${m.tipo}">${TIPO_MOMENTO[m.tipo]}</span>
     <span class="fila-txt"><b>${m.ply < ej.jugadas.length ? esc(etiquetaJ(ej, m.ply)) : 'Posición final'}</b>
-    <small>${[m.comentario, m.es_ejercicio ? 'ejercicio de repaso' : '', m.concepto_id && D.obtener('conceptos', m.concepto_id)?.titulo].filter(Boolean).map(esc).join(' · ')}</small></span>${ico('flecha', 'peq')}</a>`;
+    <small>${[m.tipo === 'error' && PA.TIPOS_ERROR[m.tipo_error]?.nombre, m.comentario, m.es_ejercicio ? 'ejercicio de repaso' : '', m.concepto_id && D.obtener('conceptos', m.concepto_id)?.titulo].filter(Boolean).map(esc).join(' · ')}</small></span>${ico('flecha', 'peq')}</a>`;
   v.innerHTML = `
     <div class="cab-vista">
       <a href="#/partidas" class="btn-ico" aria-label="Volver">${ico('atras')}</a>
@@ -3242,6 +3242,7 @@ function vPartida(v, id) {
         ${res ? `<span class="resultado ${CLASE_RES[res]}">${PA.TEXTO_RESULTADO[res]}</span>` : ''}</div>
       <h1 class="ficha-tit">${vsRival(p)}</h1>
       ${p.apertura ? `<p class="nota">${esc(p.apertura)}</p>` : ''}
+      ${p.notas ? `<div class="contexto-p"><small>Contexto de la partida</small><div class="md">${md(p.notas)}</div></div>` : ''}
       <div class="progreso-barra grande"><span style="width:${r.pct}%"></span></div>
       <p class="nota">Revisada al <b>${r.pct}%</b></p>
     </article>
@@ -3274,7 +3275,7 @@ function vPartida(v, id) {
     <h3 class="sec">Momentos clave <small>${ms.length || ''}</small></h3>
     ${ms.length ? `<div class="lista">${ms.map(filaMomento).join('')}</div>` : '<p class="nada peq">Ve a una jugada en el tablero y pulsa «Marcar momento».</p>'}
     ${p.leccion ? `<h3 class="sec">La lección <a class="btn-ico peq" href="#/editar-partida/${id}?campo=leccion" aria-label="Editar">${ico('editar')}</a></h3><blockquote class="principio">${esc(p.leccion)}</blockquote>` : ''}
-    ${p.notas ? `<h3 class="sec">Notas</h3><div class="md">${md(p.notas)}</div>` : ''}`;
+`;
   // Tablero: el botón marca la jugada que estás viendo
   const marcar = v.querySelector('#marcar');
   const vis = crearVisor(v.querySelector('#visor-partida'), ej, {
@@ -3315,9 +3316,10 @@ function vEditarPartida(v, id, q) {
         <label>Apertura<input name="apertura" value="${esc(p.apertura || '')}" maxlength="120"></label></div>
       <div class="dos"><label>Mi Elo<input name="elo_propio" inputmode="numeric" value="${p.elo_propio || ''}"></label>
         <label>Elo del rival<input name="elo_rival" inputmode="numeric" value="${p.elo_rival || ''}"></label></div>
+      <label>Contexto de la partida <small class="ayuda-paso">Lo que quieras recordar: torneo, ronda, ritmo, quién era el rival, cómo llegabas. Escríbelo a tu manera.</small>
+        <textarea name="notas" rows="3" placeholder="Liga · tablero 3 · 90+30 · rival 1850 FIDE · llegué cansado">${esc(p.notas || '')}</textarea></label>
       <label class="check"><input type="checkbox" name="analizada" ${p.analizada ? 'checked' : ''}><span>Ya la he analizado con el motor</span></label>`}
       <label>La lección<small class="ayuda-paso">${esc(paso.ayuda)}</small><textarea name="leccion" rows="${solo ? 6 : 3}" placeholder="Antes de cambiar piezas, mira qué estructura queda.">${esc(p.leccion || '')}</textarea></label>
-      ${solo ? '' : `<label>Notas<textarea name="notas" rows="3">${esc(p.notas || '')}</textarea></label>`}
       <div class="botones"><button class="btn primario" type="submit">Guardar</button>
         ${solo ? '' : `<button type="button" class="btn peligro" id="borrar-p">${ico('borrar', 'peq')} Borrar partida</button>`}</div>
     </form>`;
@@ -3404,6 +3406,10 @@ function vMomento(v, id, q) {
       <label class="form solo"><span>Concepto de tu cuaderno</span>
         <select id="m-concepto"><option value="">Ninguno</option>${fichas.map(c => `<option value="${c.id}" ${m.concepto_id === c.id ? 'selected' : ''}>${esc(c.titulo)}</option>`).join('')}</select></label>
       <a class="nota" id="m-nueva-ficha" href="#/editar/nuevo">¿No está la ficha? Crear una nueva</a>
+      <div class="tipo-error" id="te"${m.tipo === 'error' ? '' : ' hidden'}>
+        <span class="te-tit">Tipo de error <small id="te-sug"></small></span>
+        <div class="te-ops">${Object.entries(PA.TIPOS_ERROR).map(([k, x]) => `<button type="button" data-te="${k}" class="${m.tipo_error === k ? 'on' : ''}"><b>${x.nombre}</b><small>${x.ayuda}</small></button>`).join('')}</div>
+      </div>
       <label class="check"><input type="checkbox" id="m-ejercicio" ${m.es_ejercicio ? 'checked' : ''}><span>Usar como ejercicio de repaso <small>— la primera jugada que juegues es la solución; si sigues jugando, el repaso continúa con ellas</small></span></label>
       <div class="fila-btn">
         <a class="btn peq" href="#/pregunta/nueva?texto=${encodeURIComponent(`Partida contra ${p.rival || 'rival'}${jugada ? ', ' + etiquetaJ(ej, m.ply) : ''}: `)}&pgn=${encodeURIComponent(`[FEN "${m.fen}"]`)}">${ico('guia', 'peq')} Preguntar al maestro</a>
@@ -3413,10 +3419,25 @@ function vMomento(v, id, q) {
     </div>`;
   const ed = crearEditor(v.querySelector('#editor'), pos, { orientacion: p.color || 'white', pedirPromocion, alCambiar: () => { cambios = true; } });
   limpiezas.push(ed.cerrar);
+  // Tipo de error: la app sugiere (por la ficha enlazada o la posición) y tú eliges
+  let tipoError = m.tipo_error || null;
+  const sugerir = () => {
+    const c = D.obtener('conceptos', v.querySelector('#m-concepto').value);
+    const sg = PA.sugerirTipoError({ bloque: c && bloqueRaiz(c.bloque_id)?.nombre, titulo: c?.titulo, ply: m.ply, fen: m.fen });
+    v.querySelector('#te-sug').textContent = sg ? `· la app sugiere ${PA.TIPOS_ERROR[sg.tipo].nombre} (${sg.porque})` : '· elige el que mejor lo describa';
+    v.querySelectorAll('[data-te]').forEach(b => { b.className = [b.dataset.te === tipoError && 'on', sg && b.dataset.te === sg.tipo && 'sug'].filter(Boolean).join(' '); });
+  };
+  sugerir();
+  v.querySelector('#m-concepto').addEventListener('change', sugerir);
+  v.querySelector('.te-ops').addEventListener('click', e => {
+    const b = e.target.closest('[data-te]'); if (!b) return;
+    tipoError = tipoError === b.dataset.te ? null : b.dataset.te; cambios = true; sugerir();
+  });
   v.querySelector('#tipo').addEventListener('click', e => {
     const b = e.target.closest('[data-t]'); if (!b) return;
     m.tipo = b.dataset.t; cambios = true;
     v.querySelectorAll('#tipo button').forEach(x => { x.className = x === b ? 'on ' + x.dataset.t : ''; });
+    v.querySelector('#te').hidden = m.tipo !== 'error';
   });
   v.querySelectorAll('#m-com, #m-concepto, #m-ejercicio').forEach(x => x.addEventListener('input', () => { cambios = true; }));
   protegerSalida(v, () => cambios);
@@ -3425,6 +3446,7 @@ function vMomento(v, id, q) {
     const comoEj = v.querySelector('#m-ejercicio').checked;
     if (comoEj && !pos.jugadas.length) return alert('Para usarlo como ejercicio, juega en el tablero la jugada buena: será la solución.');
     Object.assign(m, { comentario: v.querySelector('#m-com').value.trim() || null, concepto_id: v.querySelector('#m-concepto').value || null,
+      tipo_error: m.tipo === 'error' ? tipoError : null,
       es_ejercicio: comoEj, pgn: pos.jugadas.length || pos.comentario0 ? aPgn(pos) : null });
     await D.guardar('momentos', m);
     editando = false;
@@ -3437,6 +3459,16 @@ function vMomento(v, id, q) {
     editando = false; ir('#/partida/' + p.id);
   });
 }
+
+// Un consejo para el tipo de error que más se repite
+const CONSEJO_ERROR = {
+  tactico: 'Haz cada día unos ejercicios de táctica (en tu repaso o en Lichess) y enlaza cada error con su ficha de motivo táctico.',
+  calculo: 'Antes de jugar, calcula hasta el final y vuelve a mirar la posición: ¿qué jugada fuerte tiene el rival? Practica con «A ciegas».',
+  plan: 'Antes de mover, pregúntate qué quieres hacer en las próximas jugadas y dónde van tus piezas. Coméntalo con tu maestro.',
+  apertura: 'Entrena tus aperturas y añade a tu repertorio las jugadas del rival que te sorprendieron.',
+  final: 'Repasa tus fichas de finales y técnica: son pocas posiciones que se repiten mucho.',
+  descuido: 'Antes de cada jugada: ¿qué amenaza el rival? ¿qué piezas tengo colgadas? Un minuto de comprobación ahorra muchos puntos.',
+};
 
 function vResumenPartidas(v) {
   const ps = partidas();
@@ -3458,6 +3490,12 @@ function vResumenPartidas(v) {
     </div>
     <h3 class="sec">Por apertura</h3>
     ${s.porApertura.length ? `<div class="lista">${s.porApertura.map(x => `<div class="fila-c"><span class="fila-txt"><b>${esc(x.nombre)}</b><small>${x.n} ${x.n === 1 ? 'partida' : 'partidas'}</small></span>${marcador(x)}</div>`).join('')}</div>` : '<p class="nada peq">Sin partidas todavía.</p>'}
+    <h3 class="sec">Tus errores por tipo</h3>
+    ${s.porTipo.length ? `<div class="tipos-err">${s.porTipo.map(x => `<div class="te-barra"><span class="te-nombre"><b>${esc(PA.TIPOS_ERROR[x.tipo].nombre)}</b><small>${x.n} ${x.n === 1 ? 'error' : 'errores'}</small></span>
+        <span class="te-pista"><span style="width:${x.pct}%"></span></span><b class="te-pct">${x.pct}%</b></div>`).join('')}</div>
+      <p class="nota">Sobre ${s.conTipo} ${s.conTipo === 1 ? 'error' : 'errores'} con tipo elegido.${s.sinTipo ? ` ${s.sinTipo} ${s.sinTipo === 1 ? 'error no tiene' : 'errores no tienen'} tipo todavía: ábrelos y elígelo.` : ''}</p>
+      ${s.porTipo[0].pct >= 40 && s.conTipo >= 3 ? `<div class="pista"><b>Lo que más se repite: ${esc(PA.TIPOS_ERROR[s.porTipo[0].tipo].nombre.toLowerCase())}</b><p>${esc(CONSEJO_ERROR[s.porTipo[0].tipo])}</p></div>` : ''}`
+      : `<p class="nada peq">${s.sinTipo ? `Tienes ${s.sinTipo} ${s.sinTipo === 1 ? 'error' : 'errores'} sin tipo. Abre cada momento y elige de qué tipo fue: aquí verás el porcentaje de cada uno.` : 'Cuando marques errores en tus partidas y elijas su tipo, aquí verás el porcentaje de cada uno.'}</p>`}
     <h3 class="sec">Tus errores más repetidos</h3>
     ${s.repetidos.length ? `<div class="lista">${s.repetidos.map(x => { const c = D.obtener('conceptos', x.id); return c ? `<a class="fila-c" href="#/concepto/${c.id}"><span class="fila-txt"><b>${esc(c.titulo)}</b><small>${x.n} ${x.n === 1 ? 'error' : 'errores'} en tus partidas</small></span>${ico('flecha', 'peq')}</a>` : ''; }).join('')}</div>
       <p class="nota">Buen material para tu próxima clase.</p>` : '<p class="nada peq">Cuando enlaces tus errores con fichas del cuaderno, aquí verás los que más se repiten.</p>'}

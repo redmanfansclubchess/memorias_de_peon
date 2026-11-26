@@ -737,3 +737,27 @@ body.enfoque .ej-pie { margin-top: 12px; }
 .arb-fin { font-family: var(--sans); font-size: 12px; font-weight: 700; padding: 1px 7px; border-radius: 99px; border: 1px solid var(--linea); color: var(--suave); white-space: nowrap; }
 .arb-fin.principal { color: var(--acento); border-color: color-mix(in srgb, var(--acento) 50%, transparent); }
 .arb-fin.trampa { color: var(--mal); border-color: color-mix(in srgb, var(--mal) 40%, transparent); }
+
+/* ---------- 5.1: contexto de la partida y tipos de error ---------- */
+.contexto-p { margin: 10px 0 4px; padding: 8px 12px; border-left: 3px solid var(--linea); background: color-mix(in srgb, var(--papel) 70%, transparent); border-radius: 0 8px 8px 0; }
+.contexto-p small { display: block; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--suave); }
+.contexto-p .md p { margin: 2px 0; }
+.tipo-error { margin: 14px 0 8px; }
+.tipo-error[hidden] { display: none; }
+.te-tit { display: block; font-weight: 700; margin-bottom: 6px; }
+.te-tit small { font-weight: 500; color: var(--suave); }
+.te-ops { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px; }
+.te-ops button { text-align: left; padding: 8px 10px; border: 1px solid var(--linea); border-radius: 10px; background: var(--papel); color: inherit; font: inherit; cursor: pointer; position: relative; }
+.te-ops button b { display: block; font-size: 14px; }
+.te-ops button small { display: block; font-size: 12px; color: var(--suave); line-height: 1.3; }
+.te-ops button.sug { border-style: dashed; border-color: var(--acento); }
+.te-ops button.sug::after { content: 'sugerido'; position: absolute; top: 6px; right: 8px; font-size: 10px; font-weight: 700; color: var(--acento); text-transform: uppercase; letter-spacing: .04em; }
+.te-ops button.on { border: 2px solid var(--acento); background: color-mix(in srgb, var(--acento) 12%, var(--papel)); padding: 7px 9px; }
+.te-ops button.on::after { content: '✓'; position: absolute; top: 5px; right: 9px; font-size: 14px; color: var(--acento); }
+.tipos-err { display: grid; gap: 8px; margin: 6px 0; }
+.te-barra { display: grid; grid-template-columns: minmax(120px, 34%) 1fr 44px; align-items: center; gap: 10px; }
+.te-nombre b { display: block; font-size: 14px; }
+.te-nombre small { color: var(--suave); font-size: 12px; }
+.te-pista { height: 10px; border-radius: 99px; background: color-mix(in srgb, var(--linea) 60%, transparent); overflow: hidden; }
+.te-pista span { display: block; height: 100%; background: var(--acento); border-radius: 99px; }
+.te-pct { text-align: right; font-variant-numeric: tabular-nums; }

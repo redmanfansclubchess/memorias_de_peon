@@ -150,15 +150,45 @@ export function enRepertorio(sanes, color, aperturas, leer, ver = s => s) {
 //  LA GUÍA DE REVISIÓN de una partida
 // ---------------------------------------------------------------------
 export const PASOS = [
-  { clave: 'datos', titulo: 'Los datos', ayuda: 'Comprueba rival, color, resultado y ritmo. Si la pegaste sin cabeceras, complétalos.' },
+  { clave: 'datos', titulo: 'Los datos', ayuda: 'Comprueba rival, color y resultado. Si quieres, escribe el contexto de la partida: torneo, ritmo, Elo del rival, cómo llegabas.' },
   { clave: 'apertura', titulo: 'Tu apertura', ayuda: 'Mira dónde se salió alguien de tu repertorio. Si fue el rival, añade su jugada como línea nueva; si fuiste tú, repasa la línea.' },
   { clave: 'comentarios', titulo: 'Tus ideas, antes del motor', ayuda: 'Recorre la partida y comenta lo que pensabas en los momentos importantes: qué plan tenías, qué temías, por qué elegiste esa jugada. Hazlo antes de mirar el motor: así aprendes de tu forma de pensar, no solo de tus errores.' },
   { clave: 'momentos', titulo: 'Momentos clave', ayuda: 'Marca las posiciones que decidieron la partida: tus errores, tus buenas jugadas y aquellas en las que dudaste. Ve a la posición en el tablero y pulsa «Marcar momento».' },
   { clave: 'motor', titulo: 'Comprobar con el motor', ayuda: 'Ahora sí: analiza la partida en Lichess. Compara lo que pensabas con lo que dice el motor y marca como momento cada error importante que no viste.' },
   { clave: 'ejercicios', titulo: 'Errores convertidos en ejercicios', ayuda: 'En cada error, juega en el tablero la jugada buena y marca «Usar como ejercicio de repaso». Volverá en tu repaso diario hasta que la veas sola.' },
-  { clave: 'conceptos', titulo: 'Conceptos de tu cuaderno', ayuda: '¿Qué concepto aparecía en cada momento (peón aislado, clavada, casilla débil…)? Enlázalo con su ficha; si no la tienes, créala.' },
+  { clave: 'conceptos', titulo: 'Conceptos y tipo de error', ayuda: '¿Qué concepto aparecía en cada momento (peón aislado, clavada, casilla débil…)? Enlázalo con su ficha; si no la tienes, créala. En cada error, elige también de qué tipo fue: la app te sugiere uno.' },
   { clave: 'leccion', titulo: 'La lección', ayuda: 'En una o dos frases: ¿qué te llevas de esta partida? Es lo que releerás antes de tu próxima partida.' },
 ];
+
+// ---------------------------------------------------------------------
+//  TIPOS DE ERROR: la app sugiere uno y tú eliges
+// ---------------------------------------------------------------------
+export const TIPOS_ERROR = {
+  tactico:  { nombre: 'Táctica',          ayuda: 'No vi un golpe: clavada, doble, descubierta…' },
+  calculo:  { nombre: 'Cálculo',          ayuda: 'Vi la idea, pero calculé mal la variante' },
+  plan:     { nombre: 'Plan / estrategia', ayuda: 'Plan equivocado, mala estructura, pieza mal colocada' },
+  apertura: { nombre: 'Apertura',         ayuda: 'Me salí de la teoría o no sabía la línea' },
+  final:    { nombre: 'Final / técnica',  ayuda: 'No supe ganar o defender el final' },
+  descuido: { nombre: 'Descuido',         ayuda: 'Pieza colgada, prisa, no miré lo que amenazaba el rival' },
+};
+// Bloque del cuaderno → tipo de error
+const POR_BLOQUE = [
+  [/cálculo|calculo|visualiza/i, 'calculo'], [/táctica|tactica|ataque|defensa del rey/i, 'tactico'],
+  [/apertura/i, 'apertura'], [/final|técnica|tecnica/i, 'final'], [/estrategia|estructura|peones/i, 'plan'], [/práctico|practico/i, 'descuido'],
+];
+//  bloque: nombre del bloque de la ficha enlazada · titulo: el de la ficha
+//  ply: jugada del momento · fen: la posición · enRepertorio: si la partida seguía tu repertorio
+//  Devuelve { tipo, porque } o null si no hay pistas
+export function sugerirTipoError({ bloque, titulo, ply, fen, enRepertorio }) {
+  if (/colgad|desprotegid/i.test(titulo || '')) return { tipo: 'descuido', porque: `la ficha «${titulo}»` };
+  if (bloque) for (const [re, t] of POR_BLOQUE) if (re.test(bloque)) return { tipo: t, porque: `la ficha es de ${bloque}` };
+  if (fen) {
+    const piezas = fen.split(' ')[0].replace(/[^nbrqNBRQ]/g, '').length;   // sin reyes ni peones
+    if (piezas <= 4) return { tipo: 'final', porque: 'quedan pocas piezas' };
+  }
+  if (ply != null && ply < 20 && enRepertorio !== false) return { tipo: 'apertura', porque: 'fue en las primeras 10 jugadas' };
+  return null;
+}
 
 //  p: partida · ms: sus momentos · ej: partida leída · rep: resultado de enRepertorio
 export function analizar(p, ms, ej, rep) {
@@ -176,8 +206,11 @@ export function analizar(p, ms, ej, rep) {
   const conEj = errores.filter(m => m.es_ejercicio).length;
   r.ejercicios = !ms.length ? ['falta', 'Primero marca los momentos'] : !errores.length ? ['hecho', 'Sin errores marcados']
     : conEj === errores.length ? ['hecho', `${conEj} ${conEj === 1 ? 'ejercicio' : 'ejercicios'}`] : [conEj ? 'medio' : 'falta', `${conEj} de ${errores.length} errores`];
-  const conC = ms.filter(m => m.concepto_id).length;
-  r.conceptos = conC ? ['hecho', `${conC} ${conC === 1 ? 'momento enlazado' : 'momentos enlazados'}`] : ['falta', 'Ningún momento enlazado'];
+  const conC = ms.filter(m => m.concepto_id).length, sinTipo = errores.filter(m => !m.tipo_error).length;
+  const enlazados = `${conC} ${conC === 1 ? 'momento enlazado' : 'momentos enlazados'}`;
+  r.conceptos = !conC && !ms.length ? ['falta', 'Ningún momento enlazado']
+    : sinTipo ? [conC ? 'medio' : 'falta', `${conC ? enlazados + ' · ' : ''}${sinTipo} ${sinTipo === 1 ? 'error sin tipo' : 'errores sin tipo'}`]
+    : conC ? ['hecho', enlazados] : ['falta', 'Ningún momento enlazado'];
   const ll = (p.leccion || '').trim().length;
   r.leccion = ll >= 30 ? ['hecho', 'Escrita'] : ll ? ['medio', 'Un poco corta'] : ['falta', 'Sin escribir'];
   const pasos = PASOS.map(x => ({ ...x, estado: r[x.clave][0], detalle: r[x.clave][1] }));
@@ -197,5 +230,11 @@ export function resumen(partidas, momentos, nombreApertura) {
   const errores = new Map();
   for (const m of momentos.filter(m => m.tipo === 'error' && m.concepto_id)) errores.set(m.concepto_id, (errores.get(m.concepto_id) || 0) + 1);
   const repetidos = [...errores].map(([id, n]) => ({ id, n })).sort((a, b) => b.n - a.n).slice(0, 6);
-  return { total: cuenta(partidas), porColor, porApertura, repetidos, sinConcepto: momentos.filter(m => m.tipo === 'error' && !m.concepto_id).length };
+  // Porcentaje de cada tipo de error (sobre los errores con tipo elegido)
+  const conTipo = momentos.filter(m => m.tipo === 'error' && TIPOS_ERROR[m.tipo_error]);
+  const porTipo = Object.keys(TIPOS_ERROR).map(k => { const n = conTipo.filter(m => m.tipo_error === k).length; return { tipo: k, n, pct: conTipo.length ? Math.round(n / conTipo.length * 100) : 0 }; })
+    .filter(x => x.n).sort((a, b) => b.n - a.n);
+  const errTotal = momentos.filter(m => m.tipo === 'error').length;
+  return { total: cuenta(partidas), porColor, porApertura, repetidos, porTipo, conTipo: conTipo.length, sinTipo: errTotal - conTipo.length,
+    sinConcepto: momentos.filter(m => m.tipo === 'error' && !m.concepto_id).length };
 }
