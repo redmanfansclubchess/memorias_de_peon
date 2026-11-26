@@ -7,9 +7,9 @@ import { BIBLIOTECA } from './biblioteca.js';
 import * as R from './repaso.js';
 import * as RP from './repertorio.js';
 import * as PA from './partidas.js';
-import { FEN_INICIAL, crearVisor, crearEditor, crearEntrenoLinea, etiquetaJugada, sirveDeEjercicio, dePgn, aPgn, ejemploVacio, usarFiguras, verSan, diagrama, textoJugadas, escapar as esc } from './tablero.js';
+import { FEN_INICIAL, crearVisor, crearEditor, crearEntrenoLinea, etiquetaJugada, sirveDeEjercicio, dePgn, aPgn, ejemploVacio, validarFen, usarNotacion, verSan, diagrama, textoJugadas, escapar as esc } from './tablero.js';
 
-export const VERSION = '4.3.1 (ejercicios como puzzles)';
+export const VERSION = '4.4.0 (notación, pegar, a ciegas)';
 const app = document.getElementById('app');
 
 // ---------------------------------------------------------------------
@@ -50,6 +50,8 @@ const P = {
   rutina: 'M10 6h10M10 12h10M10 18h10M4 6l1.5 1.5L8 5M4 12l1.5 1.5L8 11M4 18l1.5 1.5L8 17',
   guia: 'M12 3a9 9 0 100 18 9 9 0 000-18zM9.5 9.5a2.5 2.5 0 115 0c0 1.7-2.5 2-2.5 3.7M12 17v.5',
   imprimir: 'M7 9V3h10v6M7 17H4v-7h16v7h-3M7 14h10v7H7z',
+  copiar: 'M9 9h11v11H9zM5 15V4h11',
+  ojo: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 100 6 3 3 0 000-6z',
   descargar: 'M12 4v11M7 10l5 5 5-5M5 20h14',
   ampliar: 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5',
   reducir: 'M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5',
@@ -186,7 +188,7 @@ function aplicarAjustes() {
   const a = ajustes();
   document.documentElement.dataset.tema = a.tema;
   document.documentElement.dataset.tablero = a.tablero;
-  usarFiguras(a.notacion === 'figuras');
+  usarNotacion(a.notacion);
   D.ponerSubidaAutomatica(a.subida);
   localStorage.setItem('mdp-aspecto', JSON.stringify({ tema: a.tema, tablero: a.tablero }));
   const oscuro = a.tema === 'oscuro' || (a.tema === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
@@ -391,6 +393,7 @@ function vInicio(v) {
   const b = dia && bloqueRaiz(dia.bloque_id);
   v.innerHTML = `
     <h1 class="saludo">${saludo()}, Manuel</h1>
+    ${tarjetaCopia()}
     ${primeros}
     ${dia ? `
       <a class="tarjeta dia" href="#/concepto/${dia.id}" style="--c:${b ? col(b.color) : 'var(--acento)'}">
@@ -434,6 +437,8 @@ function vInicio(v) {
     sec?.querySelector('details')?.setAttribute('open', '');
     sec?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
+  v.querySelector('#copia-ya')?.addEventListener('click', () => { descargarCopia(); aviso('Copia descargada. Guárdala en un sitio seguro.'); pintar(true); });
+  v.querySelector('#copia-luego')?.addEventListener('click', async () => { await guardarAjustes({ copiaPospuesta: R.sumarDias(R.hoyISO(), 7) }); pintar(true); });
   v.querySelector('#pp-ocultar')?.addEventListener('click', async () => {
     await guardarAjustes({ primerosPasos: false });
     aviso('Ocultados. Puedes volver a mostrarlos en Ajustes → Ayuda.');
@@ -622,6 +627,7 @@ function vConcepto(v, id) {
       ${ejemplos.map((e, i) => `
         <div class="tarjeta ejemplo">
           <div class="ej-cab"><b>${esc(e.titulo || 'Ejemplo ' + (i + 1))}</b>
+            <button class="btn-ico peq" data-dup="${e.id}" aria-label="Duplicar ejemplo" title="Duplicar (para otra respuesta del rival)">${ico('copiar')}</button>
             <a href="#/ejemplo/${e.id}" class="btn-ico peq" aria-label="Editar ejemplo">${ico('editar')}</a></div>
           <div class="visor" data-ej="${e.id}"></div>
         </div>`).join('')}
@@ -634,6 +640,16 @@ function vConcepto(v, id) {
     ${enAperturas.length ? `<h3 class="sec">En tu repertorio</h3><div class="chips">${enAperturas.map(a => `<a class="chip" href="#/apertura/${a.id}">${a.color === 'white' ? '♔' : '♚'} ${esc(a.nombre)}</a>`).join('')}</div>` : ''}
     ${rel.length ? `<h3 class="sec">Relacionado</h3><div class="chips">${rel.map(r => `<a class="chip" href="#/concepto/${r.id}">${ico('enlace', 'peq')} ${esc(r.titulo)}</a>`).join('')}</div>` : ''}`;
   v.querySelectorAll('.enl').forEach(bt => bt.addEventListener('click', () => abrirTermino(bt.dataset.k, mapa)));
+  // Duplicar: copia el ejemplo y abre la copia, para cambiar la respuesta del rival
+  v.querySelectorAll('[data-dup]').forEach(bt => bt.addEventListener('click', async () => {
+    const o = D.obtener('ejemplos', bt.dataset.dup);
+    if (!o) return;
+    const copia = Object.fromEntries(Object.entries(o).filter(([k]) => !k.startsWith('_') && !['id', 'editado_en', 'actualizado_en', 'creado_en', 'borrado_en'].includes(k)));
+    copia.titulo = `${o.titulo || 'Ejemplo'} (copia)`;
+    const nueva = await D.guardar('ejemplos', copia);
+    aviso('Ejemplo duplicado. Cambia la respuesta del rival y guarda.');
+    ir('#/ejemplo/' + nueva.id);
+  }));
   v.querySelector('#completar')?.addEventListener('click', async () => {
     const it = itBiblio;
     c.principio = c.principio || it.principio;
@@ -861,14 +877,95 @@ function pedirPromocion(color) {
   });
 }
 
+// ---------------------------------------------------------------------
+//  PEGAR: un FEN (posición), un PGN (jugadas, en notación inglesa o española)
+//  o un enlace de Lichess (partida, estudio o tablero de análisis) → ejemplo
+// ---------------------------------------------------------------------
+function ejemploDesdeFen(texto) {
+  const p = texto.trim().split(/\s+/);
+  const def = ['w', '-', '-', '0', '1'];
+  const fen = [p[0], ...def.map((d, i) => p[i + 1] || d)].join(' ');
+  const err = validarFen(fen);
+  if (err) throw new Error('Ese FEN no es una posición válida: ' + err);
+  return ejemploVacio(fen);
+}
+function ejemploDesdePgn(texto) {
+  const [p] = PA.separarPgn(texto);
+  const pgn = p ? (p.cab.FEN ? `[FEN "${p.cab.FEN}"]\n` : '') + p.cuerpo : texto;
+  const ej = leerPgn(pgn);
+  if (!ej || (!ej.jugadas.length && !(p && p.cab.FEN))) throw new Error('No he encontrado jugadas ni posición en lo que has pegado.');
+  return ej;
+}
+async function textoAEjemplo(texto) {
+  const t = String(texto || '').trim();
+  if (!t) throw new Error('Pega primero un FEN, un PGN o un enlace de Lichess.');
+  const enlace = t.match(/https?:\/\/(?:www\.)?lichess\.org\/\S+/);
+  if (enlace) {
+    const u = decodeURIComponent(enlace[0]);
+    const pgnEnUrl = u.match(/lichess\.org\/analysis\/pgn\/([^?#]+)/);
+    if (pgnEnUrl) return ejemploDesdePgn(pgnEnUrl[1].replace(/_/g, ' '));
+    const fenEnUrl = u.match(/lichess\.org\/(?:analysis|editor)\/(?:standard\/|fromPosition\/)?([^?#]+)/);
+    if (fenEnUrl && fenEnUrl[1].split('/').length >= 8) return ejemploDesdeFen(fenEnUrl[1].replace(/_/g, ' '));
+    const estudio = u.match(/lichess\.org\/study\/([A-Za-z0-9]{8})(?:\/([A-Za-z0-9]{8}))?/);
+    const partida = !estudio && PA.idDeLichess(u);
+    const pedir = estudio ? `https://lichess.org/api/study/${estudio[1]}${estudio[2] ? '/' + estudio[2] : ''}.pgn?clocks=false`
+      : partida ? `https://lichess.org/game/export/${partida}?clocks=false&evals=false` : null;
+    if (!pedir) throw new Error('No reconozco ese enlace de Lichess. Pega su FEN o su PGN.');
+    let r = null;
+    try { r = await fetch(pedir, { headers: { Accept: 'application/x-chess-pgn' } }); } catch (e) { r = null; }
+    if (!r || !r.ok) throw new Error('Lichess no ha dejado leer ese enlace desde aquí. Copia allí el PGN o el FEN y pégalo.');
+    return ejemploDesdePgn(await r.text());
+  }
+  if (/^[pnbrqkPNBRQK1-8]+(\/[pnbrqkPNBRQK1-8]+){7}(\s|$)/.test(t)) return ejemploDesdeFen(t);
+  return ejemploDesdePgn(t);
+}
+// «Crear ejemplo desde aquí» (desde una partida o una línea): eliges la ficha y si
+// quieres las jugadas hasta esa posición o solo la posición; se abre el editor con ello.
+function crearEjemploDesde(ej, ply, color = 'white') {
+  const fichas = [...conceptos()].sort((a, b) => (conceptoElegible(b) - conceptoElegible(a)) || a.titulo.localeCompare(b.titulo, 'es'));
+  const d = document.createElement('div');
+  d.className = 'modal hoja-abajo';
+  d.innerHTML = `<div class="modal-caja termino crear-desde">
+      <div class="t-cab"><b>Crear un ejemplo desde aquí</b></div>
+      <p class="nota">${ply ? `Posición tras <b>${esc(etiquetaJ(ej, ply - 1))}</b>` : 'Posición inicial'}. ¿En qué ficha va?</p>
+      <div class="segmento" id="cd-modo"><button class="on" data-m="jugadas">Con las jugadas hasta aquí</button><button data-m="posicion">Solo esta posición</button></div>
+      <input type="search" id="cd-buscar" placeholder="Busca la ficha…" autocomplete="off">
+      <div class="lista cd-lista">${fichas.map(c => `<button type="button" class="fila-c" data-c="${c.id}"><span class="fila-txt"><b>${esc(c.titulo)}</b><small>${esc(ubicacion(c))}</small></span>${ico('flecha', 'peq')}</button>`).join('') || '<p class="nada">Aún no tienes fichas: crea primero la ficha del concepto.</p>'}</div>
+      <div class="botones"><button class="btn" data-cerrar>Cancelar</button></div>
+    </div>`;
+  let modo = 'jugadas';
+  d.addEventListener('click', e => {
+    if (e.target === d || e.target.closest('[data-cerrar]')) return d.remove();
+    const m = e.target.closest('[data-m]');
+    if (m) { modo = m.dataset.m; d.querySelectorAll('[data-m]').forEach(b => b.classList.toggle('on', b === m)); return; }
+    const f = e.target.closest('[data-c]');
+    if (!f) return;
+    const base = modo === 'posicion' ? ejemploVacio(ply ? ej.jugadas[ply - 1].fen : ej.fen0) : { ...ej, jugadas: ej.jugadas.slice(0, ply) };
+    sessionStorage.setItem('mdp-borrador-ejemplo', aPgn(base));
+    sessionStorage.setItem('mdp-borrador-color', color);
+    d.remove();
+    ir(`#/ejemplo/nuevo?concepto=${f.dataset.c}&borrador=1`);
+  });
+  d.querySelector('#cd-buscar').addEventListener('input', e => {
+    const t = norm(e.target.value);
+    d.querySelectorAll('.cd-lista [data-c]').forEach(b => { b.hidden = !!t && !norm(b.textContent).includes(t); });
+  });
+  document.body.appendChild(d);
+}
+
+const AYUDA_PEGAR = 'FEN: la posición (en Lichess, tablero de análisis o editor, campo «FEN»). PGN: las jugadas, en notación inglesa o española. Enlace: de una partida, un capítulo de estudio o el tablero de análisis de Lichess. De un PGN con variantes se toma la línea principal.';
+
 function vEjemplo(v, id, q) {
   editando = true;
   const nuevo = id === 'nuevo';
   const fila = nuevo ? { concepto_id: q.get('concepto'), titulo: '', orientacion: 'white' } : D.obtener('ejemplos', id);
   if (!fila || !D.obtener('conceptos', fila.concepto_id)) return ir('#/conceptos');
   const concepto = D.obtener('conceptos', fila.concepto_id);
-  const ej = nuevo ? ejemploVacio() : dePgn(fila.pgn || `[FEN "${fila.fen_inicial}"]`);
-  let cambios = false, orientacion = fila.orientacion || 'white';
+  // Desde otra pantalla («Crear ejemplo desde aquí») llega un borrador con la posición
+  const borrador = nuevo && q.get('borrador') === '1' ? sessionStorage.getItem('mdp-borrador-ejemplo') : null;
+  if (borrador) { sessionStorage.removeItem('mdp-borrador-ejemplo'); fila.orientacion = sessionStorage.getItem('mdp-borrador-color') || 'white'; }
+  const ej = borrador ? dePgn(borrador) : nuevo ? ejemploVacio() : dePgn(fila.pgn || `[FEN "${fila.fen_inicial}"]`);
+  let cambios = !!borrador, orientacion = fila.orientacion || 'white';
   let pregunta = fila.ply_pregunta || 0;   // jugada que es la pregunta del ejercicio (índice desde 0)
   v.innerHTML = `
     <div class="cab-vista ej-cab">
@@ -879,6 +976,10 @@ function vEjemplo(v, id, q) {
     </div>
     <div id="editor" class="editor"></div>
     <div class="ej-pie">
+      <details class="pegar-pgn"><summary>Pegar FEN, PGN o enlace de Lichess</summary>
+        <p class="nota">${AYUDA_PEGAR}</p>
+        <textarea id="pg-txt" rows="3" placeholder="r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R b KQkq - 3 3"></textarea>
+        <button type="button" class="btn peq" id="pg-cargar">Cargar en el tablero</button></details>
       <label class="form solo"><span>Título del ejemplo <small>opcional</small></span>
         <input id="ej-titulo" maxlength="120" placeholder="Bloqueo del peón aislado con el caballo" value="${esc(fila.titulo || '')}"></label>
       <label class="check"><input type="checkbox" id="ej-ejercicio" ${fila.es_ejercicio ? 'checked' : ''}><span>Usar como ejercicio de repaso <small>— como un puzzle: tú juegas y la app contesta</small></span></label>
@@ -905,17 +1006,33 @@ function vEjemplo(v, id, q) {
     btn.disabled = !n || n - 1 === p;
     btn.textContent = !n ? 'Ve a la jugada de la pregunta' : n - 1 === p ? `Pregunta: ${etiquetaJ(ej, n - 1)}` : `Esta es la pregunta: ${etiquetaJ(ej, n - 1)}`;
   };
-  const ed = crearEditor(v.querySelector('#editor'), ej, {
-    orientacion,
-    pedirPromocion,
-    alCambiar: (_e, o) => { cambios = true; if (o) orientacion = o; },
-    alPly: n => pintarPregunta(n),
-  });
+  let ed;
+  const montarEditor = () => {
+    ed = crearEditor(v.querySelector('#editor'), ej, {
+      orientacion,
+      pedirPromocion,
+      alCambiar: (_e, o) => { cambios = true; if (o) orientacion = o; },
+      alPly: n => pintarPregunta(n),
+    });
+  };
+  montarEditor();
   pintarPregunta();
+  // Pegar: se sustituye lo que hay en el tablero (el ejemplo es el mismo objeto)
+  v.querySelector('#pg-cargar').addEventListener('click', async () => {
+    let nuevoEj;
+    try { nuevoEj = await textoAEjemplo(v.querySelector('#pg-txt').value); } catch (err) { return alert(err.message); }
+    if ((ej.jugadas.length || ej.fen0 !== FEN_INICIAL) && !confirm('Se sustituirá lo que hay ahora en el tablero. ¿Seguir?')) return;
+    ed.cerrar();
+    Object.assign(ej, nuevoEj);
+    pregunta = 0; cambios = true;
+    montarEditor(); pintarPregunta();
+    v.querySelector('.pegar-pgn').open = false;
+    aviso(nuevoEj.jugadas.length ? `${nuevoEj.jugadas.length} jugadas cargadas` : 'Posición cargada');
+  });
   v.querySelector('#ej-marcar').addEventListener('click', () => { pregunta = ed.ply() - 1; cambios = true; pintarPregunta(); });
   v.querySelector('#ej-enunciado').addEventListener('input', () => { cambios = true; });
   v.querySelector('#ej-inicio').addEventListener('change', () => { cambios = true; });
-  limpiezas.push(ed.cerrar);
+  limpiezas.push(() => ed.cerrar());
   // «Ampliar»: oculta cabecera, barra inferior y título para dejar sitio al tablero
   const ampliar = v.querySelector('#ampliar');
   const ponerEnfoque = (si, guardarEleccion) => {
@@ -1127,6 +1244,7 @@ function vEntrenar(v) {
       <a class="tarjeta practicar" href="#/progreso">${ico('check')}<span><b>Mi progreso</b><small>Domino · repasar · fallo</small></span></a>
       <a class="tarjeta practicar" href="#/tecnicas">${ico('bandera')}<span><b>Técnicas</b><small>Lo esencial, dominado</small></span></a>
     </div>
+    <a class="tarjeta practicar" href="#/repaso?n=5&ciegas=1">${ico('ojo')}<span><b>Repaso a ciegas</b><small>Nivel básico: mira la posición, oculta las piezas y juega de memoria</small></span>${ico('flecha', 'peq')}</a>
     <h3 class="sec">${ico('externo', 'peq')} En Lichess</h3>
     <p class="intro">Se abren en Lichess. Necesitan conexión.</p>
     ${usuarioL ? `<a class="tarjeta practicar" href="${L}/@/${encodeURIComponent(usuarioL)}" target="_blank" rel="noopener">${ico('peon')}<span><b>Mi perfil de Lichess</b><small>@${esc(usuarioL)}</small></span>${ico('externo', 'peq')}</a>` : ''}
@@ -1154,7 +1272,7 @@ function vAjustes(v) {
           ${[['madera', 'Madera'], ['azul', 'Azul'], ['verde', 'Verde']].map(([k, t]) => `<label class="opcion tab-op"><input type="radio" name="tablero" value="${k}" ${a.tablero === k ? 'checked' : ''}><span class="muestra ${k}"></span><span>${t}</span></label>`).join('')}
         </div></fieldset>
       <fieldset><legend>Notación</legend>
-        <div class="opciones">${radio('notacion', 'letras', 'Letras (Nf3)')}${radio('notacion', 'figuras', 'Figuras (♘f3)')}</div></fieldset>
+        <div class="opciones">${radio('notacion', 'espanol', 'Española (Cf3)')}${radio('notacion', 'letras', 'Inglesa (Nf3)')}${radio('notacion', 'figuras', 'Figuras (♘f3)')}</div></fieldset>
       <fieldset><legend>Lichess</legend>
         <label>Tu usuario<input name="lichess" value="${esc(a.lichess)}" placeholder="usuario" autocapitalize="off" autocorrect="off"></label></fieldset>
       <fieldset><legend>Ayuda</legend>
@@ -1194,10 +1312,7 @@ function vAjustes(v) {
     if (!n) return;
     guardarAjustes({ [n]: e.target.type === 'checkbox' ? e.target.checked : e.target.value.trim() });
   });
-  v.querySelector('#copia-json').addEventListener('click', () => {
-    const datos = Object.fromEntries(D.TABLAS.map(t => [t, D.lista(t)]));
-    descargar(`MdP-copia-${hoyISO()}.json`, JSON.stringify({ app: 'Memorias de Peón', version: VERSION, fecha: new Date().toISOString(), datos }, null, 1), 'application/json');
-  });
+  v.querySelector('#copia-json').addEventListener('click', descargarCopia);
   v.querySelector('#copia-pgn').addEventListener('click', () => {
     const partes = [];
     for (const e of D.lista('ejemplos')) {
@@ -1267,6 +1382,26 @@ function fechaLarga(f) {
 }
 const claseDeHoy = () => D.lista('clases').find(k => k.fecha === hoyISO()) || null;
 const adaptada = c => c.original && ['titulo', 'principio', 'explicacion'].some(k => (c[k] || '') !== (c.original[k] || ''));
+// Copia de seguridad completa (y se anota la fecha para el recordatorio mensual)
+function descargarCopia() {
+  const datos = Object.fromEntries(D.TABLAS.map(t => [t, D.lista(t)]));
+  descargar(`MdP-copia-${hoyISO()}.json`, JSON.stringify({ app: 'Memorias de Peón', version: VERSION, fecha: new Date().toISOString(), datos }, null, 1), 'application/json');
+  guardarAjustes({ ultimaCopia: R.hoyISO(), copiaPospuesta: null });
+}
+// Recordatorio en Inicio: si hay datos y la última copia tiene más de 30 días (o no hay ninguna)
+function tarjetaCopia() {
+  const a = ajustes(), hoy = R.hoyISO();
+  if (!(fichasDeTrabajo().some(conceptoElegible) || aperturas().length || partidas().length)) return '';
+  if (a.copiaPospuesta && a.copiaPospuesta > hoy) return '';
+  const dias = a.ultimaCopia ? Math.round((new Date(hoy) - new Date(a.ultimaCopia)) / 864e5) : null;
+  if (dias !== null && dias < 30) return '';
+  return `<section class="tarjeta aviso-copia">
+      <b>${ico('descargar', 'peq')} Toca hacer tu copia de seguridad</b>
+      <p>${dias === null ? 'Aún no has descargado ninguna copia.' : `Tu última copia es de hace ${dias} días.`} Tus datos están en la nube, pero una copia en tu ordenador es la mejor garantía.</p>
+      <div class="fila-btn"><button class="btn primario peq" id="copia-ya">Descargar copia</button><button class="btn peq" id="copia-luego">En una semana</button></div>
+    </section>`;
+}
+
 function descargar(nombre, texto, tipo) {
   const url = URL.createObjectURL(new Blob([texto], { type: tipo + ';charset=utf-8' }));
   const a = document.createElement('a');
@@ -2066,6 +2201,7 @@ async function vRepaso(v, _id, q) {
   const n = q.get('n') === '5' ? R.SESION_RAPIDA : R.SESION_NORMAL;
   // «Entrenar esta apertura»: todas sus líneas, primero las que peor llevas
   const apertura = q.get('ap') ? D.obtener('repertorio', q.get('ap')) : null;
+  const ciegasSesion = q.get('ciegas') === '1';
   const salida = apertura ? '#/apertura/' + apertura.id : '#/inicio';
   v.innerHTML = '<p class="nada">Preparando tu repaso…</p>';
   await prepararTarjetas();
@@ -2149,7 +2285,10 @@ async function vRepaso(v, _id, q) {
   // hasta el final. Dos intentos por jugada. La pista es tu comentario de esa
   // jugada (y, si no hay, la idea de la ficha); nunca la jugada.
   // Nota: todo a la primera = Bien; algún fallo o pista = Regular; si se escapa una jugada = Mal.
+  // A ciegas (nivel básico): miras la posición, ocultas las piezas y juegas de memoria.
+  // Las jugadas del rival se anuncian por escrito. Volver a ver las piezas cuenta como pista.
   function pintarEntreno({ ej, color, inicio = 0, etiqueta = '', pregunta, extras = [], nota = '', pie = '', css = 'var(--acento)' }) {
+    let ciegas = false, ocultadas = false;
     const lado = i => ((ej.fen0.split(' ')[1] === 'b') === (i % 2 === 0) ? 'black' : 'white');
     const mias = desde => ej.jugadas.slice(desde).filter((_, k) => lado(desde + k) === color).length;
     const total = mias(inicio);
@@ -2165,10 +2304,18 @@ async function vRepaso(v, _id, q) {
         <div class="rep-pistas" id="rep-pistas"></div>
         <div class="fila-btn" id="rep-ayuda">
           <button class="btn" id="rep-pista">${ico('guia', 'peq')} Pista</button>
+          <button class="btn" id="rep-ciegas">${ico('ojo', 'peq')} <span>${ciegasSesion ? 'Ya la tengo: ocultar' : 'A ciegas'}</span></button>
           <button class="btn" id="rep-nose">No lo sé</button>
         </div>
+        ${ciegasSesion ? '<p class="nota" id="rep-ciegas-txt">Memoriza la posición. Cuando la tengas, oculta las piezas y juega de memoria.</p>' : ''}
         <div id="rep-fin" hidden></div>
       </article>`;
+    const ponerCiegas = si => {
+      ciegas = si;
+      v.querySelector('.rep-tablero').classList.toggle('a-ciegas', si);
+      v.querySelector('#rep-ciegas span').textContent = si ? 'Ver piezas' : 'A ciegas';
+      v.querySelector('#rep-ciegas-txt')?.remove();
+    };
     const avisar = (txt, cls) => { const x = v.querySelector('#rep-aviso'); x.textContent = txt; x.className = 'rep-aviso ' + (cls || ''); x.hidden = !txt; };
     const prog = () => {   // cuenta solo tus jugadas
       const hechas = total - mias(Math.min(entreno.ply(), ej.jugadas.length));
@@ -2176,6 +2323,7 @@ async function vRepaso(v, _id, q) {
     };
     const entreno = crearEntrenoLinea(v.querySelector('.rep-tablero'), ej, {
       color, inicio, pedirPromocion,
+      alRival: jugada => { if (ciegas) avisar(`El rival juega ${jugada}`); },
       alJugada: ({ ok, otraVez, perdida, jugada }) => {
         v.querySelector('#rep-pistas').innerHTML = '';
         if (ok) avisar(entreno.ply() < ej.jugadas.length ? '¡Bien! Sigue: el rival contesta.' : '');
@@ -2185,8 +2333,9 @@ async function vRepaso(v, _id, q) {
       },
       alTerminar: ({ errores, perdidas }) => {
         if (hecho) return; hecho = true;
+        if (ciegas) ponerCiegas(false);   // al terminar se ven las piezas
         const res = perdidas ? 'mal' : errores || pistas ? 'regular' : 'bien';
-        const texto = res === 'bien' ? '¡Perfecto, todo a la primera!' : res === 'regular' ? 'Bien, con algún tropiezo o pista: cuenta como Regular.'
+        const texto = res === 'bien' ? `¡Perfecto, todo a la primera${ocultadas ? ' y a ciegas' : ''}!` : res === 'regular' ? 'Bien, con algún tropiezo o pista: cuenta como Regular.'
           : `${perdidas === 1 ? 'Se te escapó 1 jugada' : `Se te escaparon ${perdidas} jugadas`}. Volverá mañana.`;
         v.querySelector('#rep-ayuda').hidden = true;
         avisar('');
@@ -2214,6 +2363,11 @@ async function vRepaso(v, _id, q) {
       caja.insertAdjacentHTML('beforeend', '<p class="pista-rep">No hay más pistas. Escribe un comentario en esta jugada al editar y la tendrás la próxima vez.</p>');
     });
     v.querySelector('#rep-nose').addEventListener('click', () => entreno.noLoSe());
+    v.querySelector('#rep-ciegas').addEventListener('click', () => {
+      if (ciegas) pistas++;   // volver a mirar cuenta como pista
+      else ocultadas = true;
+      ponerCiegas(!ciegas);
+    });
   }
   // «Practicar más en Lichess» con el tema de la ficha (o el de su teoría original)
   const masEnLichess = c => {
@@ -2601,6 +2755,7 @@ function vApertura(v, id) {
         <div class="fila-btn">
           <a class="chip" href="${esc(RP.urlAnalisis(r.principal.ej, color))}" target="_blank" rel="noopener">${ico('externo', 'peq')} Analizar en Lichess</a>
           <a class="chip" href="${esc(RP.urlExplorador(fenFinal(r.principal.ej), color))}" target="_blank" rel="noopener">${ico('externo', 'peq')} Explorador al final</a>
+          <button class="chip" id="crear-ej">${ico('mas', 'peq')} Crear ejemplo desde aquí</button>
         </div></div>`
       : `<a class="btn anadir-ej" href="#/editar-linea/${a.id}?l=nueva&tipo=principal">${ico('mas')} Crear la línea principal</a>`}
     <h3 class="sec">Respuestas del rival <small>${r.secundarias.length || ''}</small></h3>
@@ -2620,6 +2775,7 @@ function vApertura(v, id) {
   if (r.principal?.ej) {
     const vis = crearVisor(v.querySelector('#visor-principal'), r.principal.ej, { orientacion: color });
     limpiezas.push(vis.cerrar);
+    v.querySelector('#crear-ej')?.addEventListener('click', () => crearEjemploDesde(r.principal.ej, vis.ply(), color));
   }
   const antes = tarjetasDeApertura(a).length;
   prepararTarjetas().then(() => { if (v.isConnected && tarjetasDeApertura(a).length !== antes) pintar(true); });
@@ -2891,7 +3047,8 @@ function vPartida(v, id) {
     <div class="tarjeta ejemplo" id="tablero-partida">
       <div class="visor" id="visor-partida"></div>
       <div class="fila-btn"><button class="btn primario" id="marcar">${ico('bandera', 'peq')} <span>Marcar momento</span></button>
-        <a class="btn" href="#/comentar-partida/${id}">${ico('editar', 'peq')} Comentar jugadas</a></div>
+        <a class="btn" href="#/comentar-partida/${id}">${ico('editar', 'peq')} Comentar jugadas</a>
+        <button class="btn" id="crear-ej">${ico('mas', 'peq')} Crear ejemplo desde aquí</button></div>
       ${ms.length ? `<div class="chips momentos-chips">${ms.map(m => `<button class="chip tipo-${m.tipo}" data-ir="${m.ply + 1}">${esc(etiquetaJ(ej, m.ply) || 'Final')}</button>`).join('')}</div>` : ''}
     </div>
     <section class="tarjeta rep-caja" id="rep-caja"><h3 class="sec">${ico('repertorio', 'peq')} Tu repertorio</h3>
@@ -2918,6 +3075,7 @@ function vPartida(v, id) {
   });
   limpiezas.push(vis.cerrar);
   marcar.addEventListener('click', () => ir(`#/momento/nuevo?partida=${id}&ply=${vis.ply() - 1}`));
+  v.querySelector('#crear-ej').addEventListener('click', () => crearEjemploDesde(ej, vis.ply(), p.color || 'white'));
   v.querySelector('.momentos-chips')?.addEventListener('click', e => { const b = e.target.closest('[data-ir]'); if (b) vis.ir(+b.dataset.ir); });
   const desplazar = (sel, e) => { e.preventDefault(); v.querySelector(sel).scrollIntoView({ behavior: 'smooth', block: 'start' }); };
   v.querySelector('#ir-rep')?.addEventListener('click', e => desplazar('#rep-caja', e));
@@ -3217,9 +3375,11 @@ function vLinea(v, apId, q) {
       <a class="chip" href="${esc(RP.urlAnalisis(ej, a.color))}" target="_blank" rel="noopener">${ico('externo', 'peq')} Analizar en Lichess</a>
       <a class="chip" href="${esc(RP.urlExplorador(fenFinal(ej), a.color))}" target="_blank" rel="noopener">${ico('externo', 'peq')} Explorador al final</a>
       <a class="chip" href="#/pregunta/nueva?texto=${encodeURIComponent(`${a.nombre} · ${l.nombre || TIPO_LINEA[l.tipo]}: `)}&pgn=${encodeURIComponent(l.pgn)}">${ico('guia', 'peq')} Preguntar al maestro</a>
+      <button class="chip" id="crear-ej">${ico('mas', 'peq')} Crear ejemplo desde aquí</button>
     </div>`;
   const vis = crearVisor(v.querySelector('#visor-linea'), ej, { orientacion: a.color });
   limpiezas.push(vis.cerrar);
+  v.querySelector('#crear-ej').addEventListener('click', () => crearEjemploDesde(ej, vis.ply(), a.color));
 }
 
 // Editor de una línea (o de las jugadas que definen la apertura, con ?tronco=1)
@@ -3268,8 +3428,8 @@ function vEditarLinea(v, apId, q) {
         <label class="form solo"><span>Tipo</span><select id="l-tipo">${Object.entries(TIPO_LINEA).map(([k, t]) => `<option value="${k}" ${l.tipo === k ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
         <label class="form solo"><span>La idea <small>por qué la juegas, qué buscas, qué evitar</small></span>
           <textarea id="l-nota" rows="3" placeholder="${l.tipo === 'trampa' ? 'Si el rival come el peón…' : 'Con …c5 ataco el centro antes de que…'}">${esc(l.nota || '')}</textarea></label>`}
-      <details class="pegar-pgn"><summary>Pegar un PGN</summary>
-        <p class="nota">Desde Lichess: en el tablero de análisis, «FEN y PGN», copia el PGN y pégalo aquí. Se toma la línea principal, sin variantes.</p>
+      <details class="pegar-pgn"><summary>Pegar un PGN o un enlace de Lichess</summary>
+        <p class="nota">Un PGN (en notación inglesa o española) o el enlace de una partida o de un estudio de Lichess. Se toma la línea principal, sin variantes.</p>
         <textarea id="pgn-txt" rows="4" placeholder="1. e4 c6 2. d4 d5 3. e5 Af5"></textarea>
         <button type="button" class="btn peq" id="pgn-cargar">Cargar en el tablero</button></details>
       ${!nueva && !esTronco ? `<button class="btn peligro" id="borrar">${ico('borrar', 'peq')} Borrar esta línea</button>` : ''}
@@ -3297,11 +3457,10 @@ function vEditarLinea(v, apId, q) {
   v.querySelector('#explorar').addEventListener('pointerdown', e => { e.currentTarget.href = RP.urlExplorador(fenFinal(ej), a.color); });
   v.querySelector('#explorar').href = RP.urlExplorador(fenFinal(ej), a.color);
   v.querySelectorAll('#l-nombre, #l-nota, #l-tipo').forEach(x => x.addEventListener('input', () => { cambios = true; }));
-  v.querySelector('#pgn-cargar').addEventListener('click', () => {
-    const txt = v.querySelector('#pgn-txt').value.trim();
-    if (!txt) return;
-    const nuevoEj = leerPgn(txt);
-    if (!nuevoEj || !nuevoEj.jugadas.length) return alert('No he podido leer jugadas en ese PGN. Comprueba que esté en notación inglesa (Nf3, Bb5…), como lo copia Lichess.');
+  v.querySelector('#pgn-cargar').addEventListener('click', async () => {
+    let nuevoEj;
+    try { nuevoEj = await textoAEjemplo(v.querySelector('#pgn-txt').value); } catch (err) { return alert(err.message); }
+    if (!nuevoEj.jugadas.length) return alert('Para una línea hacen falta jugadas desde la posición inicial: pega un PGN o el enlace de una partida.');
     ed.cerrar(); ej = nuevoEj; montarEditor(); cambios = true;
     v.querySelector('.pegar-pgn').open = false;
     aviso(`${ej.jugadas.length} jugadas cargadas`);

@@ -12,11 +12,19 @@ const COLORES = { G: 'green', R: 'red', B: 'blue', Y: 'yellow' };
 const LETRA = { green: 'G', red: 'R', blue: 'B', yellow: 'Y' };
 const FIGURAS = { K: '♔', Q: '♕', R: '♖', B: '♗', N: '♘' };
 
-let notacionFiguras = false;
-export function usarFiguras(si) { notacionFiguras = !!si; }
+let notacion = 'letras';
+// Notación al mostrar jugadas: 'letras' (inglesa: Nf3), 'figuras' (♘f3) o 'espanol' (Cf3).
+// Internamente todo se guarda en notación inglesa (SAN), como Lichess.
+const ESPANOL = { K: 'R', Q: 'D', R: 'T', B: 'A', N: 'C' };
+export function usarNotacion(modo) { notacion = ['figuras', 'espanol'].includes(modo) ? modo : 'letras'; }
 export function verSan(san) {
-  return notacionFiguras ? san.replace(/[KQRBN]/g, l => FIGURAS[l]) : san;
+  if (notacion === 'figuras') return san.replace(/[KQRBN]/g, l => FIGURAS[l]);
+  if (notacion === 'espanol') return san.replace(/[KQRBN]/g, l => ESPANOL[l]);
+  return san;
 }
+// Una jugada escrita en notación española (Cf3, Axb5, Tfe1, Dd2, R-e2, e8=D) a inglesa
+const DE_ESPANOL = { R: 'K', D: 'Q', T: 'R', A: 'B', C: 'N' };
+const deEspanol = san => san.replace(/^[RDTAC]/, l => DE_ESPANOL[l]).replace(/=([DTAC])/, (_, l) => '=' + DE_ESPANOL[l]);
 
 // ---------------------------------------------------------------------
 //  Modelo de un ejemplo
@@ -101,10 +109,12 @@ export function dePgn(pgn) {
     if (nivel > 0) continue;
     const limpio = tok.replace(/^\d+\.+/, '').replace(/[!?]+$/, '');
     if (!limpio || /^\$\d+$/.test(limpio) || /^(1-0|0-1|1\/2-1\/2|\*)$/.test(limpio)) continue;
-    try {
-      const m = chess.move(limpio);
-      ej.jugadas.push({ san: m.san, uci: m.from + m.to + (m.promotion || ''), fen: chess.fen(), comentario: '', formas: [] });
-    } catch (e) { break; }
+    let m = null;
+    try { m = chess.move(limpio); } catch (e) {
+      try { m = chess.move(deEspanol(limpio)); } catch (e2) { m = null; }   // ¿notación española?
+    }
+    if (!m) break;
+    ej.jugadas.push({ san: m.san, uci: m.from + m.to + (m.promotion || ''), fen: chess.fen(), comentario: '', formas: [] });
   }
   return ej;
 }
@@ -496,7 +506,7 @@ export const sirveDeEjercicio = ej => ej.jugadas.length > 0;
 //  Dos intentos por jugada: si no sale, se muestra la buena y se sigue.
 //  alJugada({ ok, otraVez, perdida, ply })  ·  alTerminar({ errores, perdidas })
 // ---------------------------------------------------------------------
-export function crearEntrenoLinea(contenedor, ej, { color = 'white', inicio = 0, pedirPromocion, alJugada = () => {}, alTerminar = () => {} } = {}) {
+export function crearEntrenoLinea(contenedor, ej, { color = 'white', inicio = 0, pedirPromocion, alJugada = () => {}, alRival = () => {}, alTerminar = () => {} } = {}) {
   contenedor.innerHTML = `<div class="tablero"></div>`;
   const turnoEn = ply => colorDe(fenDe(ej, ply));
   let ply = Math.max(0, Math.min(inicio, ej.jugadas.length)), intentos = 0, errores = 0, perdidas = 0, terminado = false, espera = null;
@@ -521,7 +531,7 @@ export function crearEntrenoLinea(contenedor, ej, { color = 'white', inicio = 0,
     }
     if (turnoEn(ply) !== color) {        // juega el rival
       ponerPosicion();
-      espera = setTimeout(() => { ply++; ponerPosicion(); avanzar(); }, 550);
+      espera = setTimeout(() => { ply++; ponerPosicion(); alRival(etiquetaJugada(ej, ply)); avanzar(); }, 550);
       return;
     }
     intentos = 0;

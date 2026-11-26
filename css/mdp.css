@@ -713,3 +713,15 @@ body.enfoque .ej-pie { margin-top: 12px; }
 .ej-panel .nota { margin: 0; }
 .ej-panel #ej-marcar { align-self: flex-start; }
 .herr-dibujar .chip:disabled { opacity: .45; }
+
+/* ---------- 4.4: a ciegas, crear ejemplo desde aquí, copia mensual ---------- */
+.a-ciegas piece { opacity: 0 !important; }
+#rep-ciegas-txt { text-align: center; margin: 6px 0 0; }
+.crear-desde { max-height: 86vh; display: flex; flex-direction: column; gap: 8px; }
+.crear-desde .segmento { margin: 0; }
+.crear-desde input[type=search] { width: 100%; }
+.cd-lista { overflow-y: auto; min-height: 120px; max-height: 46vh; }
+.cd-lista .fila-c { width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--linea); cursor: pointer; font: inherit; color: inherit; }
+.aviso-copia { border-color: color-mix(in srgb, var(--acento) 45%, var(--linea)); }
+.aviso-copia p { margin: 6px 0 10px; font-size: 14.5px; }
+.ej-cab .btn-ico + .btn-ico { margin-left: 2px; }

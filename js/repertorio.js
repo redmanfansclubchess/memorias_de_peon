@@ -52,12 +52,11 @@ export const etiquetaPly = (ej, i, ver = s => s) => (i < 0 || !ej.jugadas[i] ? '
 //  No son sugerencias de apertura: son las jugadas que el rival hará.
 // ---------------------------------------------------------------------
 const PRIMERAS = { e4: 'contra 1.e4', d4: 'contra 1.d4' };
-export const RESPUESTAS_BLANCAS = {   // si juegas 1.e4, el rival puede responder…
-  e4: [['e5', '1...e5'], ['c5', '1...c5 (Siciliana)'], ['e6', '1...e6 (Francesa)'], ['c6', '1...c6 (Caro-Kann)'],
-    ['d5', '1...d5 (Escandinava)'], ['Nf6', '1...Nf6 (Alekhine)'], ['d6', '1...d6 / 1...g6 (Pirc y Moderna)']],
-  d4: [['d5', '1...d5'], ['Nf6', '1...Nf6 (indias)'], ['f5', '1...f5 (Holandesa)'], ['e6', '1...e6'], ['d6', '1...d6 / 1...g6']],
-  c4: [['e5', '1...e5'], ['Nf6', '1...Nf6'], ['c5', '1...c5'], ['e6', '1...e6'], ['d5', '1...d5']],
-  Nf3: [['d5', '1...d5'], ['Nf6', '1...Nf6'], ['c5', '1...c5']],
+export const RESPUESTAS_BLANCAS = {   // si juegas 1.e4, el rival puede responder… [jugada, nombre]
+  e4: [['e5', ''], ['c5', 'Siciliana'], ['e6', 'Francesa'], ['c6', 'Caro-Kann'], ['d5', 'Escandinava'], ['Nf6', 'Alekhine'], ['d6', 'Pirc y Moderna']],
+  d4: [['d5', ''], ['Nf6', 'indias'], ['f5', 'Holandesa'], ['e6', ''], ['d6', '']],
+  c4: [['e5', ''], ['Nf6', ''], ['c5', ''], ['e6', ''], ['d5', '']],
+  Nf3: [['d5', ''], ['Nf6', ''], ['c5', '']],
 };
 const G6_IGUAL = { d6: ['d6', 'g6'] };   // Pirc y Moderna se preparan juntas
 
@@ -82,7 +81,8 @@ export function cobertura(aperturas, leer, ver = s => s) {
   for (const [primera, cubiertas] of tuyas) {
     const lista = RESPUESTAS_BLANCAS[primera];
     if (!lista) continue;
-    const faltan = lista.filter(([r]) => !(G6_IGUAL[r] || [r]).some(x => cubiertas.has(x))).map(([, t]) => t);
+    const faltan = lista.filter(([r]) => !(G6_IGUAL[r] || [r]).some(x => cubiertas.has(x)))
+      .map(([r, nombre]) => `1...${ver(r)}${r === 'd6' ? ' / 1...g6' : ''}${nombre ? ` (${nombre})` : ''}`);
     if (faltan.length) avisos.white.push({ tipo: 'medio', texto: `Con 1.${ver(primera)} aún no tienes preparada la respuesta a: ${faltan.join(', ')}.` });
     else avisos.white.push({ tipo: 'hecho', texto: `Con 1.${ver(primera)} tienes respuesta a las defensas habituales.` });
   }
@@ -115,7 +115,7 @@ const MIN_SECUNDARIA = 12;  // hasta la jugada 6–7
 export const PASOS = [
   {
     clave: 'tronco', titulo: 'Las jugadas que la definen',
-    ayuda: 'Juega en el tablero las jugadas que tienen que aparecer para que estés en tu apertura. Por ejemplo: 1.e4 c6 es la Caro-Kann; 1.e4 e5 2.Nf3 Nc6 3.Bc4, la Italiana. Desde aquí empezarán todas tus líneas.',
+    ayuda: 'Juega en el tablero las jugadas que tienen que aparecer para que estés en tu apertura. Por ejemplo: 1.e4 c6 es la Caro-Kann; en la Italiana, 1.e4 e5, los dos caballos fuera y el alfil a c4. Desde aquí empezarán todas tus líneas.',
     ir: a => `#/editar-linea/${a.id}?tronco=1`,
   },
   {
