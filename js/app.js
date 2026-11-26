@@ -9,7 +9,7 @@ import * as RP from './repertorio.js';
 import * as PA from './partidas.js';
 import { FEN_INICIAL, crearVisor, crearEditor, crearEntrenoLinea, etiquetaJugada, sirveDeEjercicio, dePgn, aPgn, pgnARamas, lineasAPgn, ejemploVacio, validarFen, usarNotacion, verSan, diagrama, textoJugadas, escapar as esc } from './tablero.js';
 
-export const VERSION = '5.3.2 (sincronizar tarjetas nuevas sin error)';
+export const VERSION = '5.3.3 (las jugadas antes de la pregunta se pasan a mano)';
 const app = document.getElementById('app');
 
 // ---------------------------------------------------------------------
@@ -2417,7 +2417,11 @@ async function vRepaso(v, _id, q) {
         <p class="rep-prog" id="rep-prog"></p>
         <p class="rep-aviso" id="rep-aviso" hidden></p>
         <div class="rep-pistas" id="rep-pistas"></div>
-        <div class="fila-btn" id="rep-ayuda"${aprender ? ' hidden' : ''}>
+        <div class="fila-btn rep-ver" id="rep-ver"${ver > inicio ? '' : ' hidden'}>
+          <button class="btn primario" id="rep-ver-sig">Siguiente jugada ▸</button>
+          <button class="btn" id="rep-ver-fin">Ir a la pregunta ⏭</button>
+        </div>
+        <div class="fila-btn" id="rep-ayuda"${aprender || ver > inicio ? ' hidden' : ''}>
           <button class="btn" id="rep-pista">${ico('guia', 'peq')} Pista</button>
           <button class="btn" id="rep-ciegas">${ico('ojo', 'peq')} <span>${ciegasSesion ? 'Ya la tengo: ocultar' : 'A ciegas'}</span></button>
           <button class="btn" id="rep-nose">No lo sé</button>
@@ -2438,9 +2442,13 @@ async function vRepaso(v, _id, q) {
     };
     const entreno = crearEntrenoLinea(v.querySelector('.rep-tablero'), ej, {
       color, inicio, fin, ver, aprender, pedirPromocion,
-      alVer: (jugada, comentario, ultima) => {   // la app enseña cómo se llega a la pregunta
+      alVer: (jugada, comentario, ultima) => {   // cómo se llega a la pregunta, jugada a jugada, a tu ritmo
         v.querySelector('#rep-pistas').innerHTML = comentario ? `<p class="pista-rep rival"><b>${esc(jugada)}</b> ${esc(comentario)}</p>` : '';
-        avisar(ultima ? 'Ahora tú: ¿cuál es la mejor jugada?' : `Mira cómo se llega: ${jugada}`);
+        if (ultima) {
+          v.querySelector('#rep-ver').hidden = true;
+          v.querySelector('#rep-ayuda').hidden = aprender;
+          avisar('Ahora tú: ¿cuál es la mejor jugada?');
+        } else avisar(`Mira cómo se llega: ${jugada}`);
       },
       alTurno: ({ comentario }) => {   // aprendiendo: la flecha en el tablero y tu comentario aquí
         if (comentario) v.querySelector('#rep-pistas').insertAdjacentHTML('beforeend', `<p class="pista-rep"><b>Idea:</b> ${esc(comentario)}</p>`);
@@ -2497,6 +2505,12 @@ async function vRepaso(v, _id, q) {
       caja.insertAdjacentHTML('beforeend', '<p class="pista-rep">No hay más pistas. Escribe un comentario en esta jugada al editar y la tendrás la próxima vez.</p>');
     });
     v.querySelector('#rep-nose').addEventListener('click', () => entreno.noLoSe());
+    v.querySelector('#rep-ver-sig').addEventListener('click', () => entreno.verSiguiente());
+    v.querySelector('#rep-ver-fin').addEventListener('click', () => entreno.verHastaPregunta());
+    if (entreno.viendo()) {   // antes de la primera jugada: la introducción del ejemplo y cómo pasar
+      if (ej.comentario0) v.querySelector('#rep-pistas').innerHTML = `<p class="pista-rep rival">${esc(ej.comentario0.trim())}</p>`;
+      avisar('Pasa las jugadas a tu ritmo: «Siguiente jugada» (o la flecha →, espacio). «Ir a la pregunta» salta hasta tu turno.');
+    }
     v.querySelector('#rep-ciegas').addEventListener('click', () => {
       if (ciegas) pistas++;   // volver a mirar cuenta como pista
       else ocultadas = true;

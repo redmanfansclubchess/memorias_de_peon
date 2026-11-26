@@ -610,8 +610,9 @@ export const sirveDeEjercicio = ej => ej.jugadas.length > 0;
 //  comentario (alTurno), y solo tienes que repetirla; no cuenta como fallo.
 //  fin: se para en esa jugada (para entrenar solo un trozo de la línea).
 // ---------------------------------------------------------------------
-//  ver: hasta esa jugada la app reproduce sola las jugadas (las de los dos bandos), despacio,
-//  para que veas cómo se llega a la pregunta; alVer(jugada, comentario, ultima) en cada una.
+//  ver: hasta esa jugada se ven las jugadas de los dos bandos, una a una cuando tú lo pidas
+//  (verSiguiente / verHastaPregunta, o las teclas → espacio Intro y Fin);
+//  alVer(jugada, comentario, ultima) en cada una.
 export function crearEntrenoLinea(contenedor, ej, { color = 'white', inicio = 0, fin = Infinity, ver = 0, aprender = false, pedirPromocion, alJugada = () => {}, alRival = () => {}, alVer = () => {}, alTurno = () => {}, alTerminar = () => {} } = {}) {
   contenedor.innerHTML = `<div class="tablero"></div>`;
   const turnoEn = ply => colorDe(fenDe(ej, ply));
@@ -637,11 +638,8 @@ export function crearEntrenoLinea(contenedor, ej, { color = 'white', inicio = 0,
       alTerminar({ errores, perdidas });
       return;
     }
-    if (ply < ver) {                     // viendo cómo se llega a la pregunta
-      espera = setTimeout(() => {
-        ply++; const jv = ej.jugadas[ply - 1];
-        ponerPosicion(jv.formas || []); alVer(etiquetaJugada(ej, ply), (jv.comentario || '').trim(), ply >= ver); avanzar();
-      }, 1300);
+    if (ply < ver) {                     // viendo cómo se llega a la pregunta: tú decides cuándo pasar
+      ponerPosicion(ply ? ej.jugadas[ply - 1].formas || [] : ej.formas0 || []);
       return;
     }
     if (turnoEn(ply) !== color) {        // juega el rival
@@ -700,9 +698,31 @@ export function crearEntrenoLinea(contenedor, ej, { color = 'white', inicio = 0,
     const previo = ply ? (ej.jugadas[ply - 1].comentario || '').trim() : (ej.comentario0 || '').trim();
     return propio || previo || null;
   }
+  // Fase «ver»: una jugada cada vez (botón, flecha → o espacio), o saltar hasta la pregunta
+  function verSiguiente() {
+    if (terminado || ply >= ver) return;
+    ply++; const jv = ej.jugadas[ply - 1];
+    alVer(etiquetaJugada(ej, ply), (jv.comentario || '').trim(), ply >= ver);
+    avanzar();
+  }
+  function verHastaPregunta() {
+    if (terminado || ply >= ver) return;
+    ply = ver; const jv = ej.jugadas[ply - 1];
+    alVer(etiquetaJugada(ej, ply), (jv.comentario || '').trim(), true);
+    avanzar();
+  }
+  const tecla = e => {
+    if (!contenedor.isConnected) return document.removeEventListener('keydown', tecla);
+    if (ply >= ver || terminado || e.target.closest?.('input, textarea, select, [contenteditable]')) return;
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Enter') { e.preventDefault(); verSiguiente(); }
+    else if (e.key === 'End') { e.preventDefault(); verHastaPregunta(); }
+  };
+  if (ver > ply) document.addEventListener('keydown', tecla);
   avanzar();
   return {
-    cerrar: () => { clearTimeout(espera); cerrar(); },
+    cerrar: () => { clearTimeout(espera); document.removeEventListener('keydown', tecla); cerrar(); },
+    verSiguiente, verHastaPregunta,
+    viendo: () => ply < ver && !terminado,
     pista,
     ply: () => ply,
     total: () => ultima,
