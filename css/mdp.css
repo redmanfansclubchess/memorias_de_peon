@@ -775,3 +775,7 @@ body.enfoque .ej-pie { margin-top: 12px; }
 .chip.sugerir[hidden] { display: none; }
 .pista-rep.rival { background: color-mix(in srgb, var(--linea) 45%, transparent); border-left: 3px solid var(--suave); }
 .pista-rep.rival b { font-family: var(--sans); margin-right: 4px; }
+.ej-antes { margin: 8px 0; padding: 8px 12px; border: 1px dashed var(--acento); border-radius: 10px; }
+.ej-antes[hidden] { display: none; }
+.ej-antes-tit { margin: 2px 0 4px; }
+.ej-antes .check input[type=radio] { width: 18px; height: 18px; flex: none; }

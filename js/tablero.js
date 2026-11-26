@@ -610,7 +610,9 @@ export const sirveDeEjercicio = ej => ej.jugadas.length > 0;
 //  comentario (alTurno), y solo tienes que repetirla; no cuenta como fallo.
 //  fin: se para en esa jugada (para entrenar solo un trozo de la línea).
 // ---------------------------------------------------------------------
-export function crearEntrenoLinea(contenedor, ej, { color = 'white', inicio = 0, fin = Infinity, aprender = false, pedirPromocion, alJugada = () => {}, alRival = () => {}, alTurno = () => {}, alTerminar = () => {} } = {}) {
+//  ver: hasta esa jugada la app reproduce sola las jugadas (las de los dos bandos), despacio,
+//  para que veas cómo se llega a la pregunta; alVer(jugada, comentario, ultima) en cada una.
+export function crearEntrenoLinea(contenedor, ej, { color = 'white', inicio = 0, fin = Infinity, ver = 0, aprender = false, pedirPromocion, alJugada = () => {}, alRival = () => {}, alVer = () => {}, alTurno = () => {}, alTerminar = () => {} } = {}) {
   contenedor.innerHTML = `<div class="tablero"></div>`;
   const turnoEn = ply => colorDe(fenDe(ej, ply));
   const ultima = Math.min(fin, ej.jugadas.length);   // hasta dónde se entrena
@@ -623,7 +625,7 @@ export function crearEntrenoLinea(contenedor, ej, { color = 'white', inicio = 0,
   const ponerPosicion = (formas = []) => {
     const fen = fenDe(ej, ply), j = ply ? ej.jugadas[ply - 1] : null;
     const chess = new Chess(fen), turno = colorDe(fen);
-    const mio = ply < ultima && turno === color && !terminado;
+    const mio = ply < ultima && ply >= ver && turno === color && !terminado;
     api.set({ fen, turnColor: turno, lastMove: j ? [j.uci.slice(0, 2), j.uci.slice(2, 4)] : undefined, check: chess.inCheck() ? turno : false,
       movable: { color: mio ? color : undefined, dests: mio ? destinos(chess) : new Map() } });
     api.setAutoShapes(formas);
@@ -633,6 +635,13 @@ export function crearEntrenoLinea(contenedor, ej, { color = 'white', inicio = 0,
     if (ply >= ultima) {
       terminado = true; ponerPosicion();
       alTerminar({ errores, perdidas });
+      return;
+    }
+    if (ply < ver) {                     // viendo cómo se llega a la pregunta
+      espera = setTimeout(() => {
+        ply++; const jv = ej.jugadas[ply - 1];
+        ponerPosicion(jv.formas || []); alVer(etiquetaJugada(ej, ply), (jv.comentario || '').trim(), ply >= ver); avanzar();
+      }, 1300);
       return;
     }
     if (turnoEn(ply) !== color) {        // juega el rival
@@ -647,7 +656,7 @@ export function crearEntrenoLinea(contenedor, ej, { color = 'white', inicio = 0,
     else ponerPosicion(delRival);
   }
   async function mover(orig, dest) {
-    if (terminado || ply >= ultima) return;
+    if (terminado || ply >= ultima || ply < ver) return;
     const sol = ej.jugadas[ply];
     if (turnoEn(ply) !== color) return;
     const pieza = new Chess(fenDe(ej, ply)).get(orig);
@@ -686,7 +695,7 @@ export function crearEntrenoLinea(contenedor, ej, { color = 'white', inicio = 0,
   }
   // La pista es texto: tu comentario de esa jugada o de la anterior del rival; nunca la jugada.
   function pista() {
-    if (terminado || ply >= ultima) return null;
+    if (terminado || ply >= ultima || ply < ver) return null;
     const propio = (ej.jugadas[ply].comentario || '').trim();
     const previo = ply ? (ej.jugadas[ply - 1].comentario || '').trim() : (ej.comentario0 || '').trim();
     return propio || previo || null;
@@ -698,7 +707,7 @@ export function crearEntrenoLinea(contenedor, ej, { color = 'white', inicio = 0,
     ply: () => ply,
     total: () => ultima,
     noLoSe() {
-      if (terminado || aprender || ply >= ultima || turnoEn(ply) !== color) return;
+      if (terminado || aprender || ply >= ultima || ply < ver || turnoEn(ply) !== color) return;
       errores++;
       ensenar();
     },

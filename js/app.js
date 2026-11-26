@@ -9,7 +9,7 @@ import * as RP from './repertorio.js';
 import * as PA from './partidas.js';
 import { FEN_INICIAL, crearVisor, crearEditor, crearEntrenoLinea, etiquetaJugada, sirveDeEjercicio, dePgn, aPgn, pgnARamas, lineasAPgn, ejemploVacio, validarFen, usarNotacion, verSan, diagrama, textoJugadas, escapar as esc } from './tablero.js';
 
-export const VERSION = '5.2.1 (comentarios del rival en el entrenamiento)';
+export const VERSION = '5.2.2 (empezar desde el principio o ver pasar las jugadas)';
 const app = document.getElementById('app');
 
 // ---------------------------------------------------------------------
@@ -972,6 +972,8 @@ function vEjemplo(v, id, q) {
   const ej = borrador ? dePgn(borrador) : nuevo ? ejemploVacio() : dePgn(fila.pgn || `[FEN "${fila.fen_inicial}"]`);
   let cambios = !!borrador, orientacion = fila.orientacion || 'white';
   let pregunta = fila.ply_pregunta || 0;   // jugada que es la pregunta del ejercicio (índice desde 0)
+  // Si hay jugadas antes de la pregunta: jugarlas desde el principio (de serie) o verlas pasar
+  let desdeInicio = nuevo ? true : fila.desde_inicio !== false;
   v.innerHTML = `
     <div class="cab-vista ej-cab">
       <a href="#/concepto/${concepto.id}" class="btn-ico" aria-label="Volver" id="volver">${ico('atras')}</a>
@@ -993,7 +995,11 @@ function vEjemplo(v, id, q) {
         <button type="button" class="btn peq" id="ej-marcar"></button>
         <label class="form solo"><span>Tu pregunta <small>opcional</small></span>
           <input id="ej-enunciado" maxlength="160" value="${esc(fila.enunciado || '')}"></label>
-        <label class="check"><input type="checkbox" id="ej-inicio" ${fila.desde_inicio ? 'checked' : ''}><span>Practicar desde el principio <small>— la app juega contigo toda la línea hasta la pregunta y después</small></span></label>
+        <div class="ej-antes" id="ej-antes" hidden>
+          <p class="ej-antes-tit" id="ej-antes-tit"></p>
+          <label class="check"><input type="radio" name="ej-modo" value="jugar"><span><b>Jugarlas desde el principio</b> <small>— juegas tus jugadas y la app las del rival hasta llegar a la pregunta</small></span></label>
+          <label class="check"><input type="radio" name="ej-modo" value="ver"><span><b>Verlas pasar y empezar en la pregunta</b> <small>— la app las reproduce despacio y se para en la pregunta</small></span></label>
+        </div>
       </div>
       ${nuevo ? '' : `<button class="btn peligro" id="borrar">${ico('borrar', 'peq')} Borrar este ejemplo</button>`}
     </div>`;
@@ -1003,10 +1009,15 @@ function vEjemplo(v, id, q) {
     if (!v.querySelector('#ej-panel')) return;
     const p = Math.min(pregunta, Math.max(0, ej.jugadas.length - 1));
     const txt = v.querySelector('#ej-preg-txt'), btn = v.querySelector('#ej-marcar');
-    const desde = v.querySelector('#ej-inicio').checked;
+    const antes = v.querySelector('#ej-antes');
+    antes.hidden = !p;
+    if (p) {
+      v.querySelector('#ej-antes-tit').innerHTML = `Hay <b>${p} ${p === 1 ? 'jugada' : 'jugadas'}</b> antes de la pregunta. Al entrenar:`;
+      v.querySelectorAll('[name=ej-modo]').forEach(r => { r.checked = r.value === (desdeInicio ? 'jugar' : 'ver'); });
+    }
     txt.innerHTML = ej.jugadas.length ? `
-      <p><span class="ej-preg-etq">Pregunta</span> <b>${esc(etiquetaJ(ej, p))}</b> · juegan ${ladoEn(p)} <small>(en la lista, con «?»)</small></p>
-      <p><span class="ej-preg-etq">Empieza</span> ${desde ? 'desde el principio: la app juega contigo las jugadas de antes' : p ? `en la posición de antes de ${esc(etiquetaJ(ej, p))}; las jugadas de antes (en gris) no se juegan` : 'en la posición inicial del ejemplo'}</p>
+      <p><span class="ej-preg-etq">Pregunta</span> <b>${esc(etiquetaJ(ej, p))}</b> · juegan ${ladoEn(p)} <small>(solo lo ves tú: en la lista, con «?»)</small></p>
+      <p><span class="ej-preg-etq">Empieza</span> ${!p ? 'en la posición inicial del ejemplo: la pregunta es la primera jugada' : desdeInicio ? 'desde el principio: juegas también las jugadas de antes' : 'viendo pasar las jugadas de antes (en gris); te paras en la pregunta'}</p>
       <p class="nota">Cuando aciertes, la app contesta con la jugada del rival y sigues hasta el final del ejemplo.</p>`
       : '<p class="nota">Juega primero las jugadas en el tablero (modo Jugar).</p>';
     v.querySelector('#ej-enunciado').placeholder = `Juegan ${ladoEn(p)}. ${concepto.titulo}: ¿cuál es la mejor jugada?`;
@@ -1016,7 +1027,7 @@ function vEjemplo(v, id, q) {
   };
   // En la lista de jugadas: la pregunta con «?» y las de antes en gris
   const marcas = () => (v.querySelector('#ej-ejercicio')?.checked && ej.jugadas.length
-    ? { pregunta: Math.min(pregunta, ej.jugadas.length - 1), previas: !v.querySelector('#ej-inicio').checked } : null);
+    ? { pregunta: Math.min(pregunta, ej.jugadas.length - 1), previas: !desdeInicio } : null);
   let ed;
   const montarEditor = () => {
     ed = crearEditor(v.querySelector('#editor'), ej, {
@@ -1041,9 +1052,12 @@ function vEjemplo(v, id, q) {
     v.querySelector('.pegar-pgn').open = false;
     aviso(nuevoEj.jugadas.length ? `${nuevoEj.jugadas.length} jugadas cargadas: la primera es la pregunta` : 'Posición cargada');
   });
-  v.querySelector('#ej-marcar').addEventListener('click', () => { pregunta = ed.ply() - 1; cambios = true; ed.repintar(); });
+  v.querySelector('#ej-marcar').addEventListener('click', () => {
+    pregunta = ed.ply() - 1; cambios = true; ed.repintar();
+    if (pregunta > 0) { aviso('Hay jugadas antes de la pregunta: elige debajo cómo empezar'); v.querySelector('#ej-antes').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+  });
   v.querySelector('#ej-enunciado').addEventListener('input', () => { cambios = true; });
-  v.querySelector('#ej-inicio').addEventListener('change', () => { cambios = true; ed.repintar(); });
+  v.querySelectorAll('[name=ej-modo]').forEach(r => r.addEventListener('change', () => { desdeInicio = r.value === 'jugar'; cambios = true; ed.repintar(); }));
   limpiezas.push(() => ed.cerrar());
   // «Ampliar»: oculta cabecera, barra inferior y título para dejar sitio al tablero
   const ampliar = v.querySelector('#ampliar');
@@ -1073,7 +1087,7 @@ function vEjemplo(v, id, q) {
       es_ejercicio: comoEjercicio,
       ply_pregunta: Math.min(pregunta, Math.max(0, ej.jugadas.length - 1)),
       enunciado: v.querySelector('#ej-enunciado').value.trim() || null,
-      desde_inicio: v.querySelector('#ej-inicio').checked,
+      desde_inicio: desdeInicio,
       fen_inicial: ej.fen0,
       pgn: aPgn(ej),
       orientacion,
@@ -2320,13 +2334,14 @@ async function vRepaso(v, _id, q) {
   // Nota: todo a la primera = Bien; algún fallo o pista = Regular; si se escapa una jugada = Mal.
   // A ciegas (nivel básico): miras la posición, ocultas las piezas y juegas de memoria.
   // Las jugadas del rival se anuncian por escrito. Volver a ver las piezas cuenta como pista.
-  function pintarEntreno({ ej, color, inicio = 0, fin = Infinity, aprender = false, etiqueta = '', pregunta, extras = [], nota = '', pie = '', css = 'var(--acento)', alFinal = () => {} }) {
+  function pintarEntreno({ ej, color, inicio = 0, fin = Infinity, ver = 0, aprender = false, etiqueta = '', pregunta, extras = [], nota = '', pie = '', css = 'var(--acento)', alFinal = () => {} }) {
     let ciegas = false, ocultadas = false;
     const falladas = new Set(), limpias = new Set();   // índices de tus jugadas: falladas y acertadas a la primera
     const hasta = Math.min(fin, ej.jugadas.length);
     const lado = i => ((ej.fen0.split(' ')[1] === 'b') === (i % 2 === 0) ? 'black' : 'white');
     const mias = desde => ej.jugadas.slice(desde, hasta).filter((_, k) => lado(desde + k) === color).length;
-    const total = mias(inicio);
+    const desdeTuyas = Math.max(inicio, ver);   // si se ven pasar las jugadas de antes, no cuentan
+    const total = mias(desdeTuyas);
     const pistasExtra = extras.filter(([, txt]) => txt);
     let pistas = 0, extrasUsadas = 0, hecho = false;
     v.innerHTML = cabecera() + `
@@ -2353,11 +2368,15 @@ async function vRepaso(v, _id, q) {
     };
     const avisar = (txt, cls) => { const x = v.querySelector('#rep-aviso'); x.textContent = txt; x.className = 'rep-aviso ' + (cls || ''); x.hidden = !txt; };
     const prog = () => {   // cuenta solo tus jugadas
-      const hechas = total - mias(Math.min(entreno.ply(), ej.jugadas.length));
+      const hechas = total - mias(Math.max(desdeTuyas, Math.min(entreno.ply(), ej.jugadas.length)));
       v.querySelector('#rep-prog').textContent = total <= 1 ? '' : hechas >= total ? `${total} de ${total} jugadas tuyas` : `${aprender ? 'Aprendiendo · ' : ''}Tu jugada ${hechas + 1} de ${total}`;
     };
     const entreno = crearEntrenoLinea(v.querySelector('.rep-tablero'), ej, {
-      color, inicio, fin, aprender, pedirPromocion,
+      color, inicio, fin, ver, aprender, pedirPromocion,
+      alVer: (jugada, comentario, ultima) => {   // la app enseña cómo se llega a la pregunta
+        v.querySelector('#rep-pistas').innerHTML = comentario ? `<p class="pista-rep rival"><b>${esc(jugada)}</b> ${esc(comentario)}</p>` : '';
+        avisar(ultima ? 'Ahora tú: ¿cuál es la mejor jugada?' : `Mira cómo se llega: ${jugada}`);
+      },
       alTurno: ({ comentario }) => {   // aprendiendo: la flecha en el tablero y tu comentario aquí
         if (comentario) v.querySelector('#rep-pistas').insertAdjacentHTML('beforeend', `<p class="pista-rep"><b>Idea:</b> ${esc(comentario)}</p>`);
         avisar('Juega la jugada de la flecha.');
@@ -2433,11 +2452,12 @@ async function vRepaso(v, _id, q) {
     const ej = ejemploDeFila(fila);
     const preg = Math.min(fila.ply_pregunta || 0, ej.jugadas.length - 1);
     const color = quienJuega(ej, preg);
+    const jugarAntes = preg > 0 && fila.desde_inicio !== false;   // de serie, desde el principio
     const pregunta = fila.enunciado ? esc(fila.enunciado)
-      : fila.desde_inicio ? `<b>Juegas con ${color === 'white' ? 'blancas' : 'negras'}.</b> ${esc(c.titulo)}: juega la línea desde el principio; la app mueve las del rival.`
+      : jugarAntes ? `<b>Juegas con ${color === 'white' ? 'blancas' : 'negras'}.</b> ${esc(c.titulo)}: juega desde el principio; la app mueve las del rival y, al llegar a la pregunta, busca la mejor jugada.`
       : `<b>${juegan(color)}.</b> ${esc(c.titulo)}: ¿cuál es la mejor jugada?`;
     pintarEntreno({
-      ej, color, inicio: fila.desde_inicio ? 0 : preg, pregunta, css,
+      ej, color, inicio: 0, ver: jugarAntes ? 0 : preg, pregunta, css,
       extras: [['Idea', c.principio]],
       pie: `Ficha: <a href="#/concepto/${c.id}">${esc(c.titulo)}</a>${fila.titulo ? ' · ' + esc(fila.titulo) : ''}${masEnLichess(c)}`,
     });
