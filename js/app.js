@@ -9,7 +9,7 @@ import * as RP from './repertorio.js';
 import * as PA from './partidas.js';
 import { FEN_INICIAL, crearVisor, crearEditor, crearEntrenoLinea, etiquetaJugada, sirveDeEjercicio, dePgn, aPgn, ejemploVacio, usarFiguras, verSan, diagrama, textoJugadas, escapar as esc } from './tablero.js';
 
-export const VERSION = '4.3.0 (ejercicios como puzzles)';
+export const VERSION = '4.3.1 (ejercicios como puzzles)';
 const app = document.getElementById('app');
 
 // ---------------------------------------------------------------------
@@ -254,11 +254,30 @@ const RUTAS = {
   repaso: vRepaso, progreso: vProgreso, tecnicas: vTecnicas, preguntas: vPreguntas, pregunta: vPregunta,
 };
 
+// ---------------------------------------------------------------------
+//  SALIR SIN GUARDAR: cada editor se protege con protegerSalida(). Al salir
+//  por cualquier camino (←, pestañas, lupa, Ajustes, «atrás» del navegador o
+//  cerrando la ventana) con cambios sin guardar, la app pregunta antes.
+//  Guardar o borrar ponen editando = false, así que no preguntan.
+// ---------------------------------------------------------------------
+let hayCambios = null, hashActual = location.hash;
+const estadoCampos = v => [...v.querySelectorAll('input, textarea, select')]
+  .filter(x => x.type !== 'search' && x.type !== 'file' && !x.closest('.editor'))
+  .map(x => (x.type === 'checkbox' || x.type === 'radio' ? x.checked : x.value)).join('\u0001');
+// Se llama al final de montar el editor; «extra» añade cambios que no son campos (el tablero)
+function protegerSalida(v, extra = () => false) {
+  const inicial = estadoCampos(v);
+  hayCambios = () => extra() || estadoCampos(v) !== inicial;
+}
+const conCambios = () => editando && !!hayCambios && hayCambios();
+
 function pintar(conservarScroll) {
   if (!usuario) return;
   const scroll = window.scrollY;
   limpiar();
   editando = false;
+  hayCambios = null;
+  hashActual = location.hash;
   const [ruta, q] = (location.hash.slice(2) || 'inicio').split('?');
   const [nombre, id] = ruta.split('/');
   if (nombre === 'entrar') return vEntrar(true);
@@ -774,6 +793,7 @@ function vEditarConcepto(v, id, q) {
     const t = norm(e.target.value);
     v.querySelectorAll('.rel-lista .check').forEach(l => { l.hidden = t && !norm(l.textContent).includes(t); });
   });
+  protegerSalida(v);
   f.addEventListener('submit', async e => {
     e.preventDefault();
     if (nuevo) {
@@ -913,10 +933,7 @@ function vEjemplo(v, id, q) {
   limpiezas.push(() => document.body.classList.remove('enfoque'));
   v.querySelector('#ej-titulo').addEventListener('input', () => { cambios = true; });
   v.querySelector('#ej-ejercicio').addEventListener('change', e => { cambios = true; v.querySelector('#ej-panel').hidden = !e.target.checked; pintarPregunta(); });
-  v.querySelector('#volver').addEventListener('click', e => {
-    if (cambios && !confirm('Hay cambios sin guardar. ¿Salir sin guardar?')) e.preventDefault();
-    else editando = false;
-  });
+  protegerSalida(v, () => cambios);
   v.querySelector('#guardar').addEventListener('click', async () => {
     const err = ed.confirmar();
     if (err) return alert(err);
@@ -1367,6 +1384,7 @@ function vClase(v, id, q) {
       <a class="btn anadir-ej" href="#/editar/nuevo?clase=${id}">${ico('mas')} Nueva ficha de esta clase</a>
       ${preguntas().filter(p => p.clase_id === id).length ? `<h3 class="sec">Preguntas al maestro</h3><div class="lista">${preguntas().filter(p => p.clase_id === id).map(filaPregunta).join('')}</div>` : ''}
       ${notas.length ? `<h3 class="sec">Notas rápidas</h3>${notas.map(n => `<div class="tarjeta nota${n.procesada ? ' hecha' : ''}"><div class="md">${md(n.texto)}</div></div>`).join('')}` : ''}`}`;
+  if (editar) protegerSalida(v);
   v.querySelector('#f-clase')?.addEventListener('submit', async e => {
     e.preventDefault();
     const f = e.target;
@@ -2197,6 +2215,11 @@ async function vRepaso(v, _id, q) {
     });
     v.querySelector('#rep-nose').addEventListener('click', () => entreno.noLoSe());
   }
+  // «Practicar más en Lichess» con el tema de la ficha (o el de su teoría original)
+  const masEnLichess = c => {
+    const k = c && (c.practica_lichess || biblioItem(c.original?.id)?.lichess);
+    return k ? ` · <a href="${esc(urlPractica(k))}" target="_blank" rel="noopener">${ico('externo', 'peq')} Practicar más en Lichess</a>` : '';
+  };
   const quienJuega = (ej, i) => { const f = i <= 0 ? ej.fen0 : ej.jugadas[i - 1].fen; return f.split(' ')[1] === 'b' ? 'black' : 'white'; };
   const juegan = c => (c === 'white' ? 'Juegan blancas' : 'Juegan negras');
 
@@ -2212,7 +2235,7 @@ async function vRepaso(v, _id, q) {
     pintarEntreno({
       ej, color, inicio: fila.desde_inicio ? 0 : preg, pregunta, css,
       extras: [['Idea', c.principio]],
-      pie: `Ficha: <a href="#/concepto/${c.id}">${esc(c.titulo)}</a>${fila.titulo ? ' · ' + esc(fila.titulo) : ''}`,
+      pie: `Ficha: <a href="#/concepto/${c.id}">${esc(c.titulo)}</a>${fila.titulo ? ' · ' + esc(fila.titulo) : ''}${masEnLichess(c)}`,
     });
   }
 
@@ -2226,7 +2249,7 @@ async function vRepaso(v, _id, q) {
       etiqueta: `<span class="etq-bloque">${ico('partidas', 'peq')} Tu partida contra ${esc(p.rival || 'tu rival')}${p.fecha ? ' · ' + esc(fechaLarga(p.fecha)) : ''}</span>`,
       pregunta: `<b>${juegan(color)}.</b> ${c ? esc(c.titulo) + ': ' : ''}¿qué debiste jugar?`,
       extras: [['Idea', c?.principio], ['Lo que anotaste', m.comentario]],
-      pie: `De <a href="#/partida/${p.id}">tu partida contra ${esc(p.rival || 'tu rival')}</a>${c ? ` · Ficha: <a href="#/concepto/${c.id}">${esc(c.titulo)}</a>` : ''}`,
+      pie: `De <a href="#/partida/${p.id}">tu partida contra ${esc(p.rival || 'tu rival')}</a>${c ? ` · Ficha: <a href="#/concepto/${c.id}">${esc(c.titulo)}</a>` : ''}${masEnLichess(c)}`,
     });
   }
 
@@ -2423,19 +2446,22 @@ function vPregunta(v, id, q = new URLSearchParams()) {
   const abrirEditor = () => {
     v.querySelector('#preg-editor').hidden = false;
     v.querySelector('#preg-pos').innerHTML = `<button type="button" class="btn peq" id="preg-quitar">Quitar la posición</button>`;
-    ed = crearEditor(v.querySelector('#preg-editor'), ejemplo, { pedirPromocion });
+    ed = crearEditor(v.querySelector('#preg-editor'), ejemplo, { pedirPromocion, alCambiar: () => { tableroCambiado = true; } });
     limpiezas.push(ed.cerrar);
     conPosicion = true;
   };
+  let tableroCambiado = false;
   if (conPosicion) abrirEditor();
   v.querySelector('#preg-pos').addEventListener('click', e => {
-    if (e.target.closest('#preg-add')) abrirEditor();
+    if (e.target.closest('#preg-add')) { abrirEditor(); tableroCambiado = true; }
     if (e.target.closest('#preg-quitar')) {
+      tableroCambiado = true;
       if (ed) ed.cerrar(); ed = null; conPosicion = false; ejemplo = ejemploVacio();
       v.querySelector('#preg-editor').hidden = true; v.querySelector('#preg-editor').innerHTML = '';
       v.querySelector('#preg-pos').innerHTML = `<button type="button" class="btn" id="preg-add">${ico('mas', 'peq')} Añadir una posición</button>`;
     }
   });
+  protegerSalida(v, () => tableroCambiado);
   v.querySelector('#f-preg').addEventListener('submit', async e => {
     e.preventDefault();
     const f = e.target;
@@ -2927,7 +2953,7 @@ function vEditarPartida(v, id, q) {
     </form>`;
   const f = v.querySelector('#f-partida');
   if (solo) f.leccion.focus();
-  v.querySelector('#volver').addEventListener('click', () => { editando = false; });
+  protegerSalida(v);
   f.addEventListener('submit', async e => {
     e.preventDefault();
     const val = k => (f.elements[k] ? f.elements[k].value.trim() : undefined);
@@ -2968,9 +2994,7 @@ function vComentarPartida(v, id) {
       <p class="nota">Elige una jugada en la lista o con las flechas y escribe en «Comentario». También puedes dibujar flechas. No cambies las jugadas: aquí solo se comenta.</p></details></div>`;
   const ed = crearEditor(v.querySelector('#editor'), ej, { orientacion: p.color || 'white', pedirPromocion, alCambiar: () => { cambios = true; } });
   limpiezas.push(ed.cerrar);
-  v.querySelector('#volver').addEventListener('click', e => {
-    if (cambios && !confirm('Hay comentarios sin guardar. ¿Salir sin guardar?')) e.preventDefault(); else editando = false;
-  });
+  protegerSalida(v, () => cambios);
   v.querySelector('#guardar').addEventListener('click', async () => {
     const err = ed.confirmar(); if (err) return alert(err);
     if (sanesDe(ej).join(' ') !== antes && !confirm('Has cambiado jugadas de la partida. ¿Guardar así? Los momentos marcados podrían no coincidir.')) return;
@@ -3025,12 +3049,7 @@ function vMomento(v, id, q) {
     v.querySelectorAll('#tipo button').forEach(x => { x.className = x === b ? 'on ' + x.dataset.t : ''; });
   });
   v.querySelectorAll('#m-com, #m-concepto, #m-ejercicio').forEach(x => x.addEventListener('input', () => { cambios = true; }));
-  v.querySelector('#m-nueva-ficha').addEventListener('click', e => {
-    if (cambios && !confirm('Se perderán los cambios de este momento. ¿Ir a crear la ficha?')) e.preventDefault(); else editando = false;
-  });
-  v.querySelector('#volver').addEventListener('click', e => {
-    if (cambios && !confirm('Hay cambios sin guardar. ¿Salir sin guardar?')) e.preventDefault(); else editando = false;
-  });
+  protegerSalida(v, () => cambios);
   v.querySelector('#guardar').addEventListener('click', async () => {
     const err = ed.confirmar(); if (err) return alert(err);
     const comoEj = v.querySelector('#m-ejercicio').checked;
@@ -3147,7 +3166,7 @@ function vEditarApertura(v, id, q) {
     v.querySelectorAll('.rel-lista .check').forEach(l => { l.hidden = t && !norm(l.textContent).includes(t); });
   });
   if (campo) f.querySelector(`[name="${campo}"]`)?.focus();
-  v.querySelector('#volver').addEventListener('click', () => { editando = false; });
+  protegerSalida(v);
   f.addEventListener('submit', async e => {
     e.preventDefault();
     const val = k => (f.elements[k] ? f.elements[k].value.trim() : undefined);
@@ -3287,10 +3306,7 @@ function vEditarLinea(v, apId, q) {
     v.querySelector('.pegar-pgn').open = false;
     aviso(`${ej.jugadas.length} jugadas cargadas`);
   });
-  v.querySelector('#volver').addEventListener('click', e => {
-    if (cambios && !confirm('Hay cambios sin guardar. ¿Salir sin guardar?')) e.preventDefault();
-    else editando = false;
-  });
+  protegerSalida(v, () => cambios);
   v.querySelector('#guardar').addEventListener('click', async () => {
     const err = ed.confirmar();
     if (err) return alert(err);
@@ -3351,7 +3367,14 @@ async function arrancar() {
     pintarSync();
     if (motivo === 'datos' && !editando && usuario) pintar(true);
   });
-  window.addEventListener('hashchange', () => pintar());
+  window.addEventListener('hashchange', () => {
+    if (conCambios() && !confirm('Tienes cambios sin guardar. ¿Salir sin guardar?')) {
+      history.replaceState(null, '', hashActual);   // te quedas donde estabas, con lo escrito
+      return;
+    }
+    pintar();
+  });
+  window.addEventListener('beforeunload', e => { if (conCambios()) { e.preventDefault(); e.returnValue = ''; } });
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => usuario && aplicarAjustes());
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && usuario) D.sincronizar(); });
   const guardado = JSON.parse(localStorage.getItem('mdp-usuario') || 'null');
