@@ -783,3 +783,10 @@ body.enfoque .ej-pie { margin-top: 12px; }
 textarea.soltar { outline: 2px dashed var(--acento); outline-offset: 2px; }
 .imp-fila.princ { border-color: var(--acento); background: color-mix(in srgb, var(--acento) 8%, transparent); }
 .imp-princ { margin-left: auto; font-size: 20px; color: var(--acento); flex: none; }
+/* 5.3: estado automático de la ficha */
+.estado-ficha { font-size: 13px; font-weight: 700; padding: 3px 10px; border-radius: 99px; border: 1px solid var(--linea); }
+.estado-ficha.domino { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); background: color-mix(in srgb, var(--ok) 10%, transparent); }
+.estado-ficha.fallo { color: var(--peligro); border-color: color-mix(in srgb, var(--peligro) 45%, transparent); background: color-mix(in srgb, var(--peligro) 8%, transparent); }
+.estado-ficha.repasar { color: var(--acento); border-color: color-mix(in srgb, var(--acento) 45%, transparent); }
+.mi-numeros { flex-basis: 100%; margin: 0; font-size: 14px; }
+.mi-estado .nota { flex-basis: 100%; margin: 0; }

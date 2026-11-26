@@ -9,7 +9,7 @@ import * as RP from './repertorio.js';
 import * as PA from './partidas.js';
 import { FEN_INICIAL, crearVisor, crearEditor, crearEntrenoLinea, etiquetaJugada, sirveDeEjercicio, dePgn, aPgn, pgnARamas, lineasAPgn, ejemploVacio, validarFen, usarNotacion, verSan, diagrama, textoJugadas, escapar as esc } from './tablero.js';
 
-export const VERSION = '5.2.4 (importar estudios: sin repetidas y eliges la principal)';
+export const VERSION = '5.3.1 (pegar las mismas jugadas conserva la pregunta)';
 const app = document.getElementById('app');
 
 // ---------------------------------------------------------------------
@@ -584,6 +584,27 @@ const nombreTemaLichess = k => (LICHESS_TEMAS.find(t => t[0] === k) || LICHESS_S
 const textoPractica = k => { const sec = LICHESS_SECCIONES.find(t => t[0] === k); return sec ? sec[2] : 'Puzzles de ' + nombreTemaLichess(k); };
 const urlPractica = k => /^https?:/.test(k) ? k : `https://lichess.org/training/${encodeURIComponent(k)}`;
 
+// Mi estado en una ficha: lo deciden tus repasos (no se pone a mano) y debajo, tus números
+const ESTADO_FICHA = { nuevo: 'Sin repasar', repasar: 'Repasando', fallo: 'Fallo', domino: 'Lo domino' };
+function miEstadoFicha(c) {
+  const tf = tarjetasDeFicha(c), ids = new Set(tf.map(t => t.id));
+  const estado = R.estadoDe(tf);
+  if (c.estado !== estado) { c.estado = estado; D.guardar('conceptos', c); }   // al día con tus repasos
+  const regs = D.lista('registro_repaso').filter(r => ids.has(r.tarjeta_id)).sort((x, y) => String(x.fecha).localeCompare(String(y.fecha)));
+  const ejercicios = tf.filter(t => t.tipo !== 'concepto').length;
+  const bien = regs.filter(r => r.resultado === 'bien').length;
+  const ultimo = { bien: 'bien', dudoso: 'regular', mal: 'mal' }[regs.at(-1)?.resultado];
+  const numeros = !tf.length ? 'Aún no tiene tarjetas de repaso.'
+    : [ejercicios ? `${ejercicios} ${ejercicios === 1 ? 'ejercicio' : 'ejercicios'}` : 'solo la tarjeta de la ficha',
+       regs.length ? `repasada ${regs.length} ${regs.length === 1 ? 'vez' : 'veces'}` : 'aún sin practicar',
+       regs.length ? `${Math.round(bien / regs.length * 100)} % de aciertos` : '',
+       ultimo ? `último: ${ultimo}` : ''].filter(Boolean).join(' · ');
+  return `<div class="mi-estado"><span>Mi estado</span><span class="estado-ficha ${estado}">${ESTADO_FICHA[estado]}</span>
+      <p class="mi-numeros">${numeros}</p>
+      ${tf.length ? `<a class="btn primario peq" href="#/repaso?ficha=${c.id}">${ico('entrenar', 'peq')} Practicar esta ficha ahora</a>` : ''}
+      <p class="nota">${estado === 'domino' ? 'La dominas: todo acertado, y cada ejercicio al menos 3 veces.' : 'Se pone sola según tus repasos. «Lo domino» llega cuando aciertas todo, y cada ejercicio al menos 3 veces.'}</p></div>`;
+}
+
 function vConcepto(v, id) {
   const c = D.obtener('conceptos', id);
   if (!c) return ir('#/conceptos');
@@ -617,9 +638,7 @@ function vConcepto(v, id) {
       ${(c.etiquetas || []).length ? `<div class="chips">${c.etiquetas.map(t => `<a class="chip" href="#/conceptos?q=${encodeURIComponent(t)}">#${esc(t)}</a>`).join('')}</div>` : ''}
       ${clase ? `<a class="de-clase" href="#/clase/${clase.id}">${ico('clases', 'peq')} Visto en la clase del ${fechaLarga(clase.fecha)}</a>` : ''}
     </article>
-    ${conceptoElegible(c) ? `<div class="mi-estado"><span>Mi estado</span><div class="segmento" id="estado-ficha">
-      ${[['nuevo', 'Sin repasar'], ['repasar', 'Repasar'], ['fallo', 'Fallo'], ['domino', 'Lo domino']].map(([k, t]) => `<button data-estado="${k}" class="${(c.estado || 'nuevo') === k ? 'on ' + k : ''}">${t}</button>`).join('')}
-    </div></div>` : ''}
+    ${conceptoElegible(c) ? miEstadoFicha(c) : ''}
     ${!c.original && itBiblio ? `<div class="aviso-biblio">${ico('libro', 'peq')} <span>La biblioteca tiene teoría de <b>${esc(itBiblio.titulo)}</b>.${c.principio || c.explicacion ? ' Solo se rellenará lo que esté vacío.' : ''}</span>
       <button class="btn peq" id="completar">Completar con la biblioteca</button></div>` : ''}
     ${c.pista && !ejemplos.length ? `<div class="pista"><b>Pista para tu ejemplo</b><p>${esc(c.pista)}</p></div>` : ''}
@@ -660,13 +679,6 @@ function vConcepto(v, id) {
     c.original = { id: it.id, titulo: it.titulo, principio: it.principio, explicacion: it.explicacion };
     await D.guardar('conceptos', c);
     aviso('Ficha completada con la teoría de la biblioteca');
-    pintar(true);
-  });
-  v.querySelector('#estado-ficha')?.addEventListener('click', async e => {
-    const b = e.target.closest('[data-estado]');
-    if (!b) return;
-    c.estado = b.dataset.estado;
-    await D.guardar('conceptos', c);
     pintar(true);
   });
   v.querySelectorAll('.visor').forEach(el => {
@@ -1079,13 +1091,19 @@ function vEjemplo(v, id, q) {
   v.querySelector('#pg-cargar').addEventListener('click', async () => {
     let nuevoEj;
     try { nuevoEj = await textoAEjemplo(v.querySelector('#pg-txt').value); } catch (err) { return alert(err.message); }
-    if ((ej.jugadas.length || ej.fen0 !== FEN_INICIAL) && !confirm('Se sustituirá lo que hay ahora en el tablero. ¿Seguir?')) return;
+    // ¿Son las mismas jugadas desde la misma posición? Entonces solo cambian comentarios y
+    // dibujos: se conservan la pregunta, cómo empieza y la orientación del tablero
+    const firma = e => `${e.fen0}|${e.jugadas.map(j => j.san).join(' ')}`;
+    const mismas = ej.jugadas.length > 0 && firma(ej) === firma(nuevoEj);
+    if (!mismas && (ej.jugadas.length || ej.fen0 !== FEN_INICIAL) && !confirm('Se sustituirá lo que hay ahora en el tablero. ¿Seguir?')) return;
     ed.cerrar();
     Object.assign(ej, nuevoEj);
-    pregunta = 0; cambios = true;
+    if (!mismas) pregunta = 0;
+    cambios = true;
     montarEditor(); pintarPregunta();
     v.querySelector('.pegar-pgn').open = false;
-    aviso(nuevoEj.jugadas.length ? `${nuevoEj.jugadas.length} jugadas cargadas: la primera es la pregunta` : 'Posición cargada');
+    aviso(mismas ? 'Comentarios y dibujos actualizados; la pregunta sigue donde estaba'
+      : nuevoEj.jugadas.length ? `${nuevoEj.jugadas.length} jugadas cargadas: la primera es la pregunta` : 'Posición cargada');
   });
   v.querySelector('#ej-marcar').addEventListener('click', () => {
     pregunta = ed.ply() - 1; cambios = true; ed.repintar();
@@ -2265,13 +2283,16 @@ async function vRepaso(v, _id, q) {
   const apertura = q.get('ap') ? D.obtener('repertorio', q.get('ap')) : null;
   const ciegasSesion = q.get('ciegas') === '1';
   const modoDificiles = q.get('dificiles') === '1';
-  const salida = apertura ? '#/apertura/' + apertura.id : '#/inicio';
+  // «Practicar esta ficha ahora»: todos sus ejercicios, aunque no te toquen hoy (y cuentan)
+  const ficha = q.get('ficha') ? D.obtener('conceptos', q.get('ficha')) : null;
+  const salida = apertura ? '#/apertura/' + apertura.id : ficha ? '#/concepto/' + ficha.id : '#/inicio';
   v.innerHTML = '<p class="nada">Preparando tu repaso…</p>';
   await prepararTarjetas();
   if (!v.isConnected) return;
   let sesion;
   if (modoDificiles) sesion = jugadasDificiles(apertura).slice(0, R.SESION_NORMAL);
   else if (apertura) sesion = R.ordenarParaEntrenar(tarjetasDeApertura(apertura));
+  else if (ficha) sesion = R.ordenarParaEntrenar(tarjetasDeFicha(ficha));
   else {
     sesion = R.seleccionar(tarjetas(), n);
     if (!sesion.length && q.get('adelantar') === '1')
@@ -2286,6 +2307,15 @@ async function vRepaso(v, _id, q) {
     if (nuevasHoy >= 3) return false;
     nuevasHoy++; return true;
   });
+  if (!sesion.length && ficha) {
+    editando = false;
+    v.innerHTML = `
+      <div class="cab-vista"><a href="${salida}" class="btn-ico">${ico('atras')}</a><h1>${esc(ficha.titulo)}</h1></div>
+      <div class="tarjeta vacia"><span class="etq">Sin ejercicios</span><h2>Esta ficha aún no tiene nada que practicar</h2>
+        <p>Añade un ejemplo en el tablero y márcalo como «Usar como ejercicio de repaso».</p>
+        <a class="btn primario" href="${salida}">Volver a la ficha</a></div>`;
+    return;
+  }
   if (!sesion.length && modoDificiles) {
     editando = false;
     v.innerHTML = `
@@ -2575,8 +2605,8 @@ async function vRepaso(v, _id, q) {
           return `<a class="fila-c" href="#/concepto/${c.id}"><span class="res-punto ${resultados[k]}"></span><span class="fila-txt"><b>${esc(c.titulo)}</b><small>${t.tipo === 'ejemplo' ? 'Ejercicio en el tablero' : 'Tarjeta de concepto'}</small></span>${ico('flecha', 'peq')}</a>`;
         }).join('')}</div>
         <div class="botones">
-          <a class="btn primario" href="${salida}">${apertura ? 'Volver a la apertura' : 'Volver a Inicio'}</a>
-          ${!apertura && quedan ? `<a class="btn" href="#/repaso?n=5">Otra ronda rápida</a>` : ''}
+          <a class="btn primario" href="${salida}">${apertura ? 'Volver a la apertura' : ficha ? 'Volver a la ficha' : 'Volver a Inicio'}</a>
+          ${ficha ? `<a class="btn" href="#/repaso?ficha=${ficha.id}&otra=${Date.now()}">Practicarla otra vez</a>` : !apertura && quedan ? `<a class="btn" href="#/repaso?n=5">Otra ronda rápida</a>` : ''}
         </div>
       </div>`;
   }
@@ -2620,7 +2650,7 @@ function vProgreso(v) {
         ${l.length ? `<div class="lista">${l.map(filaConcepto).join('')}</div>` : `<p class="nada peq">${sub}</p>`}`;
     }).join('')}
     <h3 class="sec">⚪ Sin repasar todavía <small>${fichas.filter(c => !c.estado || c.estado === 'nuevo').length}</small></h3>
-    <p class="nota">Entran en tu repaso diario. También puedes cambiar el estado de una ficha a mano, desde la propia ficha.</p>
+    <p class="nota">Entran en tu repaso diario. El estado de cada ficha se pone solo según tus repasos; desde la ficha puedes practicarla cuando quieras.</p>
     <a class="tarjeta practicar" href="#/tecnicas">${ico('bandera')}<span><b>Técnicas esenciales</b><small>${dom} de ${TECNICAS.length} dominadas</small></span>${ico('flecha', 'peq')}</a>`;
 }
 
