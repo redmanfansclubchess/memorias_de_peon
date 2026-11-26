@@ -9,7 +9,7 @@ import * as RP from './repertorio.js';
 import * as PA from './partidas.js';
 import { FEN_INICIAL, crearVisor, crearEditor, crearEntrenoLinea, etiquetaJugada, sirveDeEjercicio, dePgn, aPgn, pgnARamas, lineasAPgn, ejemploVacio, validarFen, usarNotacion, verSan, diagrama, textoJugadas, escapar as esc } from './tablero.js';
 
-export const VERSION = '5.2.2 (empezar desde el principio o ver pasar las jugadas)';
+export const VERSION = '5.2.3 (archivos .pgn y enlaces de descarga de Lichess)';
 const app = document.getElementById('app');
 
 // ---------------------------------------------------------------------
@@ -293,6 +293,7 @@ function pintar(conservarScroll) {
     a.classList.toggle('on', r === nombre || (r === 'conceptos' && ['bloque', 'concepto', 'editar', 'ejemplo', 'catalogo', 'imprimir', 'biblioteca'].includes(nombre))
       || (r === 'repertorio' && ['apertura', 'editar-apertura', 'linea', 'editar-linea', 'imprimir-repertorio', 'importar-lineas'].includes(nombre)) || (r === 'partidas' && ['importar-partidas', 'partida', 'editar-partida', 'comentar-partida', 'momento', 'resumen-partidas'].includes(nombre)) || (r === 'clases' && ['clase', 'preguntas', 'pregunta'].includes(nombre)) || (r === 'entrenar' && ['repaso', 'progreso', 'tecnicas'].includes(nombre)) || (r === 'inicio' && ['notas', 'glosario', 'rutina', 'guia'].includes(nombre)));
   });
+  vigilarPgn(vista);
   (RUTAS[nombre] || vInicio)(vista, id, new URLSearchParams(q || ''));
   ponerAyuda(vista, nombre);
   window.scrollTo(0, conservarScroll === true ? scroll : 0);
@@ -896,10 +897,44 @@ function ejemploDesdePgn(texto) {
   if (!ej || (!ej.jugadas.length && !(p && p.cab.FEN))) throw new Error('No he encontrado jugadas ni posición en lo que has pegado.');
   return ej;
 }
+// Donde se pega un PGN también se puede cargar un archivo .pgn: con el botón
+// «Elegir archivo .pgn» o arrastrándolo encima (Safari, si no, escribe su ruta)
+const AREAS_PGN = 'textarea#pg-txt, textarea#pgn-txt, #f-imp textarea, #f-pegar textarea';
+function aceptarArchivoPgn(area) {
+  if (area.dataset.archivo) return;
+  area.dataset.archivo = '1';
+  const btn = document.createElement('button');
+  btn.type = 'button'; btn.className = 'btn peq archivo-pgn';
+  btn.innerHTML = `${ico('subir', 'peq')} Elegir archivo .pgn`;
+  const input = Object.assign(document.createElement('input'), { type: 'file', accept: '.pgn,.txt,text/plain,application/x-chess-pgn', hidden: true });
+  area.after(btn, input);
+  const leer = async f => {
+    if (!f) return;
+    area.value = await f.text();
+    area.dispatchEvent(new Event('input', { bubbles: true }));
+    aviso(`Archivo cargado: ${f.name}`);
+  };
+  btn.addEventListener('click', e => { e.preventDefault(); input.click(); });
+  input.addEventListener('change', () => { leer(input.files[0]); input.value = ''; });
+  area.addEventListener('dragover', e => { if ([...(e.dataTransfer?.types || [])].includes('Files')) { e.preventDefault(); area.classList.add('soltar'); } });
+  area.addEventListener('dragleave', () => area.classList.remove('soltar'));
+  area.addEventListener('drop', e => {
+    area.classList.remove('soltar');
+    const f = e.dataTransfer?.files?.[0];
+    if (f) { e.preventDefault(); leer(f); }
+  });
+}
+function vigilarPgn(vista) {
+  const buscar = () => vista.querySelectorAll(AREAS_PGN).forEach(aceptarArchivoPgn);
+  new MutationObserver(buscar).observe(vista, { childList: true, subtree: true });
+}
+// ¿Lo pegado es solo un enlace de Lichess? (un PGN de Lichess también lleva enlaces en
+// sus cabeceras [Site "…"], y entonces hay que leer el PGN, no descargar nada)
+const soloEnlaceLichess = t => /^\s*https?:\/\/(?:www\.)?lichess\.org\/\S+\s*$/.test(String(t || ''));
 // El PGN de una partida o de un estudio (o capítulo) de Lichess a partir de su enlace
 async function pgnDeLichess(texto) {
   const u = decodeURIComponent((String(texto).match(/https?:\/\/(?:www\.)?lichess\.org\/\S+/) || [''])[0]);
-  const estudio = u.match(/lichess\.org\/study\/([A-Za-z0-9]{8})(?:\/([A-Za-z0-9]{8}))?/);
+  const estudio = u.match(/lichess\.org\/(?:api\/)?study\/([A-Za-z0-9]{8})(?:\/([A-Za-z0-9]{8}))?/);   // también el enlace de descarga (api/study/….pgn)
   const partida = !estudio && PA.idDeLichess(u);
   const pedir = estudio ? `https://lichess.org/api/study/${estudio[1]}${estudio[2] ? '/' + estudio[2] : ''}.pgn?clocks=false`
     : partida ? `https://lichess.org/game/export/${partida}?clocks=false&evals=false` : null;
@@ -912,7 +947,7 @@ async function pgnDeLichess(texto) {
 async function textoAEjemplo(texto) {
   const t = String(texto || '').trim();
   if (!t) throw new Error('Pega primero un FEN, un PGN o un enlace de Lichess.');
-  const enlace = t.match(/https?:\/\/(?:www\.)?lichess\.org\/\S+/);
+  const enlace = soloEnlaceLichess(t) && t.match(/https?:\/\/(?:www\.)?lichess\.org\/\S+/);
   if (enlace) {
     const u = decodeURIComponent(enlace[0]);
     const pgnEnUrl = u.match(/lichess\.org\/analysis\/pgn\/([^?#]+)/);
@@ -2985,7 +3020,7 @@ function vImportarLineas(v, apId) {
     let texto = e.target.t.value.trim();
     if (!texto) return;
     try {
-      if (/https?:\/\/(www\.)?lichess\.org\//.test(texto)) texto = await pgnDeLichess(texto);
+      if (soloEnlaceLichess(texto)) texto = await pgnDeLichess(texto);
     } catch (err) { return alert(err.message); }
     ramas = PA.separarPgn(texto).flatMap(p => pgnARamas((p.cab.FEN ? `[FEN "${p.cab.FEN}"]\n` : '') + p.cuerpo));
     if (!ramas.length) ramas = pgnARamas(texto);

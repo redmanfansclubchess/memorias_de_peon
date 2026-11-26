@@ -779,3 +779,5 @@ body.enfoque .ej-pie { margin-top: 12px; }
 .ej-antes[hidden] { display: none; }
 .ej-antes-tit { margin: 2px 0 4px; }
 .ej-antes .check input[type=radio] { width: 18px; height: 18px; flex: none; }
+.archivo-pgn { margin: 6px 0 4px; align-self: flex-start; width: auto; }
+textarea.soltar { outline: 2px dashed var(--acento); outline-offset: 2px; }
