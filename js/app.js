@@ -9,7 +9,7 @@ import * as RP from './repertorio.js';
 import * as PA from './partidas.js';
 import { FEN_INICIAL, crearVisor, crearEditor, crearEntrenoLinea, etiquetaJugada, sirveDeEjercicio, dePgn, aPgn, pgnARamas, lineasAPgn, ejemploVacio, validarFen, usarNotacion, verSan, diagrama, textoJugadas, escapar as esc } from './tablero.js';
 
-export const VERSION = '5.2.3 (archivos .pgn y enlaces de descarga de Lichess)';
+export const VERSION = '5.2.4 (importar estudios: sin repetidas y eliges la principal)';
 const app = document.getElementById('app');
 
 // ---------------------------------------------------------------------
@@ -3026,27 +3026,59 @@ function vImportarLineas(v, apId) {
     if (!ramas.length) ramas = pgnARamas(texto);
     ramas = ramas.filter(r => r.fen0 === FEN_INICIAL);
     if (!ramas.length) return alert('No he encontrado líneas desde la posición inicial en lo que has pegado.');
+    // Un estudio repite a menudo el mismo comienzo en varios capítulos: fuera las líneas
+    // repetidas y las que ya están dentro de otra más larga (el árbol las enseña igual)
+    const sanes = ramas.map(r => r.jugadas.map(j => j.san).join(' '));
+    const vistas = new Set(), total = ramas.length;
+    ramas = ramas.filter((r, i) => {
+      if (vistas.has(sanes[i])) return false;
+      vistas.add(sanes[i]);
+      return !sanes.some((o, k) => k !== i && o.startsWith(sanes[i] + ' '));
+    });
+    const omitidas = total - ramas.length;
     const principal = (a.lineas || []).find(l => l.tipo === 'principal');
-    const base = principal ? leerPgn(principal.pgn) : ramas[0];
-    caja.innerHTML = `
+    // Sin principal todavía: se propone la primera que empieza como la mayoría (y la puedes cambiar)
+    const cuenta = {};
+    ramas.forEach(r => { const k = r.jugadas[0]?.san; cuenta[k] = (cuenta[k] || 0) + 1; });
+    const mayoria = Object.keys(cuenta).sort((x, y) => cuenta[y] - cuenta[x])[0];
+    let elegida = principal ? -1 : Math.max(0, ramas.findIndex(r => r.jugadas[0]?.san === mayoria));
+    const pintarLista = () => {
+      const base = principal ? leerPgn(principal.pgn) : ramas[elegida];
+      const marcadas = new Set([...caja.querySelectorAll('.imp-lista input[type=checkbox]:checked')].map(x => +x.value));
+      const primeraVez = !caja.querySelector('.imp-lista');
+      caja.innerHTML = `
       <h3 class="sec">${ramas.length} ${ramas.length === 1 ? 'línea encontrada' : 'líneas encontradas'}</h3>
+      ${omitidas ? `<p class="nota">He quitado ${omitidas} ${omitidas === 1 ? 'línea repetida o que ya va dentro de otra más larga' : 'líneas repetidas o que ya van dentro de otras más largas'}.</p>` : ''}
+      ${principal ? '' : '<p class="nota">Elige con ★ cuál es tu <b>línea principal</b>; las demás serán respuestas del rival.</p>'}
       <div class="lista imp-lista">${ramas.map((r, i) => {
-        const s = r.jugadas.map(j => j.san).join(' ');
-        const ya = yaEsta(s);
-        const sep = r === base ? -1 : RP.separacion(r, base);
-        return `<label class="fila-c imp-fila${ya ? ' ya' : ''}"><input type="checkbox" value="${i}" ${ya ? 'disabled' : 'checked'}>
-          <span class="fila-txt"><b>${!principal && i === 0 ? 'Línea principal' : sep >= 0 ? `Desde ${esc(RP.etiquetaPly(r, sep, verSan))}` : 'Línea'}</b>
-          <small>${esc(RP.jugadasTexto(r, verSan)).slice(0, 140)}${ya ? ' · <b>ya la tienes</b>' : ''}</small></span></label>`;
+        const ya = yaEsta(r.jugadas.map(j => j.san).join(' '));
+        const larga = r.jugadas.length > RP.limitePlies(a);
+        const sep = i === elegida ? -1 : RP.separacion(r, base);
+        const marcada = primeraVez ? !ya && r.jugadas[0]?.san === mayoria : marcadas.has(i) || i === elegida;
+        return `<div class="fila-c imp-fila${ya ? ' ya' : ''}${i === elegida ? ' princ' : ''}">
+          <input type="checkbox" value="${i}" ${ya ? 'disabled' : marcada ? 'checked' : ''} aria-label="Importar esta línea">
+          <span class="fila-txt"><b>${i === elegida ? '★ Línea principal' : sep >= 0 ? `Desde ${esc(RP.etiquetaPly(r, sep, verSan))}` : 'Línea'}</b>
+          <small>${esc(RP.jugadasTexto(r, verSan)).slice(0, 140)}${ya ? ' · <b>ya la tienes</b>' : ''}${larga ? ` · pasa de la jugada ${RP.LIMITE_JUGADAS[a.rol] || 15}: se entrenará hasta ahí` : ''}${r.jugadas[0]?.san !== mayoria ? ' · <b>empieza distinto</b>' : ''}</small></span>
+          ${principal || ya ? '' : `<button type="button" class="btn-ico imp-princ" data-i="${i}" aria-label="Hacer principal" title="Hacer principal">${i === elegida ? '★' : '☆'}</button>`}</div>`;
       }).join('')}</div>
-      <p class="nota">${principal ? 'Se añadirán como respuestas del rival.' : 'La primera será tu línea principal y las demás, respuestas del rival.'} Las que ya tienes no se repiten.</p>
       <div class="botones"><button class="btn primario" id="imp-ok">Añadir a ${esc(a.nombre)}</button></div>`;
-    caja.querySelector('#imp-ok').addEventListener('click', async () => {
-      const elegidas = [...caja.querySelectorAll('.imp-lista input:checked')].map(x => ramas[+x.value]);
-      if (!elegidas.length) return;
+      caja.querySelectorAll('.imp-princ').forEach(b => b.addEventListener('click', () => { elegida = +b.dataset.i; pintarLista(); }));
+      caja.querySelectorAll('.imp-fila:not(.ya)').forEach(f => f.addEventListener('click', e => {   // tocar la fila marca o desmarca
+        if (e.target.closest('button, input')) return;
+        const c = f.querySelector('input'); c.checked = !c.checked;
+      }));
+      caja.querySelector('#imp-ok').addEventListener('click', guardar);
+    };
+    const guardar = async () => {
+      const marcadas = [...caja.querySelectorAll('.imp-lista input:checked')].map(x => +x.value);
+      if (!marcadas.length) return;
+      // La principal va primero
+      const orden = principal ? marcadas : [elegida, ...marcadas.filter(i => i !== elegida)];
+      const base = principal ? leerPgn(principal.pgn) : ramas[elegida];
       a.lineas = a.lineas || [];
-      const hayPrincipal = a.lineas.some(l => l.tipo === 'principal');
-      elegidas.forEach((r, k) => {
-        const tipo = !hayPrincipal && k === 0 ? 'principal' : 'secundaria';
+      const elegidas = orden.map(i => ramas[i]);
+      elegidas.forEach(r => {
+        const tipo = !principal && r === ramas[elegida] ? 'principal' : 'secundaria';
         const sep = tipo === 'principal' ? -1 : RP.separacion(r, base);
         a.lineas.push({ id: D.nuevoId(), tipo, nombre: tipo === 'principal' ? 'Línea principal' : sep >= 0 ? `Desde ${RP.etiquetaPly(r, sep, verSan)}` : 'Importada', nota: null, pgn: aPgn(r) });
       });
@@ -3060,7 +3092,8 @@ function vImportarLineas(v, apId) {
       editando = false;
       aviso(`${elegidas.length} ${elegidas.length === 1 ? 'línea añadida' : 'líneas añadidas'}`);
       ir('#/apertura/' + a.id);
-    });
+    };
+    pintarLista();
   });
 }
 
