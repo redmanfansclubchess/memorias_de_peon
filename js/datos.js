@@ -118,6 +118,15 @@ function programarSubida() {
 }
 
 const limpiar = f => Object.fromEntries(Object.entries(f).filter(([k]) => !k.startsWith('_')));
+const firmaColumnas = f => Object.keys(f).sort().join(',');
+function tramosIguales(filas) {
+  const tramos = [];
+  for (const f of filas) {
+    const ultimo = tramos[tramos.length - 1];
+    if (ultimo && firmaColumnas(ultimo[0]) === firmaColumnas(f)) ultimo.push(f); else tramos.push([f]);
+  }
+  return tramos;
+}
 
 export async function sincronizar() {
   if (estadoSync.enCurso || reiniciando || !navigator.onLine) return false;
@@ -133,8 +142,13 @@ export async function sincronizar() {
       if (t === 'bloques') filas.sort((a, b) => (a.padre_id ? 1 : 0) - (b.padre_id ? 1 : 0));
       for (let i = 0; i < filas.length; i += 200) {
         const lote = filas.slice(i, i + 200);
-        const { error } = await sb.from(t).upsert(lote.map(limpiar), { onConflict: clave(t) });
-        if (error) throw new Error(`${t}: ${error.message}`);
+        // Un upsert con filas de columnas distintas rellena con null las que faltan
+        // (y choca con las columnas «not null»): se sube en tramos de filas con las mismas columnas,
+        // sin cambiar el orden (los bloques padre siguen yendo antes que sus hijos)
+        for (const tramo of tramosIguales(lote.map(limpiar))) {
+          const { error } = await sb.from(t).upsert(tramo, { onConflict: clave(t) });
+          if (error) throw new Error(`${t}: ${error.message}`);
+        }
         for (const f of lote) {
           const actual = mem[t].get(f[clave(t)]);
           if (actual && actual.editado_en === f.editado_en) {

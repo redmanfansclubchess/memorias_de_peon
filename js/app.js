@@ -9,7 +9,7 @@ import * as RP from './repertorio.js';
 import * as PA from './partidas.js';
 import { FEN_INICIAL, crearVisor, crearEditor, crearEntrenoLinea, etiquetaJugada, sirveDeEjercicio, dePgn, aPgn, pgnARamas, lineasAPgn, ejemploVacio, validarFen, usarNotacion, verSan, diagrama, textoJugadas, escapar as esc } from './tablero.js';
 
-export const VERSION = '5.3.1 (pegar las mismas jugadas conserva la pregunta)';
+export const VERSION = '5.3.2 (sincronizar tarjetas nuevas sin error)';
 const app = document.getElementById('app');
 
 // ---------------------------------------------------------------------
@@ -2233,7 +2233,7 @@ async function crearTarjetasQueFalten() {
       }
       for (const [id, x] of quiero) {
         const t = D.obtenerAunBorrado('tarjetas', id);
-        if (!t) await D.guardar('tarjetas', { id, ...x, ply: 0, facilidad: 2.5, intervalo_dias: 0, repeticiones: 0, proxima: hoy, aciertos: 0, fallos: 0 });
+        if (!t) await D.guardar('tarjetas', { id, ...x, ply: 0, facilidad: 2.5, intervalo_dias: 0, repeticiones: 0, proxima: hoy, aciertos: 0, fallos: 0, datos: {} });
         else if (t.borrado_en) { t.borrado_en = null; await D.guardar('tarjetas', t); }
       }
       for (const t of tarjetas()) if (!quiero.has(t.id)) await D.borrar('tarjetas', t.id);
