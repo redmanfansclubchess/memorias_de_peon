@@ -761,3 +761,15 @@ body.enfoque .ej-pie { margin-top: 12px; }
 .te-pista { height: 10px; border-radius: 99px; background: color-mix(in srgb, var(--linea) 60%, transparent); overflow: hidden; }
 .te-pista span { display: block; height: 100%; background: var(--acento); border-radius: 99px; }
 .te-pct { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ---------- 5.2: la pregunta del ejercicio y «Sugerir comentario» ---------- */
+.lista-jug .jug.preg { background: color-mix(in srgb, var(--acento) 18%, var(--papel)); outline: 2px solid var(--acento); outline-offset: -2px; font-weight: 700; }
+.lista-jug .jug.preg i { font-style: normal; font-weight: 800; color: var(--acento); margin-right: 3px; }
+.lista-jug .jug.preg.on { background: var(--acento); color: var(--acento-txt); }
+.lista-jug .jug.preg.on i { color: var(--acento-txt); }
+.lista-jug .jug.previa { opacity: .5; }
+.ej-preg { margin: 4px 0 8px; }
+.ej-preg p { margin: 4px 0; }
+.ej-preg-etq { display: inline-block; min-width: 72px; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--acento); }
+.chip.sugerir { margin: 2px 0 8px; }
+.chip.sugerir[hidden] { display: none; }

@@ -1,3 +1,4 @@
+import { sugerirComentario } from './comentar.js';
 // =====================================================================
 //  MdP · tablero.js
 //  Tablero de Lichess (chessground) + reglas (chess.js) + PGN propio.
@@ -158,14 +159,16 @@ export function etiquetaJugada(ej, ply) {
   return (p[1] === 'w' ? `${p[5]}.` : `${p[5]}…`) + ' ' + verSan(ej.jugadas[ply - 1].san);
 }
 
-function listaJugadas(ej, actual) {
+//  marcas (opcional): { pregunta: índice de la jugada pregunta, previas: atenuar las de antes }
+function listaJugadas(ej, actual, marcas = null) {
   if (!ej.jugadas.length) return '';
   const p = ej.fen0.split(' ');
   let turno = p[1], num = parseInt(p[5], 10) || 1, html = '';
   ej.jugadas.forEach((j, i) => {
     if (turno === 'w') html += `<span class="jnum">${num}.</span>`;
     else if (i === 0) html += `<span class="jnum">${num}…</span>`;
-    html += `<button class="jug${actual === i + 1 ? ' on' : ''}" data-ply="${i + 1}">${verSan(j.san)}</button>`;
+    const preg = marcas && marcas.pregunta === i, previa = marcas?.previas && i < marcas.pregunta;
+    html += `<button class="jug${actual === i + 1 ? ' on' : ''}${preg ? ' preg' : ''}${previa ? ' previa' : ''}" data-ply="${i + 1}"${preg ? ' title="La pregunta del ejercicio"' : ''}>${preg ? '<i>?</i>' : ''}${verSan(j.san)}</button>`;
     if (turno === 'b') num++;
     turno = turno === 'w' ? 'b' : 'w';
   });
@@ -337,7 +340,7 @@ export function validarFen(fen) {
   try { new Chess(fen); return null; } catch (e) { return e.message || 'Posición no válida'; }
 }
 
-export function crearEditor(contenedor, ej, { orientacion = 'white', alCambiar = () => {}, alPly = () => {}, pedirPromocion }) {
+export function crearEditor(contenedor, ej, { orientacion = 'white', alCambiar = () => {}, alPly = () => {}, pedirPromocion, marcas = () => null }) {
   contenedor.innerHTML = `
    <div class="ed-rejilla">
     <div class="ed-arriba">
@@ -382,6 +385,7 @@ export function crearEditor(contenedor, ej, { orientacion = 'white', alCambiar =
     <label class="campo-com">Comentario <small>(también es la pista en el repaso)</small>
       <textarea rows="2" class="com" placeholder="Idea, plan o explicación de la jugada"></textarea>
     </label>
+    <button type="button" data-acc="sugerir" class="chip sugerir" title="La app escribe lo que hace la jugada: captura, jaque, clavada, amenazas…">✎ Sugerir comentario</button>
     <div class="lista-jug"></div>
     <button data-acc="cortar" class="chip peligro" hidden>Borrar desde aquí</button>
     </div>
@@ -503,7 +507,9 @@ export function crearEditor(contenedor, ej, { orientacion = 'white', alCambiar =
     const com = $('.com');
     if (document.activeElement !== com) com.value = (ply ? j.comentario : ej.comentario0) || '';
     $('.campo-com').hidden = modo === 'posicion';
-    $('.lista-jug').innerHTML = listaJugadas(ej, ply);
+    $('[data-acc="sugerir"]').hidden = modo === 'posicion';
+    $('[data-acc="sugerir"]').disabled = !ply;
+    $('.lista-jug').innerHTML = listaJugadas(ej, ply, marcas());
     $('.nav-jug').querySelectorAll('[data-ir]').forEach(b => (b.disabled = modo === 'posicion'));
     $('[data-acc="cortar"]').hidden = modo === 'posicion' || ply >= ej.jugadas.length;
     $('[data-acc="deshacer"]').disabled = !historial.length;
@@ -561,6 +567,11 @@ export function crearEditor(contenedor, ej, { orientacion = 'white', alCambiar =
     if (acc === 'girar') { orientacion = orientacion === 'white' ? 'black' : 'white'; api.set({ orientation: orientacion }); alCambiar(ej, orientacion); }
     if (acc === 'limpiar' && formasDe(ej, ply).length) { recordar(); formasDe(ej, ply).length = 0; alCambiar(ej); }
     if (acc === 'deshacer') deshacer();
+    if (acc === 'sugerir' && ply) {
+      const j = ej.jugadas[ply - 1], antes = ply > 1 ? ej.jugadas[ply - 2].fen : ej.fen0;
+      const texto = sugerirComentario(antes, j.uci, j.san, ply > 1 ? ej.jugadas[ply - 2] : null);
+      if (texto && !(j.comentario || '').includes(texto)) { j.comentario = [j.comentario, texto].filter(Boolean).join(' '); $('.com').value = j.comentario; alCambiar(ej); }
+    }
     if (acc === 'turno') { turnoPos = turnoPos === 'w' ? 'b' : 'w'; }
     if (acc === 'inicial') { api.set({ fen: FEN_INICIAL }); turnoPos = 'w'; }
     if (acc === 'vaciar') { api.set({ fen: '8/8/8/8/8/8/8/8' }); }
@@ -570,7 +581,7 @@ export function crearEditor(contenedor, ej, { orientacion = 'white', alCambiar =
 
   $('.com').addEventListener('input', e => {
     if (ply) ej.jugadas[ply - 1].comentario = e.target.value; else ej.comentario0 = e.target.value;
-    $('.lista-jug').innerHTML = listaJugadas(ej, ply);
+    $('.lista-jug').innerHTML = listaJugadas(ej, ply, marcas());
     alCambiar(ej);
   });
 
@@ -582,6 +593,7 @@ export function crearEditor(contenedor, ej, { orientacion = 'white', alCambiar =
     confirmar() { return modo === 'posicion' ? salirDePosicion() : null; },
     orientacion: () => orientacion,
     ply: () => ply,
+    repintar: refrescar,   // p. ej., al cambiar la pregunta del ejercicio
   };
 }
 

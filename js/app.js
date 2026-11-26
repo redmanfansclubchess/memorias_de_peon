@@ -9,7 +9,7 @@ import * as RP from './repertorio.js';
 import * as PA from './partidas.js';
 import { FEN_INICIAL, crearVisor, crearEditor, crearEntrenoLinea, etiquetaJugada, sirveDeEjercicio, dePgn, aPgn, pgnARamas, lineasAPgn, ejemploVacio, validarFen, usarNotacion, verSan, diagrama, textoJugadas, escapar as esc } from './tablero.js';
 
-export const VERSION = '5.1.0 (contexto y tipos de error)';
+export const VERSION = '5.2.0 (pregunta clara, sugerir comentario)';
 const app = document.getElementById('app');
 
 // ---------------------------------------------------------------------
@@ -989,7 +989,7 @@ function vEjemplo(v, id, q) {
         <input id="ej-titulo" maxlength="120" placeholder="Bloqueo del peón aislado con el caballo" value="${esc(fila.titulo || '')}"></label>
       <label class="check"><input type="checkbox" id="ej-ejercicio" ${fila.es_ejercicio ? 'checked' : ''}><span>Usar como ejercicio de repaso <small>— como un puzzle: tú juegas y la app contesta</small></span></label>
       <div class="ej-panel" id="ej-panel"${fila.es_ejercicio ? '' : ' hidden'}>
-        <p class="nota" id="ej-preg-txt"></p>
+        <div class="ej-preg" id="ej-preg-txt"></div>
         <button type="button" class="btn peq" id="ej-marcar"></button>
         <label class="form solo"><span>Tu pregunta <small>opcional</small></span>
           <input id="ej-enunciado" maxlength="160" value="${esc(fila.enunciado || '')}"></label>
@@ -1003,14 +1003,20 @@ function vEjemplo(v, id, q) {
     if (!v.querySelector('#ej-panel')) return;
     const p = Math.min(pregunta, Math.max(0, ej.jugadas.length - 1));
     const txt = v.querySelector('#ej-preg-txt'), btn = v.querySelector('#ej-marcar');
-    txt.innerHTML = ej.jugadas.length
-      ? `La pregunta es <b>${esc(etiquetaJ(ej, p))}</b> (juegan ${ladoEn(p)}). En el repaso empieza justo antes; cuando aciertes, la app contesta con la jugada del rival y tú sigues hasta el final.`
-      : 'Juega primero las jugadas en el tablero (modo Jugar).';
+    const desde = v.querySelector('#ej-inicio').checked;
+    txt.innerHTML = ej.jugadas.length ? `
+      <p><span class="ej-preg-etq">Pregunta</span> <b>${esc(etiquetaJ(ej, p))}</b> · juegan ${ladoEn(p)} <small>(en la lista, con «?»)</small></p>
+      <p><span class="ej-preg-etq">Empieza</span> ${desde ? 'desde el principio: la app juega contigo las jugadas de antes' : p ? `en la posición de antes de ${esc(etiquetaJ(ej, p))}; las jugadas de antes (en gris) no se juegan` : 'en la posición inicial del ejemplo'}</p>
+      <p class="nota">Cuando aciertes, la app contesta con la jugada del rival y sigues hasta el final del ejemplo.</p>`
+      : '<p class="nota">Juega primero las jugadas en el tablero (modo Jugar).</p>';
     v.querySelector('#ej-enunciado').placeholder = `Juegan ${ladoEn(p)}. ${concepto.titulo}: ¿cuál es la mejor jugada?`;
     const n = plyActual ?? ed?.ply() ?? 0;
     btn.disabled = !n || n - 1 === p;
-    btn.textContent = !n ? 'Ve a la jugada de la pregunta' : n - 1 === p ? `Pregunta: ${etiquetaJ(ej, n - 1)}` : `Esta es la pregunta: ${etiquetaJ(ej, n - 1)}`;
+    btn.textContent = !n ? 'Para cambiar la pregunta, toca su jugada en la lista' : n - 1 === p ? `✓ ${etiquetaJ(ej, n - 1)} es la pregunta` : `Marcar ${etiquetaJ(ej, n - 1)} como pregunta`;
   };
+  // En la lista de jugadas: la pregunta con «?» y las de antes en gris
+  const marcas = () => (v.querySelector('#ej-ejercicio')?.checked && ej.jugadas.length
+    ? { pregunta: Math.min(pregunta, ej.jugadas.length - 1), previas: !v.querySelector('#ej-inicio').checked } : null);
   let ed;
   const montarEditor = () => {
     ed = crearEditor(v.querySelector('#editor'), ej, {
@@ -1018,6 +1024,7 @@ function vEjemplo(v, id, q) {
       pedirPromocion,
       alCambiar: (_e, o) => { cambios = true; if (o) orientacion = o; },
       alPly: n => pintarPregunta(n),
+      marcas,
     });
   };
   montarEditor();
@@ -1032,11 +1039,11 @@ function vEjemplo(v, id, q) {
     pregunta = 0; cambios = true;
     montarEditor(); pintarPregunta();
     v.querySelector('.pegar-pgn').open = false;
-    aviso(nuevoEj.jugadas.length ? `${nuevoEj.jugadas.length} jugadas cargadas` : 'Posición cargada');
+    aviso(nuevoEj.jugadas.length ? `${nuevoEj.jugadas.length} jugadas cargadas: la primera es la pregunta` : 'Posición cargada');
   });
-  v.querySelector('#ej-marcar').addEventListener('click', () => { pregunta = ed.ply() - 1; cambios = true; pintarPregunta(); });
+  v.querySelector('#ej-marcar').addEventListener('click', () => { pregunta = ed.ply() - 1; cambios = true; ed.repintar(); });
   v.querySelector('#ej-enunciado').addEventListener('input', () => { cambios = true; });
-  v.querySelector('#ej-inicio').addEventListener('change', () => { cambios = true; });
+  v.querySelector('#ej-inicio').addEventListener('change', () => { cambios = true; ed.repintar(); });
   limpiezas.push(() => ed.cerrar());
   // «Ampliar»: oculta cabecera, barra inferior y título para dejar sitio al tablero
   const ampliar = v.querySelector('#ampliar');
@@ -1054,7 +1061,7 @@ function vEjemplo(v, id, q) {
   ponerEnfoque(eleccion ? eleccion === '1' : window.innerWidth < 700, false);
   limpiezas.push(() => document.body.classList.remove('enfoque'));
   v.querySelector('#ej-titulo').addEventListener('input', () => { cambios = true; });
-  v.querySelector('#ej-ejercicio').addEventListener('change', e => { cambios = true; v.querySelector('#ej-panel').hidden = !e.target.checked; pintarPregunta(); });
+  v.querySelector('#ej-ejercicio').addEventListener('change', e => { cambios = true; v.querySelector('#ej-panel').hidden = !e.target.checked; ed.repintar(); });
   protegerSalida(v, () => cambios);
   v.querySelector('#guardar').addEventListener('click', async () => {
     const err = ed.confirmar();
