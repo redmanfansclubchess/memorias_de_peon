@@ -605,6 +605,7 @@ export const sirveDeEjercicio = ej => ej.jugadas.length > 0;
 //  La app juega las jugadas del rival; tú, las tuyas, de principio a fin.
 //  Dos intentos por jugada: si no sale, se muestra la buena y se sigue.
 //  alJugada({ ok, otraVez, perdida, ply })  ·  alTerminar({ errores, perdidas })
+//  alRival(jugada, comentario): el rival ha jugado; su comentario se enseña siempre
 //  aprender: la primera vez, cada jugada tuya se enseña con una flecha y tu
 //  comentario (alTurno), y solo tienes que repetirla; no cuenta como fallo.
 //  fin: se para en esa jugada (para entrenar solo un trozo de la línea).
@@ -636,12 +637,14 @@ export function crearEntrenoLinea(contenedor, ej, { color = 'white', inicio = 0,
     }
     if (turnoEn(ply) !== color) {        // juega el rival
       ponerPosicion();
-      espera = setTimeout(() => { ply++; ponerPosicion(); alRival(etiquetaJugada(ej, ply)); avanzar(); }, 550);
+      espera = setTimeout(() => { ply++; const jr = ej.jugadas[ply - 1]; ponerPosicion(jr.formas || []); alRival(etiquetaJugada(ej, ply), (jr.comentario || '').trim()); avanzar(); }, 550);
       return;
     }
     intentos = 0;
-    if (aprender) { ponerPosicion([flechaBuena()]); alTurno({ ply, comentario: ej.jugadas[ply].comentario || '' }); }
-    else ponerPosicion();
+    // Lo que dibujaste en la jugada del rival se queda en el tablero mientras piensas
+    const delRival = ply > inicio && turnoEn(ply - 1) !== color ? (ej.jugadas[ply - 1].formas || []) : [];
+    if (aprender) { ponerPosicion([...delRival, flechaBuena()]); alTurno({ ply, comentario: ej.jugadas[ply].comentario || '' }); }
+    else ponerPosicion(delRival);
   }
   async function mover(orig, dest) {
     if (terminado || ply >= ultima) return;

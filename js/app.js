@@ -9,7 +9,7 @@ import * as RP from './repertorio.js';
 import * as PA from './partidas.js';
 import { FEN_INICIAL, crearVisor, crearEditor, crearEntrenoLinea, etiquetaJugada, sirveDeEjercicio, dePgn, aPgn, pgnARamas, lineasAPgn, ejemploVacio, validarFen, usarNotacion, verSan, diagrama, textoJugadas, escapar as esc } from './tablero.js';
 
-export const VERSION = '5.2.0 (pregunta clara, sugerir comentario)';
+export const VERSION = '5.2.1 (comentarios del rival en el entrenamiento)';
 const app = document.getElementById('app');
 
 // ---------------------------------------------------------------------
@@ -2359,17 +2359,20 @@ async function vRepaso(v, _id, q) {
     const entreno = crearEntrenoLinea(v.querySelector('.rep-tablero'), ej, {
       color, inicio, fin, aprender, pedirPromocion,
       alTurno: ({ comentario }) => {   // aprendiendo: la flecha en el tablero y tu comentario aquí
-        v.querySelector('#rep-pistas').innerHTML = comentario ? `<p class="pista-rep"><b>Idea:</b> ${esc(comentario)}</p>` : '';
+        if (comentario) v.querySelector('#rep-pistas').insertAdjacentHTML('beforeend', `<p class="pista-rep"><b>Idea:</b> ${esc(comentario)}</p>`);
         avisar('Juega la jugada de la flecha.');
       },
-      alRival: jugada => { if (ciegas) avisar(`El rival juega ${jugada}`); },
+      alRival: (jugada, comentario) => {   // la respuesta del rival y su porqué (tu comentario en esa jugada)
+        if (ciegas) avisar(`El rival juega ${jugada}`);
+        v.querySelector('#rep-pistas').innerHTML = comentario ? `<p class="pista-rep rival"><b>${esc(jugada)}</b> ${esc(comentario)}</p>` : '';
+      },
       alJugada: ({ ok, otraVez, perdida, jugada, ply: p }) => {
         if (!aprender) {
           if (otraVez) falladas.add(p);
           else if (perdida) falladas.add(p - 1);
           else if (ok && !falladas.has(p - 1)) limpias.add(p - 1);
         }
-        v.querySelector('#rep-pistas').innerHTML = '';
+        if (!otraVez) v.querySelector('#rep-pistas').innerHTML = '';   // si fallas, sigue a la vista lo que jugó el rival
         if (aprender && otraVez) return avisar('Esa no: juega la de la flecha.', 'mal');
         if (ok) avisar(entreno.ply() < ej.jugadas.length ? '¡Bien! Sigue: el rival contesta.' : '');
         else if (otraVez) avisar('No es esa. Te queda un intento.', 'mal');
