@@ -142,7 +142,7 @@ function montar(el, config) {
   return { api, cerrar: () => { cancelAnimationFrame(marco); ro.disconnect(); api.destroy(); } };
 }
 
-function etiquetaJugada(ej, ply) {
+export function etiquetaJugada(ej, ply) {
   const fen = fenDe(ej, ply - 1);
   const p = fen.split(' ');
   return (p[1] === 'w' ? `${p[5]}.` : `${p[5]}…`) + ' ' + verSan(ej.jugadas[ply - 1].san);
@@ -239,7 +239,7 @@ export function validarFen(fen) {
   try { new Chess(fen); return null; } catch (e) { return e.message || 'Posición no válida'; }
 }
 
-export function crearEditor(contenedor, ej, { orientacion = 'white', alCambiar = () => {}, pedirPromocion }) {
+export function crearEditor(contenedor, ej, { orientacion = 'white', alCambiar = () => {}, alPly = () => {}, pedirPromocion }) {
   contenedor.innerHTML = `
    <div class="ed-rejilla">
     <div class="ed-arriba">
@@ -255,8 +255,9 @@ export function crearEditor(contenedor, ej, { orientacion = 'white', alCambiar =
         <button data-pincel="blue" class="pincel b" aria-label="Azul"></button>
         <button data-pincel="yellow" class="pincel y" aria-label="Amarillo"></button>
       </span>
-      <button data-acc="limpiar" class="chip">Borrar dibujos</button>
-      <p class="ayuda">Toca la casilla de salida y la de llegada para una flecha. Toca dos veces la misma casilla para marcarla.</p>
+      <button data-acc="deshacer" class="chip" aria-label="Deshacer el último dibujo" title="Deshacer">↶ Deshacer</button>
+      <button data-acc="limpiar" class="chip">Borrar todo</button>
+      <p class="ayuda">Toca la casilla de salida y la de llegada para una flecha; dos veces la misma casilla, para un círculo. Repetir una flecha o un círculo lo quita; ↶ deshace el último dibujo.</p>
     </div>
     <div class="herr herr-posicion" hidden>
       <div class="paleta cg-wrap"></div>
@@ -280,7 +281,7 @@ export function crearEditor(contenedor, ej, { orientacion = 'white', alCambiar =
     </div>
     </div></div>
     <div class="ed-abajo">
-    <label class="campo-com">Comentario de esta posición
+    <label class="campo-com">Comentario <small>(también es la pista en el repaso)</small>
       <textarea rows="2" class="com" placeholder="Idea, plan o explicación de la jugada"></textarea>
     </label>
     <div class="lista-jug"></div>
@@ -315,7 +316,23 @@ export function crearEditor(contenedor, ej, { orientacion = 'white', alCambiar =
   window.addEventListener('resize', ajustar);
   window.visualViewport?.addEventListener('resize', ajustar);
 
+  // Cada cambio de dibujo guarda cómo estaba antes, para poder deshacerlo
+  const historial = [];
+  const recordar = () => { historial.push({ p: ply, antes: formasDe(ej, ply).map(x => ({ ...x })) }); if (historial.length > 100) historial.shift(); };
+  function deshacer() {
+    while (historial.length) {
+      const h = historial.pop();
+      if (h.p > ej.jugadas.length) continue;   // esa jugada ya no existe
+      const lista = formasDe(ej, h.p);
+      lista.length = 0; lista.push(...h.antes);
+      ply = h.p;
+      alCambiar(ej);
+      return;
+    }
+  }
+
   function alternarForma(f) {
+    recordar();
     const lista = formasDe(ej, ply);
     const k = lista.findIndex(x => x.orig === f.orig && x.dest === f.dest);
     if (k >= 0 && lista[k].brush === f.brush) lista.splice(k, 1);
@@ -391,6 +408,8 @@ export function crearEditor(contenedor, ej, { orientacion = 'white', alCambiar =
     $('.lista-jug').innerHTML = listaJugadas(ej, ply);
     $('.nav-jug').querySelectorAll('[data-ir]').forEach(b => (b.disabled = modo === 'posicion'));
     $('[data-acc="cortar"]').hidden = modo === 'posicion' || ply >= ej.jugadas.length;
+    $('[data-acc="deshacer"]').disabled = !historial.length;
+    alPly(ply);
     $('[data-acc="turno"]').textContent = turnoPos === 'w' ? 'Juegan blancas' : 'Juegan negras';
     contenedor.querySelectorAll('.modos button').forEach(b => b.classList.toggle('on', b.dataset.modo === modo));
     contenedor.querySelectorAll('.pincel').forEach(b => b.classList.toggle('on', b.dataset.pincel === pincel));
@@ -442,7 +461,8 @@ export function crearEditor(contenedor, ej, { orientacion = 'white', alCambiar =
     if (ir === 'fin') ply = ej.jugadas.length;
     const acc = b.dataset.acc;
     if (acc === 'girar') { orientacion = orientacion === 'white' ? 'black' : 'white'; api.set({ orientation: orientacion }); alCambiar(ej, orientacion); }
-    if (acc === 'limpiar') { formasDe(ej, ply).length = 0; alCambiar(ej); }
+    if (acc === 'limpiar' && formasDe(ej, ply).length) { recordar(); formasDe(ej, ply).length = 0; alCambiar(ej); }
+    if (acc === 'deshacer') deshacer();
     if (acc === 'turno') { turnoPos = turnoPos === 'w' ? 'b' : 'w'; }
     if (acc === 'inicial') { api.set({ fen: FEN_INICIAL }); turnoPos = 'w'; }
     if (acc === 'vaciar') { api.set({ fen: '8/8/8/8/8/8/8/8' }); }
@@ -463,56 +483,10 @@ export function crearEditor(contenedor, ej, { orientacion = 'white', alCambiar =
     // Antes de guardar: si estás en «Posición», se valida y se fija.
     confirmar() { return modo === 'posicion' ? salirDePosicion() : null; },
     orientacion: () => orientacion,
+    ply: () => ply,
   };
 }
 
-// ---------------------------------------------------------------------
-//  EJERCICIO (repaso): «juegas tú, ¿qué harías?»
-//  Muestra la posición inicial del ejemplo sin flechas; la solución es la
-//  primera jugada guardada. Llama a alResponder({ acierto, intentos }).
-// ---------------------------------------------------------------------
-export function crearEjercicio(contenedor, ej, { alResponder = () => {}, pedirPromocion } = {}) {
-  const fen = ej.fen0;
-  const turno = colorDe(fen);
-  const sol = ej.jugadas[0];
-  contenedor.innerHTML = `<div class="tablero"></div>`;
-  let intentos = 0, terminado = false;
-  const chess = new Chess(fen);
-  const { api, cerrar } = montar(contenedor.querySelector('.tablero'), {
-    fen, orientation: turno, turnColor: turno, check: chess.inCheck() ? turno : false,
-    movable: { free: false, color: turno, dests: destinos(chess), showDests: true, events: { after: mover } },
-    draggable: { enabled: true }, drawable: { enabled: true, eraseOnClick: true },
-  });
-  async function mover(orig, dest) {
-    if (terminado) return;
-    const pieza = chess.get(orig);
-    let promotion;
-    if (pieza && pieza.type === 'p' && (dest[1] === '8' || dest[1] === '1'))
-      promotion = sol.uci.length > 4 ? sol.uci[4] : (pedirPromocion ? await pedirPromocion(turno) : 'q');
-    const uci = orig + dest + (promotion || '');
-    intentos++;
-    if (uci === sol.uci || (orig + dest) === sol.uci.slice(0, 4) && !promotion) {
-      terminado = true;
-      api.set({ fen: sol.fen, lastMove: [orig, dest], movable: { color: undefined, dests: new Map() } });
-      api.setAutoShapes(sol.formas || []);
-      alResponder({ acierto: true, intentos });
-    } else {
-      api.set({ fen, lastMove: undefined, movable: { color: turno, dests: destinos(new Chess(fen)) } });
-      api.setAutoShapes([{ orig: dest, brush: 'red' }]);
-      if (intentos >= 2) {
-        terminado = true;
-        mostrarSolucion();
-        alResponder({ acierto: false, intentos });
-      } else alResponder({ acierto: false, intentos, otraVez: true });
-    }
-  }
-  function mostrarSolucion() {
-    terminado = true;
-    api.set({ fen: sol.fen, lastMove: [sol.uci.slice(0, 2), sol.uci.slice(2, 4)], movable: { color: undefined, dests: new Map() } });
-    api.setAutoShapes([{ orig: sol.uci.slice(0, 2), dest: sol.uci.slice(2, 4), brush: 'green' }, ...(sol.formas || [])]);
-  }
-  return { cerrar, mostrarSolucion, turno, solucion: () => etiquetaJugada(ej, 1) };
-}
 // Un ejemplo sirve de ejercicio si tiene al menos una jugada
 export const sirveDeEjercicio = ej => ej.jugadas.length > 0;
 
@@ -522,12 +496,12 @@ export const sirveDeEjercicio = ej => ej.jugadas.length > 0;
 //  Dos intentos por jugada: si no sale, se muestra la buena y se sigue.
 //  alJugada({ ok, otraVez, perdida, ply })  ·  alTerminar({ errores, perdidas })
 // ---------------------------------------------------------------------
-export function crearEntrenoLinea(contenedor, ej, { color = 'white', pedirPromocion, alJugada = () => {}, alTerminar = () => {} } = {}) {
+export function crearEntrenoLinea(contenedor, ej, { color = 'white', inicio = 0, pedirPromocion, alJugada = () => {}, alTerminar = () => {} } = {}) {
   contenedor.innerHTML = `<div class="tablero"></div>`;
   const turnoEn = ply => colorDe(fenDe(ej, ply));
-  let ply = 0, intentos = 0, errores = 0, perdidas = 0, terminado = false, espera = null;
+  let ply = Math.max(0, Math.min(inicio, ej.jugadas.length)), intentos = 0, errores = 0, perdidas = 0, terminado = false, espera = null;
   const { api, cerrar } = montar(contenedor.querySelector('.tablero'), {
-    fen: ej.fen0, orientation: color, turnColor: turnoEn(0),
+    fen: fenDe(ej, ply), orientation: color, turnColor: turnoEn(ply),
     movable: { free: false, color: undefined, dests: new Map(), showDests: true, events: { after: mover } },
     draggable: { enabled: true }, drawable: { enabled: true, eraseOnClick: true },
   });

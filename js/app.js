@@ -7,9 +7,9 @@ import { BIBLIOTECA } from './biblioteca.js';
 import * as R from './repaso.js';
 import * as RP from './repertorio.js';
 import * as PA from './partidas.js';
-import { FEN_INICIAL, crearVisor, crearEditor, crearEjercicio, crearEntrenoLinea, sirveDeEjercicio, dePgn, aPgn, ejemploVacio, usarFiguras, verSan, diagrama, textoJugadas, escapar as esc } from './tablero.js';
+import { FEN_INICIAL, crearVisor, crearEditor, crearEntrenoLinea, etiquetaJugada, sirveDeEjercicio, dePgn, aPgn, ejemploVacio, usarFiguras, verSan, diagrama, textoJugadas, escapar as esc } from './tablero.js';
 
-export const VERSION = '4.2.0 (fichas: sin repeticiones)';
+export const VERSION = '4.3.0 (ejercicios como puzzles)';
 const app = document.getElementById('app');
 
 // ---------------------------------------------------------------------
@@ -849,6 +849,7 @@ function vEjemplo(v, id, q) {
   const concepto = D.obtener('conceptos', fila.concepto_id);
   const ej = nuevo ? ejemploVacio() : dePgn(fila.pgn || `[FEN "${fila.fen_inicial}"]`);
   let cambios = false, orientacion = fila.orientacion || 'white';
+  let pregunta = fila.ply_pregunta || 0;   // jugada que es la pregunta del ejercicio (índice desde 0)
   v.innerHTML = `
     <div class="cab-vista ej-cab">
       <a href="#/concepto/${concepto.id}" class="btn-ico" aria-label="Volver" id="volver">${ico('atras')}</a>
@@ -860,14 +861,40 @@ function vEjemplo(v, id, q) {
     <div class="ej-pie">
       <label class="form solo"><span>Título del ejemplo <small>opcional</small></span>
         <input id="ej-titulo" maxlength="120" placeholder="Bloqueo del peón aislado con el caballo" value="${esc(fila.titulo || '')}"></label>
-      <label class="check"><input type="checkbox" id="ej-ejercicio" ${fila.es_ejercicio ? 'checked' : ''}><span>Usar como ejercicio de repaso <small>— la primera jugada que guardes será la solución</small></span></label>
+      <label class="check"><input type="checkbox" id="ej-ejercicio" ${fila.es_ejercicio ? 'checked' : ''}><span>Usar como ejercicio de repaso <small>— como un puzzle: tú juegas y la app contesta</small></span></label>
+      <div class="ej-panel" id="ej-panel"${fila.es_ejercicio ? '' : ' hidden'}>
+        <p class="nota" id="ej-preg-txt"></p>
+        <button type="button" class="btn peq" id="ej-marcar"></button>
+        <label class="form solo"><span>Tu pregunta <small>opcional</small></span>
+          <input id="ej-enunciado" maxlength="160" value="${esc(fila.enunciado || '')}"></label>
+        <label class="check"><input type="checkbox" id="ej-inicio" ${fila.desde_inicio ? 'checked' : ''}><span>Practicar desde el principio <small>— la app juega contigo toda la línea hasta la pregunta y después</small></span></label>
+      </div>
       ${nuevo ? '' : `<button class="btn peligro" id="borrar">${ico('borrar', 'peq')} Borrar este ejemplo</button>`}
     </div>`;
+  // Panel del ejercicio: la pregunta es la jugada que estás viendo en el tablero
+  const ladoEn = i => ((i <= 0 ? ej.fen0 : ej.jugadas[i - 1].fen).split(' ')[1] === 'b' ? 'negras' : 'blancas');
+  const pintarPregunta = plyActual => {
+    if (!v.querySelector('#ej-panel')) return;
+    const p = Math.min(pregunta, Math.max(0, ej.jugadas.length - 1));
+    const txt = v.querySelector('#ej-preg-txt'), btn = v.querySelector('#ej-marcar');
+    txt.innerHTML = ej.jugadas.length
+      ? `La pregunta es <b>${esc(etiquetaJ(ej, p))}</b> (juegan ${ladoEn(p)}). En el repaso empieza justo antes; cuando aciertes, la app contesta con la jugada del rival y tú sigues hasta el final.`
+      : 'Juega primero las jugadas en el tablero (modo Jugar).';
+    v.querySelector('#ej-enunciado').placeholder = `Juegan ${ladoEn(p)}. ${concepto.titulo}: ¿cuál es la mejor jugada?`;
+    const n = plyActual ?? ed?.ply() ?? 0;
+    btn.disabled = !n || n - 1 === p;
+    btn.textContent = !n ? 'Ve a la jugada de la pregunta' : n - 1 === p ? `Pregunta: ${etiquetaJ(ej, n - 1)}` : `Esta es la pregunta: ${etiquetaJ(ej, n - 1)}`;
+  };
   const ed = crearEditor(v.querySelector('#editor'), ej, {
     orientacion,
     pedirPromocion,
     alCambiar: (_e, o) => { cambios = true; if (o) orientacion = o; },
+    alPly: n => pintarPregunta(n),
   });
+  pintarPregunta();
+  v.querySelector('#ej-marcar').addEventListener('click', () => { pregunta = ed.ply() - 1; cambios = true; pintarPregunta(); });
+  v.querySelector('#ej-enunciado').addEventListener('input', () => { cambios = true; });
+  v.querySelector('#ej-inicio').addEventListener('change', () => { cambios = true; });
   limpiezas.push(ed.cerrar);
   // «Ampliar»: oculta cabecera, barra inferior y título para dejar sitio al tablero
   const ampliar = v.querySelector('#ampliar');
@@ -885,7 +912,7 @@ function vEjemplo(v, id, q) {
   ponerEnfoque(eleccion ? eleccion === '1' : window.innerWidth < 700, false);
   limpiezas.push(() => document.body.classList.remove('enfoque'));
   v.querySelector('#ej-titulo').addEventListener('input', () => { cambios = true; });
-  v.querySelector('#ej-ejercicio').addEventListener('change', () => { cambios = true; });
+  v.querySelector('#ej-ejercicio').addEventListener('change', e => { cambios = true; v.querySelector('#ej-panel').hidden = !e.target.checked; pintarPregunta(); });
   v.querySelector('#volver').addEventListener('click', e => {
     if (cambios && !confirm('Hay cambios sin guardar. ¿Salir sin guardar?')) e.preventDefault();
     else editando = false;
@@ -894,10 +921,13 @@ function vEjemplo(v, id, q) {
     const err = ed.confirmar();
     if (err) return alert(err);
     const comoEjercicio = v.querySelector('#ej-ejercicio').checked;
-    if (comoEjercicio && !ej.jugadas.length) return alert('Para usarlo como ejercicio, juega en el tablero al menos la jugada que será la solución.');
+    if (comoEjercicio && !ej.jugadas.length) return alert('Para usarlo como ejercicio, juega en el tablero al menos la jugada que será la pregunta.');
     Object.assign(fila, {
       titulo: v.querySelector('#ej-titulo').value.trim() || null,
       es_ejercicio: comoEjercicio,
+      ply_pregunta: Math.min(pregunta, Math.max(0, ej.jugadas.length - 1)),
+      enunciado: v.querySelector('#ej-enunciado').value.trim() || null,
+      desde_inicio: v.querySelector('#ej-inicio').checked,
       fen_inicial: ej.fen0,
       pgn: aPgn(ej),
       orientacion,
@@ -1957,7 +1987,7 @@ async function crearTarjetasQueFalten() {
       for (const e of D.lista('ejemplos')) {
         if (!e.es_ejercicio || !D.obtener('conceptos', e.concepto_id)) continue;
         const ej = ejemploDeFila(e);
-        if (ej && sirveDeEjercicio(ej)) quiero.set(await idDeterminista(`${usuario.id}:ejemplo:${e.id}`), { tipo: 'ejemplo', ref_id: e.id });
+        if (ej && sirveDeEjercicio(ej) && ej.jugadas.length > (e.ply_pregunta || 0)) quiero.set(await idDeterminista(`${usuario.id}:ejemplo:${e.id}`), { tipo: 'ejemplo', ref_id: e.id });
       }
       for (const m of D.lista('momentos')) {
         if (m.es_ejercicio && D.obtener('partidas', m.partida_id) && leerPgn(m.pgn)?.jugadas.length)
@@ -2093,86 +2123,24 @@ async function vRepaso(v, _id, q) {
           <button class="btn primario ancho" id="rep-girar">Mostrar la respuesta</button>
         </article>`;
       v.querySelector('#rep-girar').addEventListener('click', e => { v.querySelector('#rep-dorso').hidden = false; e.target.remove(); });
-    } else {
-      // Ejercicio de un ejemplo de la ficha
-      const fila = D.obtener('ejemplos', t.ref_id);
-      pintarEjercicio({
-        ej: ejemploDeFila(fila), color,
-        pistas: [['Concepto', c.titulo], ['Idea', c.principio]],
-        pie: `Ficha: <a href="#/concepto/${c.id}">${esc(c.titulo)}</a>${fila.titulo ? ' · ' + esc(fila.titulo) : ''}`,
-      });
-    }
+    } else pintarEjemplo(t, c, color);
   }
 
-  // Ejercicio de tablero («¿qué jugarías?»): ejemplos de fichas y momentos de tus partidas.
-  // Las pistas son texto (concepto, idea…), nunca la jugada; usarlas cuenta como Regular.
-  function pintarEjercicio({ ej, color, etiqueta = '', pistas, pie }) {
-    const lista = pistas.filter(([, txt]) => txt);
-    let usadas = 0, fallos = 0, hecho = false;
+  // ENTRENAR EN EL TABLERO, como un puzzle que sigue: empieza en la pregunta (o
+  // desde el principio), tú juegas tus jugadas y la app contesta con las del rival
+  // hasta el final. Dos intentos por jugada. La pista es tu comentario de esa
+  // jugada (y, si no hay, la idea de la ficha); nunca la jugada.
+  // Nota: todo a la primera = Bien; algún fallo o pista = Regular; si se escapa una jugada = Mal.
+  function pintarEntreno({ ej, color, inicio = 0, etiqueta = '', pregunta, extras = [], nota = '', pie = '', css = 'var(--acento)' }) {
+    const lado = i => ((ej.fen0.split(' ')[1] === 'b') === (i % 2 === 0) ? 'black' : 'white');
+    const mias = desde => ej.jugadas.slice(desde).filter((_, k) => lado(desde + k) === color).length;
+    const total = mias(inicio);
+    const pistasExtra = extras.filter(([, txt]) => txt);
+    let pistas = 0, extrasUsadas = 0, hecho = false;
     v.innerHTML = cabecera() + `
-      <article class="rep-tarjeta" style="--c:${color}">
+      <article class="rep-tarjeta" style="--c:${css}">
         ${etiqueta}
-        <p class="rep-pregunta"><b>Juegan ${ej.fen0.split(' ')[1] === 'b' ? 'negras' : 'blancas'}.</b> ¿Qué jugarías?</p>
-        <div class="rep-tablero"></div>
-        <p class="rep-aviso" id="rep-aviso" hidden></p>
-        <div class="rep-pistas" id="rep-pistas"></div>
-        <div class="fila-btn" id="rep-ayuda">
-          ${lista.length ? `<button class="btn" id="rep-pista">${ico('guia', 'peq')} Pista</button>` : ''}
-          <button class="btn" id="rep-nose">No lo sé</button>
-        </div>
-        <div id="rep-fin" hidden></div>
-      </article>`;
-    const aviso = (txt, cls) => { const a = v.querySelector('#rep-aviso'); a.textContent = txt; a.className = 'rep-aviso ' + (cls || ''); a.hidden = false; };
-    const terminar = (res, texto) => {
-      if (hecho) return; hecho = true;
-      v.querySelector('#rep-ayuda').hidden = true;
-      const sol = ej.jugadas[0];
-      const fin = v.querySelector('#rep-fin');
-      fin.innerHTML = `<p class="rep-resultado ${res}">${texto}</p>
-        <p class="rep-solucion">Solución: <b>${esc(ejer.solucion())}</b></p>
-        ${sol.comentario ? `<p class="comentario-jug">${esc(sol.comentario)}</p>` : ''}
-        <p class="nota">${pie}</p>
-        <button class="btn primario ancho" id="rep-sig">Siguiente</button>`;
-      fin.hidden = false;
-      fin.querySelector('#rep-sig').addEventListener('click', () => siguiente(res));
-    };
-    const ejer = crearEjercicio(v.querySelector('.rep-tablero'), ej, {
-      pedirPromocion,
-      alResponder: ({ acierto, otraVez }) => {
-        if (acierto) terminar(fallos || usadas ? 'regular' : 'bien', fallos || usadas ? '¡Correcto! (con ayuda: cuenta como Regular)' : '¡Correcto!');
-        else if (otraVez) { fallos++; aviso('No es esa. Piénsalo otra vez: te queda un intento.', 'mal'); }
-        else terminar('mal', 'No era esa. Esta tarjeta volverá mañana.');
-      },
-    });
-    cerrarTablero = ejer.cerrar;
-    v.querySelector('#rep-pista')?.addEventListener('click', e => {
-      const [b, txt] = lista[usadas++];
-      v.querySelector('#rep-pistas').insertAdjacentHTML('beforeend', `<p class="pista-rep"><b>${esc(b)}:</b> ${esc(txt)}</p>`);
-      if (usadas >= lista.length) e.currentTarget.hidden = true;
-    });
-    v.querySelector('#rep-nose').addEventListener('click', () => { ejer.mostrarSolucion(); terminar('mal', 'Esta es la solución. La tarjeta volverá mañana.'); });
-  }
-
-  // Momento de una partida tuya convertido en ejercicio
-  function pintarMomento(t) {
-    const { m, p, ej } = momentoDeTarjeta(t);
-    const c = m.concepto_id && D.obtener('conceptos', m.concepto_id);
-    pintarEjercicio({
-      ej, color: 'var(--acento)',
-      etiqueta: `<span class="etq-bloque">${ico('partidas', 'peq')} Tu partida contra ${esc(p.rival || 'tu rival')}${p.fecha ? ' · ' + esc(fechaLarga(p.fecha)) : ''}</span>`,
-      pistas: [['Concepto', c?.titulo], ['Idea', c?.principio], ['Lo que anotaste', m.comentario]],
-      pie: `De <a href="#/partida/${p.id}">tu partida contra ${esc(p.rival || 'tu rival')}</a>${c ? ` · Ficha: <a href="#/concepto/${c.id}">${esc(c.titulo)}</a>` : ''}`,
-    });
-  }
-
-  // Una línea del repertorio: la app juega las del rival, tú las tuyas
-  function pintarLinea(t) {
-    const { a, l, ej } = lineaDeTarjeta(t);
-    let pistas = 0, hecho = false;
-    v.innerHTML = cabecera() + `
-      <article class="rep-tarjeta" style="--c:var(--acento)">
-        <span class="etq-bloque">${a.color === 'white' ? '♔' : '♚'} ${esc(a.nombre)} · ${TIPO_LINEA[l.tipo]}</span>
-        <p class="rep-pregunta"><b>${esc(l.nombre || TIPO_LINEA[l.tipo])}</b> · Juegas con ${a.color === 'white' ? 'blancas' : 'negras'}; el rival juega solo.</p>
+        <p class="rep-pregunta">${pregunta}</p>
         <div class="rep-tablero"></div>
         <p class="rep-prog" id="rep-prog"></p>
         <p class="rep-aviso" id="rep-aviso" hidden></p>
@@ -2183,31 +2151,32 @@ async function vRepaso(v, _id, q) {
         </div>
         <div id="rep-fin" hidden></div>
       </article>`;
-    const aviso = (txt, cls) => { const x = v.querySelector('#rep-aviso'); x.textContent = txt; x.className = 'rep-aviso ' + (cls || ''); x.hidden = !txt; };
-    const total = RP.jugadasPropias(ej, a.color);
+    const avisar = (txt, cls) => { const x = v.querySelector('#rep-aviso'); x.textContent = txt; x.className = 'rep-aviso ' + (cls || ''); x.hidden = !txt; };
     const prog = () => {   // cuenta solo tus jugadas
-      const hechas = a.color === 'white' ? Math.ceil(entreno.ply() / 2) : Math.floor(entreno.ply() / 2);
-      v.querySelector('#rep-prog').textContent = hechas >= total ? `${total} de ${total} jugadas tuyas` : `Tu jugada ${hechas + 1} de ${total}`;
+      const hechas = total - mias(Math.min(entreno.ply(), ej.jugadas.length));
+      v.querySelector('#rep-prog').textContent = total <= 1 ? '' : hechas >= total ? `${total} de ${total} jugadas tuyas` : `Tu jugada ${hechas + 1} de ${total}`;
     };
     const entreno = crearEntrenoLinea(v.querySelector('.rep-tablero'), ej, {
-      color: a.color, pedirPromocion,
+      color, inicio, pedirPromocion,
       alJugada: ({ ok, otraVez, perdida, jugada }) => {
         v.querySelector('#rep-pistas').innerHTML = '';
-        if (ok) aviso('');
-        else if (otraVez) aviso('No es esa. Te queda un intento.', 'mal');
-        else if (perdida) aviso(`La buena era ${jugada}. Seguimos.`, 'mal');
+        if (ok) avisar(entreno.ply() < ej.jugadas.length ? '¡Bien! Sigue: el rival contesta.' : '');
+        else if (otraVez) avisar('No es esa. Te queda un intento.', 'mal');
+        else if (perdida) avisar(`La buena era ${jugada}. Seguimos.`, 'mal');
         prog();
       },
       alTerminar: ({ errores, perdidas }) => {
         if (hecho) return; hecho = true;
         const res = perdidas ? 'mal' : errores || pistas ? 'regular' : 'bien';
-        const texto = res === 'bien' ? '¡Línea perfecta!' : res === 'regular' ? 'Completada, con algún tropiezo o pista: cuenta como Regular.' : `${perdidas === 1 ? 'Se te escapó 1 jugada' : `Se te escaparon ${perdidas} jugadas`}. Esta línea volverá mañana.`;
+        const texto = res === 'bien' ? '¡Perfecto, todo a la primera!' : res === 'regular' ? 'Bien, con algún tropiezo o pista: cuenta como Regular.'
+          : `${perdidas === 1 ? 'Se te escapó 1 jugada' : `Se te escaparon ${perdidas} jugadas`}. Volverá mañana.`;
         v.querySelector('#rep-ayuda').hidden = true;
+        avisar('');
         const fin = v.querySelector('#rep-fin');
         fin.innerHTML = `<p class="rep-resultado ${res}">${texto}</p>
           <p class="p-jug rep-linea-txt">${textoJugadas(ej)}</p>
-          ${l.nota ? `<p class="comentario-jug">${esc(l.nota)}</p>` : ''}
-          <p class="nota"><a href="#/linea/${a.id}?l=${l.id}">Ver la línea</a> · <a href="#/apertura/${a.id}">${esc(a.nombre)}</a></p>
+          ${nota ? `<p class="comentario-jug">${esc(nota)}</p>` : ''}
+          ${pie ? `<p class="nota">${pie}</p>` : ''}
           <button class="btn primario ancho" id="rep-sig">Siguiente</button>`;
         fin.hidden = false;
         fin.querySelector('#rep-sig').addEventListener('click', () => siguiente(res));
@@ -2216,13 +2185,61 @@ async function vRepaso(v, _id, q) {
     cerrarTablero = entreno.cerrar;
     prog();
     v.querySelector('#rep-pista').addEventListener('click', () => {
-      const txt = entreno.pista();
       const caja = v.querySelector('#rep-pistas');
-      if (txt) { pistas++; caja.innerHTML = `<p class="pista-rep"><b>Pista:</b> ${esc(txt)}</p>`; }
-      else if (l.nota && !caja.innerHTML) { pistas++; caja.innerHTML = `<p class="pista-rep"><b>La idea de la línea:</b> ${esc(l.nota)}</p>`; }
-      else caja.innerHTML = '<p class="pista-rep">No hay pista para esta jugada. Escribe un comentario en ella al editar la línea y la tendrás la próxima vez.</p>';
+      const propia = entreno.pista();
+      if (propia) { pistas++; caja.innerHTML = `<p class="pista-rep"><b>Pista:</b> ${esc(propia)}</p>`; return; }
+      if (extrasUsadas < pistasExtra.length) {
+        const [b, txt] = pistasExtra[extrasUsadas++];
+        pistas++; caja.insertAdjacentHTML('beforeend', `<p class="pista-rep"><b>${esc(b)}:</b> ${esc(txt)}</p>`);
+        return;
+      }
+      caja.insertAdjacentHTML('beforeend', '<p class="pista-rep">No hay más pistas. Escribe un comentario en esta jugada al editar y la tendrás la próxima vez.</p>');
     });
     v.querySelector('#rep-nose').addEventListener('click', () => entreno.noLoSe());
+  }
+  const quienJuega = (ej, i) => { const f = i <= 0 ? ej.fen0 : ej.jugadas[i - 1].fen; return f.split(' ')[1] === 'b' ? 'black' : 'white'; };
+  const juegan = c => (c === 'white' ? 'Juegan blancas' : 'Juegan negras');
+
+  // Ejercicio de un ejemplo de la ficha: empieza en la jugada que elegiste como pregunta
+  function pintarEjemplo(t, c, css) {
+    const fila = D.obtener('ejemplos', t.ref_id);
+    const ej = ejemploDeFila(fila);
+    const preg = Math.min(fila.ply_pregunta || 0, ej.jugadas.length - 1);
+    const color = quienJuega(ej, preg);
+    const pregunta = fila.enunciado ? esc(fila.enunciado)
+      : fila.desde_inicio ? `<b>Juegas con ${color === 'white' ? 'blancas' : 'negras'}.</b> ${esc(c.titulo)}: juega la línea desde el principio; la app mueve las del rival.`
+      : `<b>${juegan(color)}.</b> ${esc(c.titulo)}: ¿cuál es la mejor jugada?`;
+    pintarEntreno({
+      ej, color, inicio: fila.desde_inicio ? 0 : preg, pregunta, css,
+      extras: [['Idea', c.principio]],
+      pie: `Ficha: <a href="#/concepto/${c.id}">${esc(c.titulo)}</a>${fila.titulo ? ' · ' + esc(fila.titulo) : ''}`,
+    });
+  }
+
+  // Momento de una partida tuya convertido en ejercicio
+  function pintarMomento(t) {
+    const { m, p, ej } = momentoDeTarjeta(t);
+    const c = m.concepto_id && D.obtener('conceptos', m.concepto_id);
+    const color = quienJuega(ej, 0);
+    pintarEntreno({
+      ej, color,
+      etiqueta: `<span class="etq-bloque">${ico('partidas', 'peq')} Tu partida contra ${esc(p.rival || 'tu rival')}${p.fecha ? ' · ' + esc(fechaLarga(p.fecha)) : ''}</span>`,
+      pregunta: `<b>${juegan(color)}.</b> ${c ? esc(c.titulo) + ': ' : ''}¿qué debiste jugar?`,
+      extras: [['Idea', c?.principio], ['Lo que anotaste', m.comentario]],
+      pie: `De <a href="#/partida/${p.id}">tu partida contra ${esc(p.rival || 'tu rival')}</a>${c ? ` · Ficha: <a href="#/concepto/${c.id}">${esc(c.titulo)}</a>` : ''}`,
+    });
+  }
+
+  // Una línea del repertorio, desde el principio: la app juega las del rival
+  function pintarLinea(t) {
+    const { a, l, ej } = lineaDeTarjeta(t);
+    pintarEntreno({
+      ej, color: a.color,
+      etiqueta: `<span class="etq-bloque">${a.color === 'white' ? '♔' : '♚'} ${esc(a.nombre)} · ${TIPO_LINEA[l.tipo]}</span>`,
+      pregunta: `<b>${esc(l.nombre || TIPO_LINEA[l.tipo])}</b> · Juegas con ${a.color === 'white' ? 'blancas' : 'negras'}; el rival juega solo.`,
+      extras: [['La idea de la línea', l.nota]], nota: l.nota,
+      pie: `<a href="#/linea/${a.id}?l=${l.id}">Ver la línea</a> · <a href="#/apertura/${a.id}">${esc(a.nombre)}</a>`,
+    });
   }
 
   function final() {
@@ -2661,7 +2678,7 @@ const vsRival = p => `${p.color === 'white' ? '♔' : p.color === 'black' ? '♚
 const urlPartidaLichess = (p, ej) => (p.lichess_id ? `https://lichess.org/${p.lichess_id}${p.color === 'black' ? '/black' : ''}` : RP.urlAnalisis(ej, p.color || 'white'));
 // Jugada que se marca en un momento: «ply» es la posición ANTES de esa jugada
 const fenAntes = (ej, ply) => (ply <= 0 ? ej.fen0 : ej.jugadas[ply - 1].fen);
-const etiquetaJ = (ej, i) => (ej.jugadas[i] ? `${Math.floor(i / 2) + 1}.${i % 2 ? '..' : ''} ${verSan(ej.jugadas[i].san)}` : '');
+const etiquetaJ = (ej, i) => (ej.jugadas[i] ? etiquetaJugada(ej, i + 1) : '');   // i: índice de la jugada (desde 0)
 function revisionDe(p) {
   const ej = leerPgn(p.pgn);
   return { ej, rep: repDePartida(p, ej), ...PA.analizar(p, momentosDe(p.id), ej, repDePartida(p, ej)) };
@@ -2993,7 +3010,7 @@ function vMomento(v, id, q) {
       <label class="form solo"><span>Concepto de tu cuaderno</span>
         <select id="m-concepto"><option value="">Ninguno</option>${fichas.map(c => `<option value="${c.id}" ${m.concepto_id === c.id ? 'selected' : ''}>${esc(c.titulo)}</option>`).join('')}</select></label>
       <a class="nota" id="m-nueva-ficha" href="#/editar/nuevo">¿No está la ficha? Crear una nueva</a>
-      <label class="check"><input type="checkbox" id="m-ejercicio" ${m.es_ejercicio ? 'checked' : ''}><span>Usar como ejercicio de repaso <small>— la primera jugada que juegues será la solución</small></span></label>
+      <label class="check"><input type="checkbox" id="m-ejercicio" ${m.es_ejercicio ? 'checked' : ''}><span>Usar como ejercicio de repaso <small>— la primera jugada que juegues es la solución; si sigues jugando, el repaso continúa con ellas</small></span></label>
       <div class="fila-btn">
         <a class="btn peq" href="#/pregunta/nueva?texto=${encodeURIComponent(`Partida contra ${p.rival || 'rival'}${jugada ? ', ' + etiquetaJ(ej, m.ply) : ''}: `)}&pgn=${encodeURIComponent(`[FEN "${m.fen}"]`)}">${ico('guia', 'peq')} Preguntar al maestro</a>
         <a class="btn peq" href="${esc(RP.urlExplorador(m.fen, p.color || 'white').replace('#explorer', ''))}" target="_blank" rel="noopener">${ico('externo', 'peq')} Analizar en Lichess</a>
