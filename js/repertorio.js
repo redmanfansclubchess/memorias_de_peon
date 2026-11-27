@@ -249,7 +249,7 @@ export function arbol(lineas) {
 //  el inicio hasta el error y unas pocas jugadas del castigo.
 //  tender: se equivoca el rival (la tiendes tú); si no, es para no caer.
 // ---------------------------------------------------------------------
-const PALABRAS_TRAMPA = /\b(traps?|trampas?|blunder|falls? into|cae en|cayó en|wins? (a piece|the queen|material)|gana (una pieza|la dama|material))\b/i;
+const PALABRAS_TRAMPA = /\b(traps?|trampas?|blunders?|blundered|mistakes?|errores?|error|falls? into|cae en|cayó en|loses? (a|the|his|her|material|an?\s?\w*\s?pawn|a piece)|pierde|allows? .{0,40}to (take|win|capture)|wins? (a piece|the queen|material|a pawn)|gana (una pieza|la dama|material|un peón))\b/i;
 export function buscarTrampas(ramas, color, existentes = [], ver = s => s, { hastaPly = 40, castigo = 3 } = {}) {
   const sanes = e => e.jugadas.map(j => j.san).join(' ');
   const vistas = new Set();
@@ -273,11 +273,11 @@ export function buscarTrampas(ramas, color, existentes = [], ver = s => s, { has
     if (vistas.has(clave) || existentes.some(x => x === clave || x.startsWith(clave + ' '))) continue;
     vistas.add(clave);
     const bandoError = e % 2 === 0 ? 'white' : 'black';
-    const tender = posible || bandoError !== color;
+    const tender = bandoError !== color;
     res.push({
       ej: corta, error: e, tender, posible,
       juega: tender ? color : (color === 'white' ? 'black' : 'white'),
-      nombre: posible ? `Posible trampa: ${etiquetaPly(r, e, ver)}${js[e].marca || ''} ${etiquetaPly(r, e + 1, ver)}`
+      nombre: posible ? `${tender ? 'Posible trampa' : 'Posible error tuyo'}: ${etiquetaPly(r, e, ver)}${js[e].marca || ''} ${etiquetaPly(r, e + 1, ver)}`
         : `${tender ? 'Trampa' : 'Cuidado'}: ${etiquetaPly(r, e, ver)}${js[e].marca} ${etiquetaPly(r, e + 1, ver)}`,
       nota: [js[e].comentario, js[e + 1].comentario].filter(Boolean).join(' ').trim().slice(0, 400) || null,
       cap: r.cap, capNombre: r.capNombre, partida: !!r.partida,

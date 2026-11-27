@@ -9,7 +9,7 @@ import * as RP from './repertorio.js';
 import * as PA from './partidas.js';
 import { FEN_INICIAL, crearVisor, crearEditor, crearEntrenoLinea, etiquetaJugada, sirveDeEjercicio, dePgn, aPgn, pgnARamas, lineasAPgn, ejemploVacio, validarFen, usarNotacion, verSan, diagrama, textoJugadas, escapar as esc } from './tablero.js';
 
-export const VERSION = '5.4.0 (la app propone las trampas de los estudios)';
+export const VERSION = '5.4.1 (trampas explicadas con palabras: mistake, loses…)';
 const app = document.getElementById('app');
 
 // ---------------------------------------------------------------------
@@ -3112,7 +3112,7 @@ function vImportarLineas(v, apId) {
       c.idx.push(i);
     });
     const porCapitulos = caps.length > 1;
-    const marcadasTr = new Set(trampas.map((t, i) => (t.tender && !t.posible && !t.partida ? i : -1)).filter(i => i >= 0));
+    const marcadasTr = new Set(trampas.map((t, i) => (t.tender && !t.partida ? i : -1)).filter(i => i >= 0));
     const verNombre = n => n;   // el nombre ya viene con la notación elegida
     const pintarLista = () => {
       const base = principal ? leerPgn(principal.pgn) : ramas[elegida];
@@ -3139,10 +3139,10 @@ function vImportarLineas(v, apId) {
       }).join('')).join('')}</div>
       ${trampas.length ? `
       <h3 class="sec">Trampas encontradas <small>${trampas.length}</small></h3>
-      <p class="nota"><b>Para tender</b>: se equivoca el rival y tú castigas (vienen marcadas). <b>Para no caer</b>: se equivoca tu bando; las entrenarás con el bando que castiga, para ver cómo te machacan y no caer (vienen desmarcadas). Las <b>posibles</b> son jugadas donde el autor habla de una trampa sin marcar el error: míralas antes de guardarlas. Marca las que quieras: se guardan en las Trampas de la apertura y salen como tarjetas.</p>
+      <p class="nota"><b>Para tender</b>: se equivoca el rival y tú castigas (vienen marcadas). <b>Para no caer</b>: se equivoca tu bando; las entrenarás con el bando que castiga, para ver cómo te machacan y no caer (vienen desmarcadas). Las <b>posibles</b> son jugadas que el autor explica con palabras («mistake», «loses a pawn»…) sin marcarlas con ?: míralas antes de guardarlas. Marca las que quieras: se guardan en las Trampas de la apertura y salen como tarjetas.</p>
       <div class="lista imp-trampas">${trampas.map((t, i) => `
         <div class="fila-c imp-tr"><input type="checkbox" value="${i}" ${marcadasTr.has(i) ? 'checked' : ''} aria-label="Guardar esta trampa">
-          <span class="fila-txt"><b>${esc(verNombre(t.nombre))}</b><small>${t.posible ? 'El autor habla de una trampa: revísala' : t.tender ? 'Para tender' : 'Para no caer'}${t.capNombre ? ' · ' + esc(t.capNombre) : ''} · ${esc(RP.jugadasTexto(t.ej, verSan)).slice(0, 120)}</small></span></div>`).join('')}</div>` : ''}
+          <span class="fila-txt"><b>${esc(verNombre(t.nombre))}</b><small>${t.posible ? `El autor lo comenta como error: revísala (${t.tender ? 'para tender' : 'para no caer'})` : t.tender ? 'Para tender' : 'Para no caer'}${t.capNombre ? ' · ' + esc(t.capNombre) : ''} · ${esc(RP.jugadasTexto(t.ej, verSan)).slice(0, 120)}</small></span></div>`).join('')}</div>` : ''}
       <div class="botones"><button class="btn primario" id="imp-ok">Añadir a ${esc(a.nombre)}</button></div>`;
       caja.querySelectorAll('.imp-princ').forEach(b => b.addEventListener('click', () => { elegida = +b.dataset.i; pintarLista(); }));
       caja.querySelectorAll('.imp-fila:not(.ya)').forEach(f => f.addEventListener('click', e => {   // tocar la fila marca o desmarca
