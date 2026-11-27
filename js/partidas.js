@@ -33,6 +33,7 @@ export function limpiarCuerpo(t) {
   return String(t || '')
     .replace(/\[%(clk|eval|emt)[^\]]*\]/g, '')
     .replace(/\{\s*\}/g, '')
+    .replace(/([^\s{}()])\s*\$([1-6])(?!\d)/g, (m, c, n) => c + ['', '!', '?', '!!', '??', '!?', '?!'][n])   // valoraciones $1–$6 → !, ?, !!, ??…
     .replace(/\$\d+/g, '')
     .replace(/\s+/g, ' ')
     .trim();

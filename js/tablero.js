@@ -207,10 +207,13 @@ export function pgnARamas(pgn) {
     if (/\s/.test(c)) { i++; continue; }
     let fin = i;
     while (fin < cuerpo.length && !/[\s{}()]/.test(cuerpo[fin])) fin++;
-    const limpio = cuerpo.slice(i, fin).replace(/^\d+\.+/, '').replace(/[!?]+$/, '');
+    const bruto = cuerpo.slice(i, fin).replace(/^\d+\.+/, '');
+    const limpio = bruto.replace(/[!?]+$/, '');
     i = fin;
-    if (!limpio || /^\$\d+$/.test(limpio) || /^(1-0|0-1|1\/2-1\/2|\*)$/.test(limpio)) continue;
-    const nodo = { san: limpio, hijos: [], padre: actual, comentario: '', formas: [] };
+    // Las valoraciones del autor (?, ??, !, !!…, o $2, $4…) se guardan en la jugada: sirven para encontrar trampas
+    if (/^\$\d+$/.test(bruto)) { if (ultimo && !ultimo.marca) ultimo.marca = NAG[bruto] || ''; continue; }
+    if (!limpio || /^(1-0|0-1|1\/2-1\/2|\*)$/.test(limpio)) continue;
+    const nodo = { san: limpio, marca: (bruto.match(/[!?]+$/) || [''])[0], hijos: [], padre: actual, comentario: '', formas: [] };
     actual.hijos.push(nodo);
     actual = nodo; ultimo = nodo;
   }
@@ -225,11 +228,12 @@ export function pgnARamas(pgn) {
       let m = null;
       try { m = chess.move(n.san); } catch (e) { try { m = chess.move(deEspanol(n.san)); } catch (e2) { m = null; } }
       if (!m) break;
-      ej.jugadas.push({ san: m.san, uci: m.from + m.to + (m.promotion || ''), fen: chess.fen(), comentario: n.comentario, formas: [...n.formas] });
+      ej.jugadas.push({ san: m.san, uci: m.from + m.to + (m.promotion || ''), fen: chess.fen(), comentario: n.comentario, formas: [...n.formas], ...(n.marca ? { marca: n.marca } : {}) });
     }
     return ej;
   }).filter(ej => ej.jugadas.length);
 }
+const NAG = { '$1': '!', '$2': '?', '$3': '!!', '$4': '??', '$5': '!?', '$6': '?!' };
 
 // Junta varias líneas en un PGN con variantes. La primera es la principal.
 // lineas: [{ ej, nombre, nota }]; el nombre y la idea de cada línea van al final de su rama.

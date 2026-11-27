@@ -9,7 +9,7 @@ import * as RP from './repertorio.js';
 import * as PA from './partidas.js';
 import { FEN_INICIAL, crearVisor, crearEditor, crearEntrenoLinea, etiquetaJugada, sirveDeEjercicio, dePgn, aPgn, pgnARamas, lineasAPgn, ejemploVacio, validarFen, usarNotacion, verSan, diagrama, textoJugadas, escapar as esc } from './tablero.js';
 
-export const VERSION = '5.3.5 (importar por capítulos: añadir funciona)';
+export const VERSION = '5.4.0 (la app propone las trampas de los estudios)';
 const app = document.getElementById('app');
 
 // ---------------------------------------------------------------------
@@ -2228,7 +2228,7 @@ async function crearTarjetasQueFalten() {
       }
       for (const a of aperturas()) {
         for (const l of a.lineas || []) {
-          if (lineaEntrenable(a, leerPgn(l.pgn))) quiero.set(await idDeterminista(`${usuario.id}:linea:${l.id}`), { tipo: 'linea', ref_id: l.id });
+          if (lineaEntrenable(a, leerPgn(l.pgn), l)) quiero.set(await idDeterminista(`${usuario.id}:linea:${l.id}`), { tipo: 'linea', ref_id: l.id });
         }
       }
       for (const [id, x] of quiero) {
@@ -2574,14 +2574,14 @@ async function vRepaso(v, _id, q) {
     const { a, l, ej } = lineaDeTarjeta(t);
     const nueva = !t.ultimo_resultado && !t.datos?.aprendida;
     pintarEntreno({
-      ej, color: a.color, fin: RP.limitePlies(a), aprender: nueva,
+      ej, color: colorLinea(a, l), fin: RP.limitePlies(a), aprender: nueva,
       alFinal: ({ falladas, limpias }) => {
         anotarDificiles(t, falladas, limpias);
         if (nueva) t.datos = { ...t.datos, aprendida: true, aprendidaEn: R.hoyISO() };
       },
       etiqueta: `<span class="etq-bloque">${a.color === 'white' ? '♔' : '♚'} ${esc(a.nombre)} · ${TIPO_LINEA[l.tipo]}</span>`,
       pregunta: nueva ? `<b>Aprender: ${esc(l.nombre || TIPO_LINEA[l.tipo])}</b> · Línea nueva: sigue la flecha y repite cada jugada tuya.`
-        : `<b>${esc(l.nombre || TIPO_LINEA[l.tipo])}</b> · Juegas con ${a.color === 'white' ? 'blancas' : 'negras'}; el rival juega solo.`,
+        : `<b>${esc(l.nombre || TIPO_LINEA[l.tipo])}</b> · Juegas con ${colorLinea(a, l) === 'white' ? 'blancas' : 'negras'}${l.juega && l.juega !== a.color ? ' (el bando que castiga: así aprendes a no caer)' : ''}; el rival juega solo.`,
       extras: [['La idea de la línea', l.nota]], nota: l.nota,
       pie: `<a href="#/linea/${a.id}?l=${l.id}">Ver la línea</a> · <a href="#/apertura/${a.id}">${esc(a.nombre)}</a>`,
     });
@@ -2816,7 +2816,9 @@ const ESTADO_PASO = { hecho: ['check', 'Hecho'], medio: ['reloj', 'A medias'], f
 const pasoUrl = (a, p) => (p.ir ? p.ir(a) : `#/editar-apertura/${a.id}?campo=${p.campo || p.clave}`);
 const fenFinal = ej => (ej.jugadas.length ? ej.jugadas[ej.jugadas.length - 1].fen : ej.fen0);
 // Las líneas también son tarjetas de repaso (desde el principio de la partida)
-const lineaEntrenable = (a, ej) => !!ej && ej.fen0 === FEN_INICIAL && RP.jugadasPropias(ej, a.color) >= RP.MIN_PROPIAS;
+// Cada línea se entrena con el color de la apertura, salvo las trampas «para no caer», que juegas con el bando que castiga
+const colorLinea = (a, l) => l?.juega || a.color;
+const lineaEntrenable = (a, ej, l) => !!ej && ej.fen0 === FEN_INICIAL && RP.jugadasPropias(ej, colorLinea(a, l)) >= RP.MIN_PROPIAS;
 function lineaDeTarjeta(t) {
   if (!t || t.tipo !== 'linea') return null;
   for (const a of aperturas()) {
@@ -2894,20 +2896,20 @@ function vApertura(v, id) {
   const sig = r.siguiente;
   const fichas = (a.conceptos || []).map(cid => D.obtener('conceptos', cid)).filter(Boolean);
   const estadoLinea = l => {
-    if (!lineaEntrenable(a, l.ej)) return `<span class="res-punto corta" title="Aún corta para entrenar"></span>`;
+    if (!lineaEntrenable(a, l.ej, l)) return `<span class="res-punto corta" title="Aún corta para entrenar"></span>`;
     const t = tarjetaDeLinea(l);
     return `<span class="res-punto ${t?.ultimo_resultado || ''}" title="${t?.ultimo_resultado ? RES_TXT[t.ultimo_resultado] : 'Sin entrenar'}"></span>`;
   };
   const filaLinea = l => {
     const sep = r.principal && l.tipo !== 'principal' && l.ej ? RP.separacion(l.ej, r.principal.ej) : -1;
     const n = l.ej ? l.ej.jugadas.length : 0;
-    const faltan = RP.MIN_PROPIAS - RP.jugadasPropias(l.ej, color);
+    const faltan = RP.MIN_PROPIAS - RP.jugadasPropias(l.ej, colorLinea(a, l));
     return `<a class="fila-c" href="#/linea/${a.id}?l=${l.id}">${estadoLinea(l)}
       <span class="fila-txt"><b>${esc(l.nombre || TIPO_LINEA[l.tipo])}</b>
       <small>${sep >= 0 ? `Se separa en ${esc(RP.etiquetaPly(l.ej, sep, verSan))} · ` : ''}hasta la jugada ${Math.ceil(n / 2) || 0}${faltan > 0 ? ` · para entrenarla, ${faltan} ${faltan === 1 ? 'jugada tuya más' : 'jugadas tuyas más'}` : ''}${l.nota ? ' · ' + esc(l.nota.slice(0, 60)) : ''}</small></span>
       ${ico('flecha', 'peq')}</a>`;
   };
-  const entrenables = (a.lineas || []).filter(l => lineaEntrenable(a, leerPgn(l.pgn)));
+  const entrenables = (a.lineas || []).filter(l => lineaEntrenable(a, leerPgn(l.pgn), l));
   const hoyToca = R.pendientes(tarjetasDeApertura(a)).length;
   const dificiles = jugadasDificiles(a).length;
   const seccion = (titulo, contenido, clave) => contenido ? `<h3 class="sec">${titulo} <a class="btn-ico peq" href="#/editar-apertura/${a.id}?campo=${clave}" aria-label="Editar">${ico('editar')}</a></h3><div class="md">${md(contenido)}</div>` : '';
@@ -3085,6 +3087,9 @@ function vImportarLineas(v, apId) {
     if (!ramas.length) return alert('No he encontrado líneas desde la posición inicial en lo que has pegado.');
     // Un estudio repite a menudo el mismo comienzo en varios capítulos: fuera las líneas
     // repetidas y las que ya están dentro de otra más larga (el árbol las enseña igual)
+    // Trampas del autor (jugadas marcadas con ? o ??, o comentarios que hablan de trampas)
+    const trampasYa = (a.lineas || []).filter(l => l.tipo === 'trampa').map(l => (leerPgn(l.pgn)?.jugadas || []).map(j => j.san).join(' '));
+    const trampas = RP.buscarTrampas(ramas, a.color, trampasYa, verSan);
     const sanes = ramas.map(r => r.jugadas.map(j => j.san).join(' '));
     const vistas = new Set(), total = ramas.length;
     ramas = ramas.filter((r, i) => {
@@ -3107,6 +3112,8 @@ function vImportarLineas(v, apId) {
       c.idx.push(i);
     });
     const porCapitulos = caps.length > 1;
+    const marcadasTr = new Set(trampas.map((t, i) => (t.tender && !t.posible && !t.partida ? i : -1)).filter(i => i >= 0));
+    const verNombre = n => n;   // el nombre ya viene con la notación elegida
     const pintarLista = () => {
       const base = principal ? leerPgn(principal.pgn) : ramas[elegida];
       const marcadas = new Set([...caja.querySelectorAll('.imp-fila input:checked')].map(x => +x.value));
@@ -3130,6 +3137,12 @@ function vImportarLineas(v, apId) {
           <small>${esc(RP.jugadasTexto(r, verSan)).slice(0, 140)}${ya ? ' · <b>ya la tienes</b>' : ''}${larga ? ` · pasa de la jugada ${RP.LIMITE_JUGADAS[a.rol] || 15}: se entrenará hasta ahí` : ''}${r.jugadas[0]?.san !== mayoria ? ' · <b>empieza distinto</b>' : ''}</small></span>
           ${principal || ya ? '' : `<button type="button" class="btn-ico imp-princ" data-i="${i}" aria-label="Hacer principal" title="Hacer principal">${i === elegida ? '★' : '☆'}</button>`}</div>`;
       }).join('')).join('')}</div>
+      ${trampas.length ? `
+      <h3 class="sec">Trampas encontradas <small>${trampas.length}</small></h3>
+      <p class="nota"><b>Para tender</b>: se equivoca el rival y tú castigas (vienen marcadas). <b>Para no caer</b>: se equivoca tu bando; las entrenarás con el bando que castiga, para ver cómo te machacan y no caer (vienen desmarcadas). Las <b>posibles</b> son jugadas donde el autor habla de una trampa sin marcar el error: míralas antes de guardarlas. Marca las que quieras: se guardan en las Trampas de la apertura y salen como tarjetas.</p>
+      <div class="lista imp-trampas">${trampas.map((t, i) => `
+        <div class="fila-c imp-tr"><input type="checkbox" value="${i}" ${marcadasTr.has(i) ? 'checked' : ''} aria-label="Guardar esta trampa">
+          <span class="fila-txt"><b>${esc(verNombre(t.nombre))}</b><small>${t.posible ? 'El autor habla de una trampa: revísala' : t.tender ? 'Para tender' : 'Para no caer'}${t.capNombre ? ' · ' + esc(t.capNombre) : ''} · ${esc(RP.jugadasTexto(t.ej, verSan)).slice(0, 120)}</small></span></div>`).join('')}</div>` : ''}
       <div class="botones"><button class="btn primario" id="imp-ok">Añadir a ${esc(a.nombre)}</button></div>`;
       caja.querySelectorAll('.imp-princ').forEach(b => b.addEventListener('click', () => { elegida = +b.dataset.i; pintarLista(); }));
       caja.querySelectorAll('.imp-fila:not(.ya)').forEach(f => f.addEventListener('click', e => {   // tocar la fila marca o desmarca
@@ -3147,31 +3160,39 @@ function vImportarLineas(v, apId) {
         reflejar();
       }));
       caja.querySelector('.imp-lista').addEventListener('click', () => setTimeout(reflejar));
+      caja.querySelectorAll('.imp-tr').forEach(f => {
+        const c = f.querySelector('input');
+        const anotar = () => { c.checked ? marcadasTr.add(+c.value) : marcadasTr.delete(+c.value); };
+        c.addEventListener('change', anotar);
+        f.addEventListener('click', e => { if (e.target.closest('input')) return; c.checked = !c.checked; anotar(); });
+      });
       reflejar();
       caja.querySelector('#imp-ok').addEventListener('click', guardar);
     };
     const guardar = async () => {
       const marcadas = [...caja.querySelectorAll('.imp-fila input:checked')].map(x => +x.value);   // solo líneas, no las casillas de capítulo
-      if (!marcadas.length) return;
+      const tr = [...marcadasTr].sort((x, y) => x - y).map(i => trampas[i]);
+      if (!marcadas.length && !tr.length) return;
       // La principal va primero
       const orden = principal ? marcadas : [elegida, ...marcadas.filter(i => i !== elegida)];
       const base = principal ? leerPgn(principal.pgn) : ramas[elegida];
       a.lineas = a.lineas || [];
-      const elegidas = orden.map(i => ramas[i]);
+      const elegidas = marcadas.length ? orden.map(i => ramas[i]) : [];
       elegidas.forEach(r => {
         const tipo = !principal && r === ramas[elegida] ? 'principal' : 'secundaria';
         const sep = tipo === 'principal' ? -1 : RP.separacion(r, base);
         a.lineas.push({ id: D.nuevoId(), tipo, nombre: tipo === 'principal' ? 'Línea principal' : sep >= 0 ? `Desde ${RP.etiquetaPly(r, sep, verSan)}` : 'Importada', nota: null, pgn: aPgn(r) });
       });
+      tr.forEach(t => a.lineas.push({ id: D.nuevoId(), tipo: 'trampa', nombre: t.nombre, nota: t.nota, pgn: aPgn(t.ej), ...(t.juega !== a.color ? { juega: t.juega } : {}) }));
       // Si la apertura aún no tenía sus jugadas, se toman las comunes a todas las líneas
-      if (!leerPgn(a.tronco)?.jugadas.length) {
+      if (elegidas.length && !leerPgn(a.tronco)?.jugadas.length) {
         const ss = elegidas.map(r => r.jugadas.map(j => j.san));
         let k = 0; while (k < 8 && ss.every(x => x[k] && x[k] === ss[0][k])) k++;
         const t = elegidas[0]; a.tronco = aPgn({ ...t, jugadas: t.jugadas.slice(0, Math.max(k, Math.min(2, t.jugadas.length))).map(j => ({ ...j, comentario: '', formas: [] })) });
       }
       await D.guardar('repertorio', a);
       editando = false;
-      aviso(`${elegidas.length} ${elegidas.length === 1 ? 'línea añadida' : 'líneas añadidas'}`);
+      aviso([elegidas.length ? `${elegidas.length} ${elegidas.length === 1 ? 'línea añadida' : 'líneas añadidas'}` : '', tr.length ? `${tr.length} ${tr.length === 1 ? 'trampa' : 'trampas'}` : ''].filter(Boolean).join(' y '));
       ir('#/apertura/' + a.id);
     };
     pintarLista();

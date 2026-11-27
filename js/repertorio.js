@@ -242,3 +242,46 @@ export function arbol(lineas) {
   }
   return raiz;
 }
+
+// ---------------------------------------------------------------------
+//  Trampas dentro de un estudio: jugadas que el autor marca como error
+//  (? o ??) o comentarios que hablan de trampas. Cada una se corta desde
+//  el inicio hasta el error y unas pocas jugadas del castigo.
+//  tender: se equivoca el rival (la tiendes tú); si no, es para no caer.
+// ---------------------------------------------------------------------
+const PALABRAS_TRAMPA = /\b(traps?|trampas?|blunder|falls? into|cae en|cayó en|wins? (a piece|the queen|material)|gana (una pieza|la dama|material))\b/i;
+export function buscarTrampas(ramas, color, existentes = [], ver = s => s, { hastaPly = 40, castigo = 3 } = {}) {
+  const sanes = e => e.jugadas.map(j => j.san).join(' ');
+  const vistas = new Set();
+  const res = [];
+  for (const r of ramas) {
+    const js = r.jugadas;
+    // Error marcado (? o ??): la trampa es seguro. Si solo hay un comentario que habla de trampas,
+    // es una «posible trampa»: se propone desmarcada y desde esa jugada, para que la revises tú.
+    let e = -1, posible = false;
+    for (let k = 0; k < Math.min(js.length - 1, hastaPly); k++) {
+      const m = js[k].marca || '';
+      if (m === '?' || m === '??') { e = k; break; }
+      if (e < 0 && PALABRAS_TRAMPA.test(js[k].comentario || '')) { e = k; posible = true; }
+    }
+    if (e < 0 || !js[e + 1]) continue;
+    // Hasta «castigo» jugadas del bando que castiga, acabando siempre en una suya
+    let fin = Math.min(js.length, e + 2 * castigo);
+    if ((fin - 1 - (e + 1)) % 2) fin--;
+    const corta = { ...r, comentario0: '', formas0: [], jugadas: js.slice(0, fin) };
+    const clave = sanes(corta);
+    if (vistas.has(clave) || existentes.some(x => x === clave || x.startsWith(clave + ' '))) continue;
+    vistas.add(clave);
+    const bandoError = e % 2 === 0 ? 'white' : 'black';
+    const tender = posible || bandoError !== color;
+    res.push({
+      ej: corta, error: e, tender, posible,
+      juega: tender ? color : (color === 'white' ? 'black' : 'white'),
+      nombre: posible ? `Posible trampa: ${etiquetaPly(r, e, ver)}${js[e].marca || ''} ${etiquetaPly(r, e + 1, ver)}`
+        : `${tender ? 'Trampa' : 'Cuidado'}: ${etiquetaPly(r, e, ver)}${js[e].marca} ${etiquetaPly(r, e + 1, ver)}`,
+      nota: [js[e].comentario, js[e + 1].comentario].filter(Boolean).join(' ').trim().slice(0, 400) || null,
+      cap: r.cap, capNombre: r.capNombre, partida: !!r.partida,
+    });
+  }
+  return res;
+}
