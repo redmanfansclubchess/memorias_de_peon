@@ -9,7 +9,7 @@ import * as RP from './repertorio.js';
 import * as PA from './partidas.js';
 import { FEN_INICIAL, crearVisor, crearEditor, crearEntrenoLinea, etiquetaJugada, sirveDeEjercicio, dePgn, aPgn, pgnARamas, lineasAPgn, ejemploVacio, validarFen, usarNotacion, verSan, diagrama, textoJugadas, escapar as esc } from './tablero.js';
 
-export const VERSION = '5.3.3 (las jugadas antes de la pregunta se pasan a mano)';
+export const VERSION = '5.3.4 (importar un estudio por capítulos)';
 const app = document.getElementById('app');
 
 // ---------------------------------------------------------------------
@@ -3042,6 +3042,17 @@ async function exportarPgn(texto, nombre, como) {
 }
 
 // Importar líneas a una apertura: un PGN (con variantes) o un estudio de Lichess
+// Nombre de un capítulo de un estudio de Lichess (o de una partida de un PGN con varias)
+function nombreCapitulo(cab, i) {
+  if (cab.ChapterName) return cab.ChapterName;
+  const ev = cab.Event || '';
+  if (cab.StudyName && ev.startsWith(cab.StudyName + ': ')) return ev.slice(cab.StudyName.length + 2);
+  if (cab.White && cab.Black && !/^\?*$/.test(cab.White)) return `${cab.White} – ${cab.Black}`;
+  return ev && !/^\?*$/.test(ev) ? ev : `Capítulo ${i + 1}`;
+}
+// Un capítulo que es una partida jugada (con jugadores y resultado), no una línea de repertorio
+const esPartidaJugada = cab => !!cab.White && !!cab.Black && !/^\?*$/.test(cab.White) && !/^\?*$/.test(cab.Black) && /^(1-0|0-1|1\/2-1\/2)$/.test(cab.Result || '');
+
 function vImportarLineas(v, apId) {
   const a = D.obtener('repertorio', apId);
   if (!a) return ir('#/repertorio');
@@ -3066,7 +3077,9 @@ function vImportarLineas(v, apId) {
     try {
       if (soloEnlaceLichess(texto)) texto = await pgnDeLichess(texto);
     } catch (err) { return alert(err.message); }
-    ramas = PA.separarPgn(texto).flatMap(p => pgnARamas((p.cab.FEN ? `[FEN "${p.cab.FEN}"]\n` : '') + p.cuerpo));
+    // Cada línea recuerda de qué capítulo del estudio viene (y si ese capítulo es una partida jugada)
+    ramas = PA.separarPgn(texto).flatMap((p, ci) => pgnARamas((p.cab.FEN ? `[FEN "${p.cab.FEN}"]\n` : '') + p.cuerpo)
+      .map(r => ({ ...r, cap: ci, capNombre: nombreCapitulo(p.cab, ci), partida: esPartidaJugada(p.cab) })));
     if (!ramas.length) ramas = pgnARamas(texto);
     ramas = ramas.filter(r => r.fen0 === FEN_INICIAL);
     if (!ramas.length) return alert('No he encontrado líneas desde la posición inicial en lo que has pegado.');
@@ -3085,7 +3098,15 @@ function vImportarLineas(v, apId) {
     const cuenta = {};
     ramas.forEach(r => { const k = r.jugadas[0]?.san; cuenta[k] = (cuenta[k] || 0) + 1; });
     const mayoria = Object.keys(cuenta).sort((x, y) => cuenta[y] - cuenta[x])[0];
-    let elegida = principal ? -1 : Math.max(0, ramas.findIndex(r => r.jugadas[0]?.san === mayoria));
+    let elegida = principal ? -1 : Math.max(0, ramas.findIndex(r => r.jugadas[0]?.san === mayoria && !r.partida));
+    // Capítulos en el orden del estudio (solo se enseñan si hay más de uno)
+    const caps = [];
+    ramas.forEach((r, i) => {
+      let c = caps.find(x => x.cap === r.cap);
+      if (!c) caps.push(c = { cap: r.cap, nombre: r.capNombre, partida: r.partida, idx: [] });
+      c.idx.push(i);
+    });
+    const porCapitulos = caps.length > 1;
     const pintarLista = () => {
       const base = principal ? leerPgn(principal.pgn) : ramas[elegida];
       const marcadas = new Set([...caja.querySelectorAll('.imp-lista input[type=checkbox]:checked')].map(x => +x.value));
@@ -3094,23 +3115,39 @@ function vImportarLineas(v, apId) {
       <h3 class="sec">${ramas.length} ${ramas.length === 1 ? 'línea encontrada' : 'líneas encontradas'}</h3>
       ${omitidas ? `<p class="nota">He quitado ${omitidas} ${omitidas === 1 ? 'línea repetida o que ya va dentro de otra más larga' : 'líneas repetidas o que ya van dentro de otras más largas'}.</p>` : ''}
       ${principal ? '' : '<p class="nota">Elige con ★ cuál es tu <b>línea principal</b>; las demás serán respuestas del rival.</p>'}
-      <div class="lista imp-lista">${ramas.map((r, i) => {
+      ${porCapitulos ? '<p class="nota">Las líneas van agrupadas por capítulos del estudio. Toca la casilla de un capítulo para quitarlo o ponerlo entero; los que son partidas jugadas vienen desmarcados.</p>' : ''}
+      <div class="lista imp-lista">${(porCapitulos ? caps : [{ idx: ramas.map((_, i) => i) }]).map(c => (porCapitulos ? `
+        <label class="imp-cap"><input type="checkbox" class="imp-cap-chk" data-cap="${c.cap}" aria-label="Todo el capítulo">
+          <b>${esc(c.nombre)}</b><small>${c.idx.length} ${c.idx.length === 1 ? 'línea' : 'líneas'}${c.partida ? ' · parece una partida jugada' : ''}</small></label>` : '') + c.idx.map(i => {
+        const r = ramas[i];
         const ya = yaEsta(r.jugadas.map(j => j.san).join(' '));
         const larga = r.jugadas.length > RP.limitePlies(a);
         const sep = i === elegida ? -1 : RP.separacion(r, base);
-        const marcada = primeraVez ? !ya && r.jugadas[0]?.san === mayoria : marcadas.has(i) || i === elegida;
-        return `<div class="fila-c imp-fila${ya ? ' ya' : ''}${i === elegida ? ' princ' : ''}">
-          <input type="checkbox" value="${i}" ${ya ? 'disabled' : marcada ? 'checked' : ''} aria-label="Importar esta línea">
+        const marcada = primeraVez ? !ya && r.jugadas[0]?.san === mayoria && !r.partida : marcadas.has(i) || i === elegida;
+        return `<div class="fila-c imp-fila${ya ? ' ya' : ''}${i === elegida ? ' princ' : ''}" data-cap="${r.cap ?? ''}">
+          <input type="checkbox" value="${i}" ${ya ? 'disabled' : i === elegida ? 'checked disabled' : marcada ? 'checked' : ''} aria-label="Importar esta línea">
           <span class="fila-txt"><b>${i === elegida ? '★ Línea principal' : sep >= 0 ? `Desde ${esc(RP.etiquetaPly(r, sep, verSan))}` : 'Línea'}</b>
           <small>${esc(RP.jugadasTexto(r, verSan)).slice(0, 140)}${ya ? ' · <b>ya la tienes</b>' : ''}${larga ? ` · pasa de la jugada ${RP.LIMITE_JUGADAS[a.rol] || 15}: se entrenará hasta ahí` : ''}${r.jugadas[0]?.san !== mayoria ? ' · <b>empieza distinto</b>' : ''}</small></span>
           ${principal || ya ? '' : `<button type="button" class="btn-ico imp-princ" data-i="${i}" aria-label="Hacer principal" title="Hacer principal">${i === elegida ? '★' : '☆'}</button>`}</div>`;
-      }).join('')}</div>
+      }).join('')).join('')}</div>
       <div class="botones"><button class="btn primario" id="imp-ok">Añadir a ${esc(a.nombre)}</button></div>`;
       caja.querySelectorAll('.imp-princ').forEach(b => b.addEventListener('click', () => { elegida = +b.dataset.i; pintarLista(); }));
       caja.querySelectorAll('.imp-fila:not(.ya)').forEach(f => f.addEventListener('click', e => {   // tocar la fila marca o desmarca
         if (e.target.closest('button, input')) return;
-        const c = f.querySelector('input'); c.checked = !c.checked;
+        const c = f.querySelector('input'); if (!c.disabled) c.checked = !c.checked;   // la principal siempre va
       }));
+      // La casilla del capítulo refleja sus líneas y las marca o desmarca todas a la vez
+      const filasCap = cap => [...caja.querySelectorAll(`.imp-fila[data-cap="${cap}"]:not(.ya) input`)];
+      const reflejar = () => caja.querySelectorAll('.imp-cap-chk').forEach(ch => {
+        const xs = filasCap(ch.dataset.cap), n = xs.filter(x => x.checked).length;
+        ch.checked = n > 0 && n === xs.length; ch.indeterminate = n > 0 && n < xs.length; ch.disabled = !xs.length;
+      });
+      caja.querySelectorAll('.imp-cap-chk').forEach(ch => ch.addEventListener('change', () => {
+        filasCap(ch.dataset.cap).forEach(x => { x.checked = ch.checked || +x.value === elegida; });
+        reflejar();
+      }));
+      caja.querySelector('.imp-lista').addEventListener('click', () => setTimeout(reflejar));
+      reflejar();
       caja.querySelector('#imp-ok').addEventListener('click', guardar);
     };
     const guardar = async () => {
