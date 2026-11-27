@@ -9,7 +9,7 @@ import * as RP from './repertorio.js';
 import * as PA from './partidas.js';
 import { FEN_INICIAL, crearVisor, crearEditor, crearEntrenoLinea, etiquetaJugada, sirveDeEjercicio, dePgn, aPgn, pgnARamas, lineasAPgn, ejemploVacio, validarFen, usarNotacion, verSan, diagrama, textoJugadas, escapar as esc } from './tablero.js';
 
-export const VERSION = '5.3.4 (importar un estudio por capítulos)';
+export const VERSION = '5.3.5 (importar por capítulos: añadir funciona)';
 const app = document.getElementById('app');
 
 // ---------------------------------------------------------------------
@@ -3109,7 +3109,7 @@ function vImportarLineas(v, apId) {
     const porCapitulos = caps.length > 1;
     const pintarLista = () => {
       const base = principal ? leerPgn(principal.pgn) : ramas[elegida];
-      const marcadas = new Set([...caja.querySelectorAll('.imp-lista input[type=checkbox]:checked')].map(x => +x.value));
+      const marcadas = new Set([...caja.querySelectorAll('.imp-fila input:checked')].map(x => +x.value));
       const primeraVez = !caja.querySelector('.imp-lista');
       caja.innerHTML = `
       <h3 class="sec">${ramas.length} ${ramas.length === 1 ? 'línea encontrada' : 'líneas encontradas'}</h3>
@@ -3151,7 +3151,7 @@ function vImportarLineas(v, apId) {
       caja.querySelector('#imp-ok').addEventListener('click', guardar);
     };
     const guardar = async () => {
-      const marcadas = [...caja.querySelectorAll('.imp-lista input:checked')].map(x => +x.value);
+      const marcadas = [...caja.querySelectorAll('.imp-fila input:checked')].map(x => +x.value);   // solo líneas, no las casillas de capítulo
       if (!marcadas.length) return;
       // La principal va primero
       const orden = principal ? marcadas : [elegida, ...marcadas.filter(i => i !== elegida)];
