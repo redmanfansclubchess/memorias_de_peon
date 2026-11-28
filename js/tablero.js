@@ -309,7 +309,7 @@ export function crearVisor(contenedor, ej, { orientacion = 'white', ply: plyInic
   contenedor.addEventListener('click', e => {
     const b = e.target.closest('button');
     if (!b) return;
-    if (b.hasAttribute('data-lichess')) return abrirEnLichess(ej, ply, { pgn: pgnLichess, id: idLichess });
+    if (b.hasAttribute('data-lichess')) return abrirEnLichess(ej, ply, { pgn: pgnLichess, id: idLichess, color: orientacion });
     if (b.dataset.ply) ply = +b.dataset.ply;
     const ir = b.dataset.ir;
     if (ir === 'ini') ply = 0;
@@ -335,9 +335,10 @@ export function plyLichess(fen0, ply) {   // Lichess numera las medias jugadas d
   const [, turno = 'w', , , , num = '1'] = fen0.split(' ');
   return (Math.max(1, parseInt(num, 10) || 1) - 1) * 2 + (turno === 'b' ? 1 : 0) + ply;
 }
-export async function abrirEnLichess(ej, ply = ej.jugadas.length, { pgn = null, id = null } = {}) {
-  const urlFen = urlAnalisisFen(fenDe(ej, ply));
-  if (id) return window.open(`https://lichess.org/${encodeURIComponent(id)}#${plyLichess(ej.fen0, ply)}`, '_blank', 'noopener');   // ya está en Lichess
+export async function abrirEnLichess(ej, ply = ej.jugadas.length, { pgn = null, id = null, color = 'white' } = {}) {
+  const negras = color === 'black' ? '/black' : '';
+  const urlFen = urlAnalisisFen(fenDe(ej, ply)) + (negras ? '?color=black' : '');
+  if (id) return window.open(`https://lichess.org/${encodeURIComponent(id)}${negras}#${plyLichess(ej.fen0, ply)}`, '_blank', 'noopener');   // ya está en Lichess
   const w = window.open('', '_blank');
   const ir = url => { if (w && !w.closed) w.location.href = url; else window.open(url, '_blank', 'noopener'); };
   if (!ej.jugadas.length || !navigator.onLine) return ir(urlFen);
@@ -349,7 +350,7 @@ export async function abrirEnLichess(ej, ply = ej.jugadas.length, { pgn = null, 
     });
     if (!r.ok) throw new Error('Lichess: ' + r.status);
     const d = await r.json();
-    ir(`${d.url || 'https://lichess.org/' + d.id}#${plyLichess(ej.fen0, ply)}`);
+    ir(`${d.url || 'https://lichess.org/' + d.id}${negras}#${plyLichess(ej.fen0, ply)}`);
   } catch (err) {
     console.warn('Lichess import', err);
     ir(urlFen);

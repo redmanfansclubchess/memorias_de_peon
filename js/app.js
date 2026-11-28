@@ -10,7 +10,7 @@ import * as PA from './partidas.js';
 import * as F from './fuentes.js';
 import { FEN_INICIAL, crearVisor, crearEditor, crearEntrenoLinea, abrirEnLichess, etiquetaJugada, sirveDeEjercicio, dePgn, aPgn, pgnARamas, lineasAPgn, ejemploVacio, validarFen, usarNotacion, verSan, diagrama, textoJugadas, escapar as esc } from './tablero.js';
 
-export const VERSION = '5.6.0 (Lichess, tandas con nuevas exactas y Explorar)';
+export const VERSION = '5.7.0 (Estadísticas de aprendizaje y conexiones entre módulos)';
 const app = document.getElementById('app');
 
 // ---------------------------------------------------------------------
@@ -619,6 +619,8 @@ function vConcepto(v, id) {
   const termino = terminoDeFicha(c, mapa);
   const itBiblio = BIBLIOTECA.find(x => norm(x.titulo) === norm(c.titulo) || (x.alias || []).some(a => norm(a) === norm(c.titulo)));
   const enAperturas = aperturas().filter(a => (a.conceptos || []).includes(id));
+  const enPartidas = D.lista('momentos').filter(m => m.concepto_id === id).map(m => ({ m, p: D.obtener('partidas', m.partida_id) })).filter(x => x.p);
+  const libros = librosCitados(c.explicacion, c.principio, ...ejemplos.map(e => e.pgn));
   const volver = b ? `#/bloque/${b.id}` : '#/bloque/bandeja';
   v.innerHTML = `
     <div class="cab-vista">
@@ -660,7 +662,9 @@ function vConcepto(v, id) {
         ${ico('entrenar')}<span><b>Practicar en Lichess</b><small>${esc(textoPractica(c.practica_lichess))}</small></span>${ico('externo', 'peq')}
       </a>` : ''}
     ${enAperturas.length ? `<h3 class="sec">En tu repertorio</h3><div class="chips">${enAperturas.map(a => `<a class="chip" href="#/apertura/${a.id}">${a.color === 'white' ? '♔' : '♚'} ${esc(a.nombre)}</a>`).join('')}</div>` : ''}
-    ${rel.length ? `<h3 class="sec">Relacionado</h3><div class="chips">${rel.map(r => `<a class="chip" href="#/concepto/${r.id}">${ico('enlace', 'peq')} ${esc(r.titulo)}</a>`).join('')}</div>` : ''}`;
+    ${rel.length ? `<h3 class="sec">Relacionado</h3><div class="chips">${rel.map(r => `<a class="chip" href="#/concepto/${r.id}">${ico('enlace', 'peq')} ${esc(r.titulo)}</a>`).join('')}</div>` : ''}
+    ${enPartidas.length ? `<h3 class="sec">En tus partidas</h3><div class="lista">${enPartidas.map(({ m, p }) => `<a class="fila-c" href="#/partida/${p.id}"><span class="fila-txt"><b>${esc(TIPO_MOMENTO[m.tipo] || 'Momento')} · vs ${esc(p.rival || 'rival')}</b><small>${esc([p.fecha && fechaLarga(p.fecha), p.apertura].filter(Boolean).join(' · '))}</small></span>${ico('flecha', 'peq')}</a>`).join('')}</div>` : ''}
+    ${libros.length ? `<h3 class="sec">Fuentes</h3><div class="chips">${chipsLibros(libros)}</div>` : ''}`;
   v.querySelectorAll('.enl').forEach(bt => bt.addEventListener('click', () => abrirTermino(bt.dataset.k, mapa)));
   // Duplicar: copia el ejemplo y abre la copia, para cambiar la respuesta del rival
   v.querySelectorAll('[data-dup]').forEach(bt => bt.addEventListener('click', async () => {
@@ -1763,7 +1767,7 @@ function vGuia(v) {
 const kb = t => Math.max(1, Math.round(new Blob([t]).size / 1024));
 const tamTexto = n => (n >= 1024 ? (n / 1024).toFixed(1).replace('.', ',') + ' MB' : n + ' KB');
 
-// Dónde citas un libro: líneas e ideas de tus aperturas
+// Dónde citas un libro: líneas e ideas de tus aperturas, fichas y sus ejemplos
 function citasDeLibro(codigo) {
   const r = [];
   for (const a of aperturas()) {
@@ -1771,8 +1775,19 @@ function citasDeLibro(codigo) {
     if (secciones.length) r.push({ a, l: null });
     for (const l of a.lineas || []) if (F.cita(l.pgn, codigo) || F.cita(l.nota, codigo)) r.push({ a, l });
   }
+  for (const c of conceptos()) {
+    const ej = ejemplosDe(c.id).filter(e => F.cita(e.pgn, codigo));
+    if (F.cita(c.explicacion, codigo) || F.cita(c.principio, codigo) || ej.length) r.push({ c, n: ej.length });
+  }
   return r;
 }
+// Libros citados en unos textos (para enlazarlos desde una línea o una ficha)
+function librosCitados(...textos) {
+  const cods = new Map();
+  for (const e of textos.flatMap(t => F.citas(t))) for (const c of e.tipo === 'libro' ? [e.codigo] : e.codigos || []) cods.set(c.toLowerCase(), c);
+  return [...cods.values()].map(c => F.libroPorCodigo(c) || { codigo: c });
+}
+const chipsLibros = ls => ls.map(l => l.id ? `<a class="chip" href="#/libro/${l.id}">📖 ${esc(F.apellido(l))} <small>${esc(l.codigo)}</small></a>` : `<a class="chip" href="#/editar-libro/nuevo?codigo=${encodeURIComponent(l.codigo)}">📖 ${esc(l.codigo)} <small>sin ficha</small></a>`).join('');
 
 // Cabecera que acompaña al texto al descargarlo o copiarlo (para la IA)
 function cabeceraLibro(l) {
@@ -1874,7 +1889,9 @@ function vLibro(v, id, q) {
       <div class="fila-btn"><label class="btn primario peq">${ico('subir', 'peq')} Subir texto (.txt)<input type="file" id="t-subir" accept=".txt,.md,text/plain" hidden></label></div>`}
     </section>
     <h3 class="sec">Dónde lo citas</h3>
-    ${usos.length ? `<div class="lista">${usos.map(({ a, l: ln }) => ln
+    ${usos.length ? `<div class="lista">${usos.map(({ a, l: ln, c, n }) => c
+      ? `<a class="fila-c" href="#/concepto/${c.id}"><span class="fila-txt"><b>${esc(c.titulo)}</b><small>Ficha${n ? ` · ${n} ${n === 1 ? 'ejemplo' : 'ejemplos'}` : ''}</small></span>${ico('flecha', 'peq')}</a>`
+      : ln
       ? `<a class="fila-c" href="#/linea/${a.id}?l=${ln.id}"><span class="fila-txt"><b>${esc(ln.nombre || TIPO_LINEA[ln.tipo] || 'Línea')}</b><small>${esc(a.nombre)} · ${esc(TIPO_LINEA[ln.tipo] || '')}</small></span>${ico('flecha', 'peq')}</a>`
       : `<a class="fila-c" href="#/apertura/${a.id}"><span class="fila-txt"><b>${esc(a.nombre)}</b><small>Guía de la apertura</small></span>${ico('flecha', 'peq')}</a>`).join('')}</div>`
       : '<p class="nada">Aún no lo citas en ningún comentario.</p>'}`;
@@ -2715,7 +2732,7 @@ async function vRepaso(v, _id, q) {
         <div id="rep-fin" hidden></div>
         <button type="button" class="btn-lichess" id="rep-lichess">Analizar en Lichess ↗</button>
       </article>`;
-    v.querySelector('#rep-lichess').addEventListener('click', () => abrirEnLichess(ej, Math.min(entreno.ply(), ej.jugadas.length)));
+    v.querySelector('#rep-lichess').addEventListener('click', () => abrirEnLichess(ej, Math.min(entreno.ply(), ej.jugadas.length), { color }));
     const ponerCiegas = si => {
       ciegas = si;
       v.querySelector('.rep-tablero').classList.toggle('a-ciegas', si);
@@ -2931,6 +2948,49 @@ const ESTADOS = [
   ['repasar', '🟡', 'Lo que tengo que repasar', 'Va entrando, pero aún necesita repasos.'],
   ['domino', '🟢', 'Lo que domino', 'Acertado varias veces seguidas.'],
 ];
+// ---------------------------------------------------------------------
+//  ESTADÍSTICAS: salen del historial de repasos (registro_repaso) y del
+//  estado de cada tarjeta; no se guarda nada nuevo
+// ---------------------------------------------------------------------
+const MODULOS = [['linea', 'Repertorio'], ['concepto', 'Conceptos'], ['momento', 'Partidas']];
+const moduloDe = t => (t.tipo === 'linea' ? 'linea' : t.tipo === 'momento' ? 'momento' : 'concepto');
+const acierto = r => r === 'bien' || r === 'dudoso' || r === 'regular';
+function estadisticas() {
+  const regs = D.lista('registro_repaso').filter(r => !r.borrado_en).sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)));
+  const porTarjeta = new Map();
+  for (const r of regs) { if (!porTarjeta.has(r.tarjeta_id)) porTarjeta.set(r.tarjeta_id, []); porTarjeta.get(r.tarjeta_id).push(r.resultado === 'dudoso' ? 'regular' : r.resultado); }
+  const ts = tarjetas().filter(t => !t.borrado_en && (t.tipo === 'momento' ? momentoDeTarjeta(t) : fichaDeTarjeta(t) || lineaDeTarjeta(t)));
+  const tPorId = new Map(ts.map(t => [t.id, t]));
+  const catalogo = Object.fromEntries(MODULOS.map(([k]) => [k, { nueva: 0, descubierta: 0, aprendiendo: 0, consolidada: 0 }]));
+  for (const t of ts) catalogo[moduloDe(t)][R.estadoTarjeta(t, porTarjeta.get(t.id) || [])]++;
+  const pct = l => (l.length ? Math.round(l.filter(r => acierto(r.resultado)).length / l.length * 100) : null);
+  const hace = d => new Date(Date.now() - d * 864e5).toISOString();
+  const porModulo = Object.fromEntries(MODULOS.map(([k]) => [k, pct(regs.filter(r => tPorId.has(r.tarjeta_id) && moduloDe(tPorId.get(r.tarjeta_id)) === k))]));
+  // Evolución: % de aciertos de las últimas 8 semanas (de lunes a domingo)
+  const lunes = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
+  const semanas = [];
+  for (let k = 7; k >= 0; k--) {
+    const ini = lunes(Date.now() - k * 7 * 864e5), fin = new Date(ini.getTime() + 7 * 864e5);
+    const l = regs.filter(r => { const f = new Date(r.fecha); return f >= ini && f < fin; });
+    semanas.push({ ini, n: l.length, pct: pct(l) });
+  }
+  // Lo que más fallas: líneas y fichas, por número de fallos (y su % de aciertos)
+  const fallos = (filtro) => {
+    const m = new Map();
+    for (const r of regs) { const t = tPorId.get(r.tarjeta_id); if (!t || !filtro(t)) continue;
+      const k = t.tipo === 'linea' ? t.ref_id : fichaDeTarjeta(t)?.id || t.id;
+      const x = m.get(k) || { t, n: 0, mal: 0 }; x.n++; if (r.resultado === 'mal') x.mal++; m.set(k, x); }
+    return [...m.values()].filter(x => x.mal).sort((a, b) => b.mal - a.mal || a.n - b.n).slice(0, 5);
+  };
+  const hoy = R.hoyISO();
+  return {
+    total: regs.length, mes: pct(regs.filter(r => r.fecha >= hace(30))), siempre: pct(regs),
+    pendientes: ts.filter(t => !R.esNueva(t) && (t.ultimo_resultado === 'mal' || (t.proxima || hoy) <= hoy)).length,
+    catalogo, porModulo, semanas,
+    lineas: fallos(t => t.tipo === 'linea'), fichas: fallos(t => t.tipo !== 'linea' && fichaDeTarjeta(t)),
+  };
+}
+
 function vProgreso(v) {
   prepararTarjetas();
   const fichas = conceptos().filter(conceptoElegible);
@@ -2938,13 +2998,28 @@ function vProgreso(v) {
   const ses = (ajustes().sesiones || []).slice(-7);
   const media = ses.length ? Math.round(ses.reduce((s, x) => s + x.nota, 0) / ses.length * 10) / 10 : null;
   const dom = D.lista('tecnicas').filter(t => t.estado === 'domino').length;
+  const st = estadisticas();
   v.innerHTML = `
     <div class="cab-vista"><a href="#/entrenar" class="btn-ico">${ico('atras')}</a><h1>Mi progreso</h1></div>
     <div class="cifras">
       <div><b>${R.racha(diasRepasados())}</b><span>días de racha</span></div>
       <div><b>${registros.length}</b><span>repasos</span></div>
       <div><b>${media === null ? '–' : String(media).replace('.', ',')}</b><span>nota media</span></div>
+      <div><b>${st.mes === null ? '–' : st.mes + '%'}</b><span>aciertos · 30 días</span></div>
+      <div><b>${st.siempre === null ? '–' : st.siempre + '%'}</b><span>aciertos · siempre</span></div>
+      <div><b>${st.pendientes}</b><span>para repasar</span></div>
     </div>
+    <h3 class="sec">Tu catálogo</h3>
+    <div class="tarjeta tabla-prog">
+      <table><thead><tr><th></th><th title="Nunca se te han presentado">Por descubrir</th><th title="Presentadas, aún sin responder">Vistas</th><th>Apren&shy;diendo</th><th title="3 aciertos seguidos e intervalo de 3 semanas o más">Conso&shy;lidadas</th><th>% aciertos</th></tr></thead>
+      <tbody>${MODULOS.map(([k, nom]) => { const c = st.catalogo[k]; return `<tr><th>${nom}</th><td>${c.nueva}</td><td>${c.descubierta}</td><td>${c.aprendiendo}</td><td><b>${c.consolidada}</b></td><td>${st.porModulo[k] === null ? '–' : st.porModulo[k] + '%'}</td></tr>`; }).join('')}</tbody></table>
+      <p class="nota">Consolidada: 3 aciertos seguidos (con pista también cuentan) y un intervalo de 3 semanas o más. Acertar una vez no basta.</p>
+    </div>
+    <h3 class="sec">Evolución <small>% de aciertos por semana</small></h3>
+    <div class="tarjeta semanas">${st.semanas.map(w => `<div class="semana" title="${w.n} repasos"><span class="barra"><i style="height:${w.pct ?? 0}%"></i></span><b>${w.pct === null ? '–' : w.pct + '%'}</b><small>${w.ini.getDate()}/${w.ini.getMonth() + 1}</small></div>`).join('')}</div>
+    ${st.lineas.length ? `<h3 class="sec">Variantes que más fallas</h3><div class="lista">${st.lineas.map(x => { const r = lineaDeTarjeta(x.t); return r ? `<a class="fila-c" href="#/linea/${r.a.id}?l=${r.l.id}"><span class="fila-txt"><b>${esc(r.l.nombre || TIPO_LINEA[r.l.tipo])}</b><small>${esc(r.a.nombre)} · ${x.mal} ${x.mal === 1 ? 'fallo' : 'fallos'} en ${x.n} ${x.n === 1 ? 'repaso' : 'repasos'}</small></span>${ico('flecha', 'peq')}</a>` : ''; }).join('')}</div>` : ''}
+    ${st.fichas.length ? `<h3 class="sec">Conceptos que necesitan refuerzo</h3><div class="lista">${st.fichas.map(x => { const c = fichaDeTarjeta(x.t); return c ? `<a class="fila-c" href="#/concepto/${c.id}"><span class="fila-txt"><b>${esc(c.titulo)}</b><small>${x.mal} ${x.mal === 1 ? 'fallo' : 'fallos'} en ${x.n} ${x.n === 1 ? 'repaso' : 'repasos'}</small></span>${ico('flecha', 'peq')}</a>` : ''; }).join('')}</div>` : ''}
+    <h2 class="sec-grande">Tus fichas</h2>
     ${ESTADOS.map(([k, e, tit, sub]) => {
       const l = fichas.filter(c => c.estado === k);
       return `<h3 class="sec">${e} ${tit} <small>${l.length}</small></h3>
@@ -3240,7 +3315,6 @@ function vApertura(v, id) {
         <div class="visor" id="visor-principal"></div>
         ${r.principal.nota ? `<div class="md">${md(r.principal.nota)}</div>` : ''}
         <div class="fila-btn">
-          <a class="chip" href="${esc(RP.urlAnalisis(r.principal.ej, color))}" target="_blank" rel="noopener">${ico('externo', 'peq')} Analizar en Lichess</a>
           <a class="chip" href="${esc(RP.urlExplorador(fenFinal(r.principal.ej), color))}" target="_blank" rel="noopener">${ico('externo', 'peq')} Explorador al final</a>
           <button class="chip" id="crear-ej">${ico('mas', 'peq')} Crear ejemplo desde aquí</button>
         </div></div>`
@@ -4099,6 +4173,8 @@ function vLinea(v, apId, q) {
   if (!ej) return ir('#/apertura/' + apId);
   const principal = (a.lineas || []).find(x => x.tipo === 'principal');
   const sep = principal && l.tipo !== 'principal' ? RP.separacion(ej, leerPgn(principal.pgn)) : -1;
+  const fichasAp = (a.conceptos || []).map(cid => D.obtener('conceptos', cid)).filter(Boolean);
+  const librosLinea = librosCitados(l.pgn, l.nota);
   v.innerHTML = `
     <div class="cab-vista">
       <a href="#/apertura/${a.id}" class="btn-ico" aria-label="Volver">${ico('atras')}</a>
@@ -4108,8 +4184,9 @@ function vLinea(v, apId, q) {
     ${sep >= 0 ? `<p class="nota">Se separa de tu línea principal en <b>${esc(RP.etiquetaPly(ej, sep, verSan))}</b>.</p>` : ''}
     <div class="visor" id="visor-linea"></div>
     ${l.nota ? `<div class="md">${md(l.nota)}</div>` : ''}
+    ${fichasAp.length ? `<h3 class="sec">Conceptos de esta apertura</h3><div class="chips">${fichasAp.map(c => `<a class="chip" href="#/concepto/${c.id}">${ico('enlace', 'peq')} ${esc(c.titulo)}</a>`).join('')}</div>` : ''}
+    ${librosLinea.length ? `<h3 class="sec">Fuentes de esta línea</h3><div class="chips">${chipsLibros(librosLinea)}</div>` : ''}
     <div class="fila-btn">
-      <a class="chip" href="${esc(RP.urlAnalisis(ej, a.color))}" target="_blank" rel="noopener">${ico('externo', 'peq')} Analizar en Lichess</a>
       <a class="chip" href="${esc(RP.urlExplorador(fenFinal(ej), a.color))}" target="_blank" rel="noopener">${ico('externo', 'peq')} Explorador al final</a>
       <a class="chip" href="#/pregunta/nueva?texto=${encodeURIComponent(`${a.nombre} · ${l.nombre || TIPO_LINEA[l.tipo]}: `)}&pgn=${encodeURIComponent(l.pgn)}">${ico('guia', 'peq')} Preguntar al maestro</a>
       <button class="chip" id="crear-ej">${ico('mas', 'peq')} Crear ejemplo desde aquí</button>

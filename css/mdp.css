@@ -822,3 +822,15 @@ textarea.soltar { outline: 2px dashed var(--acento); outline-offset: 2px; }
   background: var(--papel); color: var(--suave); font: 600 12px var(--sans); cursor: pointer; }
 .btn-lichess:hover { color: var(--acento); border-color: var(--acento); }
 @media print { .btn-lichess { display: none; } }
+/* Mi progreso (v5.7) */
+.tabla-prog { overflow-x: auto; }
+.tabla-prog table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tabla-prog th, .tabla-prog td { padding: 6px 4px; text-align: center; border-bottom: 1px solid var(--linea); }
+.tabla-prog thead th { font-size: 10.5px; line-height: 1.2; color: var(--suave); font-weight: 600; }
+.tabla-prog tbody th { text-align: left; font-weight: 600; }
+.semanas { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; align-items: end; }
+.semana { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11px; }
+.semana .barra { position: relative; display: block; width: 70%; height: 70px; background: color-mix(in srgb, var(--acento) 10%, var(--papel)); border-radius: 6px; overflow: hidden; }
+.semana .barra i { position: absolute; left: 0; right: 0; bottom: 0; display: block; background: var(--acento); border-radius: 6px 6px 0 0; }
+.semana small { color: var(--suave); }
+.sec-grande { font-family: var(--serif); font-size: 20px; margin: 22px 0 4px; }
