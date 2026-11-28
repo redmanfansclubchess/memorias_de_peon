@@ -10,7 +10,7 @@ import * as PA from './partidas.js';
 import * as F from './fuentes.js';
 import { FEN_INICIAL, fenDe, crearVisor, crearEditor, crearEntrenoLinea, abrirEnLichess, etiquetaJugada, sirveDeEjercicio, dePgn, aPgn, pgnARamas, lineasAPgn, ejemploVacio, validarFen, usarNotacion, verSan, diagrama, textoJugadas, escapar as esc } from './tablero.js';
 
-export const VERSION = '5.8.1 (Momentos de partidas modelo en las tandas, sin duplicar ejercicios)';
+export const VERSION = '5.8.2 (Recupera las tarjetas de las líneas)';
 const app = document.getElementById('app');
 
 // ---------------------------------------------------------------------
@@ -2560,6 +2560,13 @@ async function crearTarjetasQueFalten() {
           continue;
         }
         quiero.set(base.id, { tipo: base.tipo, ref_id: base.ref_id, refs: grupo.length > 1 ? grupo.map(x => ({ tipo: x.tipo, ref_id: x.ref_id })) : null });
+      }
+      // Las líneas de tu repertorio (en la 5.8.1 este bloque se perdió por error y sus tarjetas
+      // quedaron marcadas como borradas; al volver aquí se recuperan con todo su progreso)
+      for (const a of aperturas()) {
+        for (const l of a.lineas || []) {
+          if (lineaEntrenable(a, leerPgn(l.pgn), l)) quiero.set(await idDeterminista(`${usuario.id}:linea:${l.id}`), { tipo: 'linea', ref_id: l.id });
+        }
       }
       for (const [id, { refs = null, ...x }] of quiero) {
         const t = D.obtenerAunBorrado('tarjetas', id);
