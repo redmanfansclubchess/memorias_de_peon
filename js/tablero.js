@@ -7,6 +7,7 @@ import { sugerirComentario } from './comentar.js';
 // =====================================================================
 import { Chessground } from 'https://cdn.jsdelivr.net/npm/chessground@9/+esm';
 import { Chess } from 'https://cdn.jsdelivr.net/npm/chess.js@1/+esm';
+import { conFuentes } from './fuentes.js';
 
 export const FEN_INICIAL = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 const COLORES = { G: 'green', R: 'red', B: 'blue', Y: 'yellow' };
@@ -296,7 +297,7 @@ export function crearVisor(contenedor, ej, { orientacion = 'white', ply: plyInic
     contenedor.querySelector('.ply-txt').textContent = ply ? etiquetaJugada(ej, ply) : (ej.jugadas.length ? 'Posición inicial' : '');
     const com = ply ? j.comentario : ej.comentario0;
     const cc = contenedor.querySelector('.comentario-jug');
-    cc.textContent = com || '';
+    cc.innerHTML = conFuentes(com);
     cc.hidden = !com;
     const lj = contenedor.querySelector('.lista-jug');
     lj.innerHTML = listaJugadas(ej, ply);
@@ -780,7 +781,7 @@ export function textoJugadas(ej) {
     if (turno === 'w') html += `<b>${num}.</b>`;
     else if (i === 0 || ej.jugadas[i - 1].comentario) html += `<b>${num}…</b>`;
     html += `${esc(verSan(j.san))} `;
-    if (j.comentario) html += `<i>${esc(j.comentario)}</i> `;
+    if (j.comentario) html += `<i>${conFuentes(j.comentario)}</i> `;
     if (turno === 'b') num++;
     turno = turno === 'w' ? 'b' : 'w';
   });

@@ -15,8 +15,12 @@ export const sb = createClient(SUPABASE_URL, SUPABASE_KEY, {
 export const TABLAS = [
   'ajustes', 'bloques', 'clases', 'conceptos', 'enlaces_conceptos', 'ejemplos',
   'notas_rapidas', 'glosario', 'tecnicas', 'tarjetas', 'registro_repaso',
-  'preguntas_maestro', 'repertorio', 'partidas', 'momentos',
+  'preguntas_maestro', 'repertorio', 'partidas', 'momentos', 'libros',
 ];
+// Tablas que llegaron después: si aún no existen en Supabase (falta el SQL),
+// la sincronización sigue con las demás y la app avisa en su pantalla.
+const OPCIONALES = new Set(['libros']);
+const faltaTabla = m => /does not exist|PGRST20[45]|Could not find the table|schema cache/i.test(m || '');
 const clave = t => (t === 'ajustes' ? 'user_id' : 'id');
 
 // ---------------------------------------------------------------------
@@ -25,7 +29,7 @@ const clave = t => (t === 'ajustes' ? 'user_id' : 'id');
 let dbp;
 function abrir() {
   if (!dbp) dbp = new Promise((ok, mal) => {
-    const r = indexedDB.open('mdp', 1);
+    const r = indexedDB.open('mdp', 2);
     r.onupgradeneeded = () => {
       const d = r.result;
       for (const t of TABLAS) if (!d.objectStoreNames.contains(t)) d.createObjectStore(t, { keyPath: clave(t) });
@@ -106,7 +110,7 @@ export const pendientes = () => TABLAS.reduce((n, t) => n + [...mem[t].values()]
 // ---------------------------------------------------------------------
 //  Sincronización con Supabase
 // ---------------------------------------------------------------------
-export const estadoSync = { enCurso: false, ultima: null, error: null, detalle: null };
+export const estadoSync = { enCurso: false, ultima: null, error: null, detalle: null, faltan: new Set() };
 let temporizador = null;
 let subidaAutomatica = true;
 export const ponerSubidaAutomatica = si => { subidaAutomatica = !!si; };
@@ -145,10 +149,13 @@ export async function sincronizar() {
         // Un upsert con filas de columnas distintas rellena con null las que faltan
         // (y choca con las columnas «not null»): se sube en tramos de filas con las mismas columnas,
         // sin cambiar el orden (los bloques padre siguen yendo antes que sus hijos)
+        let falta = false;
         for (const tramo of tramosIguales(lote.map(limpiar))) {
           const { error } = await sb.from(t).upsert(tramo, { onConflict: clave(t) });
+          if (error && OPCIONALES.has(t) && faltaTabla(error.message)) { estadoSync.faltan.add(t); falta = true; break; }
           if (error) throw new Error(`${t}: ${error.message}`);
         }
+        if (falta) break;   // se queda pendiente hasta que exista la tabla
         for (const f of lote) {
           const actual = mem[t].get(f[clave(t)]);
           if (actual && actual.editado_en === f.editado_en) {
@@ -167,7 +174,9 @@ export async function sincronizar() {
       for (;;) {
         const { data, error } = await sb.from(t).select('*').gt('actualizado_en', desde)
           .order('actualizado_en').range(inicio, inicio + 999);
+        if (error && OPCIONALES.has(t) && faltaTabla(error.message)) { estadoSync.faltan.add(t); break; }
         if (error) throw new Error(`${t}: ${error.message}`);
+        estadoSync.faltan.delete(t);
         for (const r of data) {
           const local = mem[t].get(r[clave(t)]);
           if (local && local._pendiente && new Date(local.editado_en) > new Date(r.editado_en)) continue;
@@ -226,7 +235,7 @@ export async function sembrarCatalogo() {
 //  seguir enseñando lo que tenían guardado.
 // ---------------------------------------------------------------------
 const DATOS = TABLAS.filter(t => t !== 'ajustes');
-const ORDEN_BORRADO = ['registro_repaso', 'tarjetas', 'momentos', 'partidas', 'repertorio', 'preguntas_maestro',
+const ORDEN_BORRADO = ['libros_texto', 'libros', 'registro_repaso', 'tarjetas', 'momentos', 'partidas', 'repertorio', 'preguntas_maestro',
   'tecnicas', 'glosario', 'notas_rapidas', 'ejemplos', 'enlaces_conceptos', 'conceptos', 'clases', 'bloques'];
 
 // Vacía los datos de este dispositivo. Se conserva lo que hayas creado después
@@ -250,6 +259,7 @@ export async function borrarTodo() {
     for (let i = 0; estadoSync.enCurso && i < 100; i++) await new Promise(r => setTimeout(r, 100));   // que acabe la sincronización en curso
     for (const t of ORDEN_BORRADO) {
       const { error } = await sb.from(t).delete().eq('user_id', usuarioId);
+      if (error && t.startsWith('libros') && faltaTabla(error.message)) continue;
       if (error) throw new Error(`${t}: ${error.message}`);
     }
     const marca = new Date().toISOString();
@@ -303,6 +313,47 @@ export async function restaurarCopia(copia) {
   avisar('datos');
   sincronizar().catch(() => {});
   return n;
+}
+
+// ---------------------------------------------------------------------
+//  Texto completo de los libros (tabla libros_texto). No se guarda en el
+//  dispositivo ni va en la copia de seguridad: se baja solo cuando lo pides.
+// ---------------------------------------------------------------------
+const textos = new Map();   // lo ya bajado en esta sesión
+async function conexion() {
+  if (!navigator.onLine) throw new Error('Necesitas conexión para el texto de los libros.');
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) throw new Error('Entra de nuevo en la app.');
+}
+function errorTexto(error) {
+  if (faltaTabla(error.message)) return new Error('Falta la tabla de libros en Supabase: ejecuta el SQL de la versión 12.');
+  return new Error(traducirError(error.message));
+}
+export async function leerTextoLibro(id) {
+  if (textos.has(id)) return textos.get(id);
+  await conexion();
+  const { data, error } = await sb.from('libros_texto').select('texto').eq('libro_id', id).maybeSingle();
+  if (error) throw errorTexto(error);
+  const t = data ? data.texto : null;
+  textos.set(id, t);
+  return t;
+}
+export async function guardarTextoLibro(id, texto) {
+  await conexion();
+  const libro = mem.libros.get(id);   // la ficha tiene que estar ya en Supabase
+  if (libro && libro._pendiente) {
+    const { error } = await sb.from('libros').upsert([limpiar(libro)], { onConflict: 'id' });
+    if (error) throw errorTexto(error);
+  }
+  const { error } = await sb.from('libros_texto').upsert([{ libro_id: id, texto, editado_en: new Date().toISOString() }], { onConflict: 'libro_id' });
+  if (error) throw errorTexto(error);
+  textos.set(id, texto);
+}
+export async function quitarTextoLibro(id) {
+  await conexion();
+  const { error } = await sb.from('libros_texto').delete().eq('libro_id', id);
+  if (error) throw errorTexto(error);
+  textos.set(id, null);
 }
 
 window.addEventListener('online', () => { avisar('red'); sincronizar(); });

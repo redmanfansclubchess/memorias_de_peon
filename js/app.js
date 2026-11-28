@@ -7,9 +7,10 @@ import { BIBLIOTECA } from './biblioteca.js';
 import * as R from './repaso.js';
 import * as RP from './repertorio.js';
 import * as PA from './partidas.js';
+import * as F from './fuentes.js';
 import { FEN_INICIAL, crearVisor, crearEditor, crearEntrenoLinea, etiquetaJugada, sirveDeEjercicio, dePgn, aPgn, pgnARamas, lineasAPgn, ejemploVacio, validarFen, usarNotacion, verSan, diagrama, textoJugadas, escapar as esc } from './tablero.js';
 
-export const VERSION = '5.4.1 (trampas explicadas con palabras: mistake, loses…)';
+export const VERSION = '5.5.0 (Libros: bibliografía, textos y citas en los comentarios)';
 const app = document.getElementById('app');
 
 // ---------------------------------------------------------------------
@@ -68,7 +69,7 @@ const col = c => COLORES[c] || COLORES.violeta;
 // ---------------------------------------------------------------------
 //  Utilidades
 // ---------------------------------------------------------------------
-const inl = s => s.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\*(.+?)\*/g, '<i>$1</i>');
+const inl = s => F.pastillasEn(s.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\*(.+?)\*/g, '<i>$1</i>'));
 function md(texto) {
   let html = '', lista = false;
   for (const l of esc(texto || '').split('\n')) {
@@ -252,7 +253,7 @@ const RUTAS = {
   repertorio: vRepertorio, apertura: vApertura, 'editar-apertura': vEditarApertura, linea: vLinea, 'editar-linea': vEditarLinea, 'imprimir-repertorio': vImprimirRepertorio, 'importar-lineas': vImportarLineas,
   partidas: vPartidas, 'importar-partidas': vImportarPartidas, partida: vPartida, 'editar-partida': vEditarPartida, 'comentar-partida': vComentarPartida, momento: vMomento, 'resumen-partidas': vResumenPartidas,
   clases: vClases, clase: vClase, notas: vNotas, glosario: vGlosario, rutina: vRutina, guia: vGuia, imprimir: vImprimir,
-  biblioteca: vBiblioteca,
+  biblioteca: vBiblioteca, libros: vLibros, libro: vLibro, 'editar-libro': vEditarLibro,
   repaso: vRepaso, progreso: vProgreso, tecnicas: vTecnicas, preguntas: vPreguntas, pregunta: vPregunta,
 };
 
@@ -291,7 +292,7 @@ function pintar(conservarScroll) {
   document.querySelectorAll('.barra a').forEach(a => {
     const r = a.dataset.r;
     a.classList.toggle('on', r === nombre || (r === 'conceptos' && ['bloque', 'concepto', 'editar', 'ejemplo', 'catalogo', 'imprimir', 'biblioteca'].includes(nombre))
-      || (r === 'repertorio' && ['apertura', 'editar-apertura', 'linea', 'editar-linea', 'imprimir-repertorio', 'importar-lineas'].includes(nombre)) || (r === 'partidas' && ['importar-partidas', 'partida', 'editar-partida', 'comentar-partida', 'momento', 'resumen-partidas'].includes(nombre)) || (r === 'clases' && ['clase', 'preguntas', 'pregunta'].includes(nombre)) || (r === 'entrenar' && ['repaso', 'progreso', 'tecnicas'].includes(nombre)) || (r === 'inicio' && ['notas', 'glosario', 'rutina', 'guia'].includes(nombre)));
+      || (r === 'repertorio' && ['apertura', 'editar-apertura', 'linea', 'editar-linea', 'imprimir-repertorio', 'importar-lineas'].includes(nombre)) || (r === 'partidas' && ['importar-partidas', 'partida', 'editar-partida', 'comentar-partida', 'momento', 'resumen-partidas'].includes(nombre)) || (r === 'clases' && ['clase', 'preguntas', 'pregunta'].includes(nombre)) || (r === 'entrenar' && ['repaso', 'progreso', 'tecnicas'].includes(nombre)) || (r === 'inicio' && ['notas', 'glosario', 'rutina', 'guia', 'libros', 'libro', 'editar-libro'].includes(nombre)));
   });
   vigilarPgn(vista);
   (RUTAS[nombre] || vInicio)(vista, id, new URLSearchParams(q || ''));
@@ -418,6 +419,7 @@ function vInicio(v) {
     ${notasPendientes ? `<a class="tarjeta aviso-notas" href="#/notas">${ico('nota')}<span><b>${notasPendientes} ${notasPendientes === 1 ? 'nota rápida' : 'notas rápidas'} por ordenar</b><small>Conviértelas en fichas cuando tengas un rato</small></span>${ico('flecha', 'peq')}</a>` : ''}
     <div class="atajos">
       <a href="#/biblioteca">${ico('libro')}<span>Biblioteca</span></a>
+      <a href="#/libros">${ico('libro')}<span>Libros</span></a>
       <a href="#/preguntas">${ico('guia')}<span>Preguntas${preguntas().filter(p => !p.respondida).length ? ' (' + preguntas().filter(p => !p.respondida).length + ')' : ''}</span></a>
       <a href="#/rutina">${ico('rutina')}<span>Rutina</span></a>
       <a href="#/glosario">${ico('glosario')}<span>Glosario</span></a>
@@ -1738,6 +1740,9 @@ function vGuia(v) {
         <p>Tus aperturas, elegidas por ti: hasta 5 por color (3 principales y 2 secundarias). La app no te propone ninguna; te guía para que cada una quede completa, paso a paso: <b>las jugadas que la definen</b>, objetivos, <b>línea principal</b>, <b>respuestas del rival</b>, estructura, planes, rupturas, <b>trampas</b>, tácticas, partidas modelo, conceptos de tu cuaderno y, al final, revisarla con tu maestro.</p>
         <p>Cada apertura muestra su porcentaje y el <b>siguiente paso</b>. En cada línea tienes enlaces para comprobarla en Lichess: el tablero de análisis y el <b>explorador</b>, donde ves qué juegan de verdad los rivales. También puedes pegar un PGN copiado de Lichess.</p>
         <p><b>Entrenar</b>: la app hace las jugadas del rival y tú las tuyas, con dos intentos por jugada; la pista es tu comentario, nunca la jugada. Cada línea que llega al menos a tu 5.ª jugada entra en el repaso diario: la que te sale bien tarda más en volver y la que fallas vuelve mañana. Con <b>Entrenar esta apertura</b> repasas todas sus líneas cuando quieras, primero las que peor llevas. El icono de impresora saca el repertorio en PDF.</p></section>
+      <section class="tarjeta"><h2>Libros</h2>
+        <p>En <a href="#/libros">Libros</a> está tu bibliografía, común a todo el cuaderno. Cada libro tiene un código para citarlo en los comentarios de tus líneas: <b>[Basado en C21, cap. 1]</b> si la idea sale de un libro, <b>[Síntesis]</b> (o <b>[Síntesis: C21, S21]</b>) si reúne varios, y <b>[Recreado]</b> si es una explicación propia. Al entrenar se ven como pastillas: tócalas y se abre la ficha del libro.</p>
+        <p>Puedes subir el <b>texto</b> de cada libro (un archivo .txt). Se guarda en tu Supabase, en privado, y no ocupa sitio en el móvil hasta que lo pides. Desde la ficha lo descargas o lo copias para dárselo a una IA junto con tu copia de seguridad.</p></section>
       <section class="tarjeta"><h2>Mis partidas</h2>
         <p>Solo las que eliges: las que jugaste pensando. Tráelas de Lichess marcándolas en la lista de tus últimas partidas, o pega su enlace o su PGN. Cada partida tiene su <b>guía de revisión</b>: los datos, tu apertura (la app detecta dónde se salió alguien de tu repertorio y te deja añadir la respuesta del rival como línea nueva), <b>tus ideas antes del motor</b>, los <b>momentos clave</b>, el motor de Lichess, tus <b>errores convertidos en ejercicios</b> de repaso, los conceptos de tu cuaderno y <b>la lección</b>.</p>
         <p>Para marcar un momento, ve a la jugada en el tablero de la partida y pulsa «Marcar momento». En <b>Resumen</b> ves tus resultados por color y apertura, y tus errores más repetidos.</p></section>
@@ -1749,6 +1754,257 @@ function vGuia(v) {
         <p><b>Imprimir</b>: desde una ficha (icono de impresora) o desde Conceptos. En la ventana de impresión elige «Guardar como PDF». En Ajustes tienes la <b>copia de seguridad</b> y la exportación de tus ejemplos en PGN.</p></section>
     </div>`;
 }
+
+// ---------------------------------------------------------------------
+//  LIBROS: la bibliografía común a todo el cuaderno
+//  La ficha (código, autor, título…) se sincroniza como lo demás. El texto
+//  completo va aparte (D.leerTextoLibro…): solo en Supabase, se baja al pedirlo.
+// ---------------------------------------------------------------------
+const kb = t => Math.max(1, Math.round(new Blob([t]).size / 1024));
+const tamTexto = n => (n >= 1024 ? (n / 1024).toFixed(1).replace('.', ',') + ' MB' : n + ' KB');
+
+// Dónde citas un libro: líneas e ideas de tus aperturas
+function citasDeLibro(codigo) {
+  const r = [];
+  for (const a of aperturas()) {
+    const secciones = ['ideas', 'planes', 'rupturas', 'estructura', 'tacticas'].filter(k => F.cita(a[k], codigo));
+    if (secciones.length) r.push({ a, l: null });
+    for (const l of a.lineas || []) if (F.cita(l.pgn, codigo) || F.cita(l.nota, codigo)) r.push({ a, l });
+  }
+  return r;
+}
+
+// Cabecera que acompaña al texto al descargarlo o copiarlo (para la IA)
+function cabeceraLibro(l) {
+  return [`[MdP · Libro ${l.codigo}]`, l.autor && `Autor: ${l.autor}`, `Título: ${l.titulo}`,
+    (l.editorial || l.anio) && `Edición: ${[l.editorial, l.anio].filter(Boolean).join(', ')}`, l.isbn && `ISBN: ${l.isbn}`,
+    l.capitulos && `Capítulos consultados:\n${l.capitulos}`, l.notas && `Notas: ${l.notas}`, '-----', ''].filter(Boolean).join('\n');
+}
+const archivoLibro = l => `${l.codigo} - ${(F.apellido(l) || 'libro')} - ${l.titulo}`.replace(/[\\/:*?"<>|]+/g, '').slice(0, 90) + '.txt';
+
+async function subirTextoLibro(l, file) {
+  if (file.size > 8e6) throw new Error(`«${file.name}» pasa de 8 MB: ¿seguro que es solo texto?`);
+  if (!/\.(txt|md|text)$/i.test(file.name) && file.type && !file.type.startsWith('text/')) throw new Error(`«${file.name}» no es un archivo de texto (.txt).`);
+  let t = (await file.text()).replace(/\r\n?/g, '\n').replace(/^﻿/, '');
+  if ((t.match(/�/g) || []).length > 20) throw new Error(`«${file.name}» no se lee bien (salen caracteres raros). Guárdalo como texto UTF-8 y prueba otra vez.`);
+  if (t.trim().length < 200) throw new Error(`«${file.name}» está casi vacío.`);
+  await D.guardarTextoLibro(l.id, t);
+  l.texto_kb = kb(t); l.texto_fecha = new Date().toISOString();
+  await D.guardar('libros', l);
+}
+
+function vLibros(v) {
+  const ls = F.libros();
+  const conTexto = ls.filter(l => l.texto_kb);
+  const falta = D.estadoSync.faltan.has('libros');
+  v.innerHTML = `
+    <div class="cab-vista"><a href="#/inicio" class="btn-ico">${ico('atras')}</a><h1>Libros</h1>
+      <a class="btn peq primario" href="#/editar-libro/nuevo">${ico('mas', 'peq')} Nuevo</a></div>
+    <p class="intro">Tu bibliografía, común a todo el cuaderno. Cada libro tiene un <b>código</b> para citarlo en los comentarios, y puede guardar su <b>texto</b> para trabajarlo con una IA.</p>
+    ${falta ? `<p class="aviso-sql">${ico('nube', 'peq')} Falta la tabla de libros en Supabase: ejecuta el SQL de la versión 12. Mientras, las fichas se quedan en este dispositivo y no se puede guardar el texto.</p>` : ''}
+    ${ls.length ? `<div class="lista">${ls.map(l => {
+      const n = citasDeLibro(l.codigo).length;
+      return `<a class="fila-c" href="#/libro/${l.id}"><span class="cod-libro">${esc(l.codigo)}</span>
+        <span class="fila-txt"><b>${esc(l.titulo)}</b><small>${esc([l.autor, l.anio].filter(Boolean).join(' · '))}${l.texto_kb ? ` · texto ${tamTexto(l.texto_kb)}` : ' · sin texto'}${n ? ` · ${n} ${n === 1 ? 'cita' : 'citas'}` : ''}</small></span>${ico('flecha', 'peq')}</a>`;
+    }).join('')}</div>` : '<p class="nada">Aún no tienes libros. Crea el primero con «Nuevo», o restaura una copia que los traiga.</p>'}
+    ${ls.length ? `<div class="fila-btn libros-acc">
+      <label class="btn">${ico('subir', 'peq')} Subir textos (.txt)<input type="file" id="subir-textos" accept=".txt,.md,text/plain" multiple hidden></label>
+      ${conTexto.length ? `<button class="btn" id="bajar-todos">${ico('descargar', 'peq')} Descargar todos los textos</button>` : ''}
+    </div>
+    <p class="nota">Para subir varios de una vez, el nombre de cada archivo tiene que empezar por el código de su libro: «C21 - Caruana.txt». Solo texto: los PDF no se guardan.</p>` : ''}
+    <section class="tarjeta etiquetas" id="etiquetas">
+      <h2>Cómo citar en los comentarios</h2>
+      <p>${F.conFuentes('[Basado en C21, cap. 1]')} <code>[Basado en C21, cap. 1]</code> La idea sale de ese libro (escríbelo con tus palabras, no copies párrafos).</p>
+      <p>${F.conFuentes('[Síntesis]')} <code>[Síntesis]</code> o <code>[Síntesis: C21, S21]</code> Reúne lo que dicen varios libros.</p>
+      <p>${F.conFuentes('[Recreado]')} <code>[Recreado]</code> Explicación tuya, sin un libro concreto detrás.</p>
+    </section>`;
+  v.querySelector('#subir-textos')?.addEventListener('change', async e => {
+    const files = [...e.target.files];
+    e.target.value = '';
+    let bien = 0; const mal = [];
+    for (const f of files) {
+      const cod = (f.name.match(/^\s*([A-Za-zÀ-ÿ]+\d+)/) || [])[1];
+      const l = cod && F.libroPorCodigo(cod);
+      if (!l) { mal.push(`«${f.name}»: su nombre no empieza por el código de ningún libro`); continue; }
+      try { aviso(`Subiendo ${l.codigo}…`); await subirTextoLibro(l, f); bien++; } catch (err) { mal.push(err.message); }
+    }
+    if (mal.length) alert((bien ? `${bien} ${bien === 1 ? 'texto guardado' : 'textos guardados'}.\n\n` : '') + 'No se pudo:\n· ' + mal.join('\n· '));
+    else aviso(`${bien} ${bien === 1 ? 'texto guardado' : 'textos guardados'}`);
+    pintar(true);
+  });
+  v.querySelector('#bajar-todos')?.addEventListener('click', async () => {
+    try {
+      aviso('Preparando los textos…');
+      const partes = [];
+      for (const l of conTexto) { const t = await D.leerTextoLibro(l.id); if (t) partes.push(cabeceraLibro(l) + t.trim()); }
+      descargar(`MdP-libros-${hoyISO()}.txt`, partes.join('\n\n=====================================================================\n\n') + '\n', 'text/plain');
+    } catch (err) { alert(err.message); }
+  });
+}
+
+function vLibro(v, id, q) {
+  const l = D.obtener('libros', id);
+  if (!l) return ir('#/libros');
+  const det = q.get('det');
+  const usos = citasDeLibro(l.codigo);
+  v.innerHTML = `
+    <div class="cab-vista"><a href="#/libros" class="btn-ico">${ico('atras')}</a><h1>${esc(l.codigo)}</h1>
+      <a class="btn peq" href="#/editar-libro/${l.id}">Editar</a></div>
+    <article class="tarjeta libro-ficha">
+      <h2>${esc(l.titulo)}</h2>
+      ${l.autor ? `<p class="libro-autor">${esc(l.autor)}</p>` : ''}
+      <p class="libro-datos">${esc([l.editorial, l.anio].filter(Boolean).join(', '))}${l.isbn ? `${l.editorial || l.anio ? ' · ' : ''}ISBN ${esc(l.isbn)}` : ''}</p>
+      ${det ? `<p class="cita-act">Citado en tu comentario: <b>${esc(det)}</b></p>` : ''}
+      ${l.capitulos ? `<h3>Capítulos consultados</h3><div class="md">${md(l.capitulos)}</div>` : ''}
+      ${l.notas ? `<h3>Notas</h3><div class="md">${md(l.notas)}</div>` : ''}
+    </article>
+    <h3 class="sec">Texto del libro</h3>
+    <section class="tarjeta" id="texto-libro">
+      ${l.texto_kb ? `<p>Guardado en tu Supabase · ${tamTexto(l.texto_kb)}${l.texto_fecha ? ' · ' + new Date(l.texto_fecha).toLocaleDateString('es-ES') : ''}</p>
+      <div class="fila-btn">
+        <button class="btn primario peq" id="t-bajar">${ico('descargar', 'peq')} Descargar .txt</button>
+        <button class="btn peq" id="t-copiar">Copiar texto</button>
+      </div>
+      <p class="nota">Para trabajar tu apertura con una IA: pásale este texto y tu copia de seguridad (Ajustes).</p>
+      <div class="fila-btn">
+        <label class="btn peq">${ico('subir', 'peq')} Sustituir<input type="file" id="t-subir" accept=".txt,.md,text/plain" hidden></label>
+        <button class="btn peq peligro" id="t-quitar">Quitar el texto</button>
+      </div>`
+      : `<p>Sin texto. Sube un archivo .txt con el contenido del libro (no un PDF). Se guarda solo en tu Supabase, en privado.</p>
+      <div class="fila-btn"><label class="btn primario peq">${ico('subir', 'peq')} Subir texto (.txt)<input type="file" id="t-subir" accept=".txt,.md,text/plain" hidden></label></div>`}
+    </section>
+    <h3 class="sec">Dónde lo citas</h3>
+    ${usos.length ? `<div class="lista">${usos.map(({ a, l: ln }) => ln
+      ? `<a class="fila-c" href="#/linea/${a.id}?l=${ln.id}"><span class="fila-txt"><b>${esc(ln.nombre || TIPO_LINEA[ln.tipo] || 'Línea')}</b><small>${esc(a.nombre)} · ${esc(TIPO_LINEA[ln.tipo] || '')}</small></span>${ico('flecha', 'peq')}</a>`
+      : `<a class="fila-c" href="#/apertura/${a.id}"><span class="fila-txt"><b>${esc(a.nombre)}</b><small>Guía de la apertura</small></span>${ico('flecha', 'peq')}</a>`).join('')}</div>`
+      : '<p class="nada">Aún no lo citas en ningún comentario.</p>'}`;
+  // El texto se baja al abrir la ficha: así «Copiar» funciona al primer toque (el móvil
+  // solo deja copiar justo al tocar, no después de esperar a la red)
+  let texto = null;
+  if (l.texto_kb && navigator.onLine) D.leerTextoLibro(l.id).then(t => { texto = t; }).catch(() => {});
+  const conTexto = async () => {
+    const t = texto ?? await D.leerTextoLibro(l.id);
+    if (!t) throw new Error('No se encuentra el texto en Supabase. Súbelo otra vez.');
+    texto = t;
+    return cabeceraLibro(l) + t;
+  };
+  v.querySelector('#t-bajar')?.addEventListener('click', async () => {
+    try { descargar(archivoLibro(l), await conTexto(), 'text/plain'); } catch (err) { alert(err.message); }
+  });
+  v.querySelector('#t-copiar')?.addEventListener('click', async () => {
+    try {
+      const t = texto ? cabeceraLibro(l) + texto : await conTexto();
+      await navigator.clipboard.writeText(t);
+      aviso(`Texto copiado (${tamTexto(kb(t))}). Pégalo en la IA.`);
+    } catch (err) { aviso(texto ? 'El móvil no ha dejado copiar. Prueba «Descargar .txt».' : err.message); }
+  });
+  v.querySelector('#t-subir')?.addEventListener('change', async e => {
+    const f = e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    try { aviso('Subiendo el texto…'); await subirTextoLibro(l, f); aviso('Texto guardado'); } catch (err) { alert(err.message); }
+    pintar(true);
+  });
+  v.querySelector('#t-quitar')?.addEventListener('click', async () => {
+    if (!confirm('¿Quitar el texto de este libro? La ficha se queda.')) return;
+    try { await D.quitarTextoLibro(l.id); l.texto_kb = null; l.texto_fecha = null; await D.guardar('libros', l); aviso('Texto quitado'); } catch (err) { alert(err.message); }
+    pintar(true);
+  });
+}
+
+function vEditarLibro(v, id, q) {
+  editando = true;
+  const nuevo = id === 'nuevo';
+  const l = nuevo ? { codigo: q.get('codigo') || '', autor: '', titulo: '', editorial: '', anio: null, isbn: '', capitulos: '', notas: '' } : D.obtener('libros', id);
+  if (!l) return ir('#/libros');
+  v.innerHTML = `
+    <div class="cab-vista"><a href="${nuevo ? '#/libros' : '#/libro/' + l.id}" class="btn-ico">${ico('atras')}</a><h1>${nuevo ? 'Nuevo libro' : 'Editar libro'}</h1></div>
+    <form id="f-libro" class="form">
+      <label>Código <small>el que escribes en los comentarios: [Basado en C21, cap. 1]</small>
+        <input name="codigo" required maxlength="12" autocapitalize="characters" placeholder="C21" value="${esc(l.codigo)}"></label>
+      <label>Título<input name="titulo" required placeholder="Caruana's Ruy Lopez" value="${esc(l.titulo)}"></label>
+      <label>Autor<input name="autor" placeholder="Fabiano Caruana" value="${esc(l.autor || '')}"></label>
+      <div class="dos">
+        <label>Editorial<input name="editorial" value="${esc(l.editorial || '')}"></label>
+        <label>Año<input name="anio" type="number" min="1400" max="2100" inputmode="numeric" value="${l.anio ?? ''}"></label>
+      </div>
+      <label>ISBN<input name="isbn" value="${esc(l.isbn || '')}"></label>
+      <label>Capítulos consultados <small>uno por línea</small><textarea name="capitulos" rows="5">${esc(l.capitulos || '')}</textarea></label>
+      <label>Notas<textarea name="notas" rows="3">${esc(l.notas || '')}</textarea></label>
+      ${nuevo ? `<label>Texto del libro <small>opcional, un archivo .txt</small><input type="file" name="texto" accept=".txt,.md,text/plain"></label>` : ''}
+      <div class="botones">
+        <button class="btn primario">Guardar</button>
+        ${nuevo ? '' : `<button type="button" class="btn peligro" id="l-borrar">${ico('borrar', 'peq')}</button>`}
+      </div>
+    </form>`;
+  const f = v.querySelector('#f-libro');
+  f.addEventListener('submit', async e => {
+    e.preventDefault();
+    const codigo = f.codigo.value.trim().replace(/\s+/g, '');
+    const otro = F.libroPorCodigo(codigo);
+    if (otro && otro.id !== l.id) return alert(`El código ${codigo} ya es de «${otro.titulo}». Elige otro.`);
+    const anio = parseInt(f.anio.value, 10);
+    Object.assign(l, { codigo, titulo: f.titulo.value.trim(), autor: f.autor.value.trim() || null, editorial: f.editorial.value.trim() || null,
+      anio: Number.isFinite(anio) ? anio : null, isbn: f.isbn.value.trim() || null, capitulos: f.capitulos.value.trim() || null, notas: f.notas.value.trim() || null });
+    const fila = await D.guardar('libros', l);
+    editando = false;
+    const archivo = nuevo && f.texto.files[0];
+    if (archivo) { try { aviso('Subiendo el texto…'); await subirTextoLibro(fila, archivo); } catch (err) { alert('La ficha se ha guardado, pero el texto no: ' + err.message); } }
+    aviso('Libro guardado');
+    ir('#/libro/' + fila.id);
+  });
+  v.querySelector('#l-borrar')?.addEventListener('click', async () => {
+    const n = citasDeLibro(l.codigo).length;
+    if (!confirm(`¿Borrar «${l.titulo}»?${n ? ` Lo citas ${n} ${n === 1 ? 'vez' : 'veces'}: esas pastillas quedarán sin ficha.` : ''}${l.texto_kb ? ' Su texto también se borra.' : ''}`)) return;
+    if (l.texto_kb) { try { await D.quitarTextoLibro(l.id); } catch (err) { /* sin conexión: el texto se queda en Supabase */ } }
+    editando = false;
+    await D.borrar('libros', l.id);
+    aviso('Libro borrado');
+    ir('#/libros');
+  });
+  protegerSalida(v);
+}
+
+// Al tocar una pastilla de fuente en cualquier comentario: la ficha del libro, sin salir de donde estás
+function abrirFuente(ds) {
+  let cuerpo = '', boton = '';
+  if (ds.fuente === 'libro') {
+    const l = F.libroPorCodigo(ds.codigo);
+    if (l) {
+      cuerpo = `<div class="t-cab"><b>${esc(l.titulo)}</b><span class="cod-libro">${esc(l.codigo)}</span></div>
+        <p class="t-def">${esc(F.refLibro({ ...l, titulo: null }))}</p>
+        ${ds.detalle ? `<p class="cita-act">Citado: <b>${esc(ds.detalle)}</b></p>` : ''}
+        ${l.capitulos ? `<div class="md libro-caps">${md(l.capitulos)}</div>` : ''}`;
+      boton = `<a class="btn primario" href="#/libro/${l.id}${ds.detalle ? '?det=' + encodeURIComponent(ds.detalle) : ''}">Abrir la ficha</a>`;
+    } else {
+      cuerpo = `<div class="t-cab"><b>${esc(ds.codigo)}</b></div><p class="t-def">Este código no está en tus libros. Añádelo para que la cita tenga su ficha.</p>`;
+      boton = `<a class="btn primario" href="#/editar-libro/nuevo?codigo=${encodeURIComponent(ds.codigo)}">Añadir el libro</a>`;
+    }
+  } else if (ds.fuente === 'sintesis') {
+    const cods = (ds.codigos || '').split(',').filter(Boolean);
+    const ls = cods.length ? cods.map(c => F.libroPorCodigo(c) || { codigo: c, titulo: '(sin ficha)' }) : F.libros();
+    cuerpo = `<div class="t-cab"><b>Síntesis</b></div>
+      <p class="t-def">Idea que reúne lo que dicen varios libros de tu bibliografía${cods.length ? '' : '; no se atribuye a uno solo'}.</p>
+      ${ls.length ? `<ul class="libro-lista">${ls.map(l => `<li>${l.id ? `<a href="#/libro/${l.id}">` : ''}<span class="cod-libro">${esc(l.codigo)}</span> ${esc(l.titulo)}${l.id ? '</a>' : ''}</li>`).join('')}</ul>` : ''}`;
+    boton = `<a class="btn primario" href="#/libros">Ver la bibliografía</a>`;
+  } else {
+    cuerpo = `<div class="t-cab"><b>Recreado</b></div>
+      <p class="t-def">Explicación redactada para tu repertorio a partir del análisis de la posición. No sale de un libro concreto.</p>`;
+  }
+  const d = document.createElement('div');
+  d.className = 'modal hoja-abajo';
+  d.innerHTML = `<div class="modal-caja termino fuente-caja">${cuerpo}<div class="botones"><button class="btn" data-cerrar>Cerrar</button>${boton}</div></div>`;
+  d.addEventListener('click', ev => {
+    if (ev.target === d || ev.target.closest('[data-cerrar]') || ev.target.closest('a')) d.remove();
+  });
+  document.body.appendChild(d);
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('.fuente[data-fuente]');
+  if (!b || b.closest('.fuente-caja')) return;
+  e.preventDefault(); e.stopPropagation();
+  abrirFuente(b.dataset);
+}, true);
 
 // ---------------------------------------------------------------------
 //  IMPRIMIR / PDF
@@ -1778,7 +2034,7 @@ function vImprimir(v, _id, q) {
         let ej; try { ej = dePgn(e.pgn || `[FEN "${e.fen_inicial}"]`); } catch (err) { return ''; }
         return `<div class="p-ej">${diagrama(ej, { orientacion: e.orientacion })}
           <div class="p-ej-txt"><b>${esc(e.titulo || 'Ejemplo ' + (i + 1))}</b>
-          ${ej.comentario0 ? `<p>${esc(ej.comentario0)}</p>` : ''}
+          ${ej.comentario0 ? `<p>${F.conFuentes(ej.comentario0)}</p>` : ''}
           ${ej.jugadas.length ? `<p class="p-jug">${textoJugadas(ej)}</p>` : `<p class="p-turno">Juegan ${ej.fen0.split(' ')[1] === 'b' ? 'negras' : 'blancas'}</p>`}</div></div>`;
       }).join('')}
     </article>`;
@@ -2005,6 +2261,9 @@ const AYUDAS = {
   conceptos: ['Conceptos', 'Tu cuaderno, ordenado en **Bloque → Tema → Ficha**. Arriba buscas. «Bloques» para activar lo que estudias o dejarlo en reserva; «Biblioteca» para leer toda la teoría de serie; con + creas una ficha. La Bandeja guarda las fichas sin clasificar.'],
   bloque: ['Un bloque', 'Sus temas y sus fichas. Las **translúcidas** son de la biblioteca: ábrelas, adáptalas a lo que te dijo tu maestro y añádeles tu ejemplo para que pasen a **Trabajada**.'],
   catalogo: ['Bloques y temas', 'Activa con el interruptor solo lo que estés estudiando. Toca un bloque para ver sus temas. Al activar un tema aparecen sus fichas de la biblioteca, translúcidas. Lo que dejas en reserva **no se borra**.'],
+  libros: ['Libros', 'Tu **bibliografía**, común a todo el cuaderno. Cada libro lleva un **código** (C21, S21…) para citarlo en los comentarios: «[Basado en C21, cap. 1]», «[Síntesis]» o «[Recreado]». Si subes su **texto** (.txt), lo puedes descargar o copiar para trabajarlo con una IA. El texto se guarda solo en tu Supabase, en privado.'],
+  libro: ['Un libro', 'Su ficha, los capítulos que has consultado y **dónde lo citas** en tus aperturas. Con el texto subido: **Descargar .txt** o **Copiar** para pasárselo a una IA junto con tu copia de seguridad.'],
+  'editar-libro': ['Editar el libro', 'El **código** es lo que escribes en los comentarios: «[Basado en C21, cap. 1]». Corto y sin espacios: inicial del autor y año (C21), o lo que prefieras, pero sin repetirlo.'],
   biblioteca: ['Biblioteca', 'La teoría de serie de MdP, solo texto: definición, principio y explicación. Puedes leerla aunque esté en reserva y añadirla a tu cuaderno con un toque. **El tablero lo pones tú.**'],
   concepto: ['Una ficha', 'Principio, explicación y tus ejemplos. Las palabras subrayadas abren el glosario. **«Añadir ejemplo en el tablero»** la deja Trabajada y la mete en el repaso. «Editar» cambia el texto (abajo está «Borrar ficha»); la impresora la saca en PDF.'],
   editar: ['Editar la ficha', 'Nombre, bloque y tema, el **principio** (la frase clave) y la explicación, con **negrita**, *cursiva* y listas empezando con «- ». Si el nombre está en la biblioteca, puedes traer su teoría.'],
@@ -2443,7 +2702,7 @@ async function vRepaso(v, _id, q) {
     const entreno = crearEntrenoLinea(v.querySelector('.rep-tablero'), ej, {
       color, inicio, fin, ver, aprender, pedirPromocion,
       alVer: (jugada, comentario, ultima) => {   // cómo se llega a la pregunta, jugada a jugada, a tu ritmo
-        v.querySelector('#rep-pistas').innerHTML = comentario ? `<p class="pista-rep rival"><b>${esc(jugada)}</b> ${esc(comentario)}</p>` : '';
+        v.querySelector('#rep-pistas').innerHTML = comentario ? `<p class="pista-rep rival"><b>${esc(jugada)}</b> ${F.conFuentes(comentario)}</p>` : '';
         if (ultima) {
           v.querySelector('#rep-ver').hidden = true;
           v.querySelector('#rep-ayuda').hidden = aprender;
@@ -2451,12 +2710,12 @@ async function vRepaso(v, _id, q) {
         } else avisar(`Mira cómo se llega: ${jugada}`);
       },
       alTurno: ({ comentario }) => {   // aprendiendo: la flecha en el tablero y tu comentario aquí
-        if (comentario) v.querySelector('#rep-pistas').insertAdjacentHTML('beforeend', `<p class="pista-rep"><b>Idea:</b> ${esc(comentario)}</p>`);
+        if (comentario) v.querySelector('#rep-pistas').insertAdjacentHTML('beforeend', `<p class="pista-rep"><b>Idea:</b> ${F.conFuentes(comentario)}</p>`);
         avisar('Juega la jugada de la flecha.');
       },
       alRival: (jugada, comentario) => {   // la respuesta del rival y su porqué (tu comentario en esa jugada)
         if (ciegas) avisar(`El rival juega ${jugada}`);
-        v.querySelector('#rep-pistas').innerHTML = comentario ? `<p class="pista-rep rival"><b>${esc(jugada)}</b> ${esc(comentario)}</p>` : '';
+        v.querySelector('#rep-pistas').innerHTML = comentario ? `<p class="pista-rep rival"><b>${esc(jugada)}</b> ${F.conFuentes(comentario)}</p>` : '';
       },
       alJugada: ({ ok, otraVez, perdida, jugada, ply: p }) => {
         if (!aprender) {
@@ -2484,7 +2743,7 @@ async function vRepaso(v, _id, q) {
         const fin = v.querySelector('#rep-fin');
         fin.innerHTML = `<p class="rep-resultado ${res}">${texto}</p>
           <p class="p-jug rep-linea-txt">${textoJugadas(ej)}</p>
-          ${nota ? `<p class="comentario-jug">${esc(nota)}</p>` : ''}
+          ${nota ? `<p class="comentario-jug">${F.conFuentes(nota)}</p>` : ''}
           ${pie ? `<p class="nota">${pie}</p>` : ''}
           <button class="btn primario ancho" id="rep-sig">Siguiente</button>`;
         fin.hidden = false;
@@ -2496,7 +2755,7 @@ async function vRepaso(v, _id, q) {
     v.querySelector('#rep-pista').addEventListener('click', () => {
       const caja = v.querySelector('#rep-pistas');
       const propia = entreno.pista();
-      if (propia) { pistas++; caja.innerHTML = `<p class="pista-rep"><b>Pista:</b> ${esc(propia)}</p>`; return; }
+      if (propia) { pistas++; caja.innerHTML = `<p class="pista-rep"><b>Pista:</b> ${F.conFuentes(propia)}</p>`; return; }
       if (extrasUsadas < pistasExtra.length) {
         const [b, txt] = pistasExtra[extrasUsadas++];
         pistas++; caja.insertAdjacentHTML('beforeend', `<p class="pista-rep"><b>${esc(b)}:</b> ${esc(txt)}</p>`);
@@ -2508,7 +2767,7 @@ async function vRepaso(v, _id, q) {
     v.querySelector('#rep-ver-sig').addEventListener('click', () => entreno.verSiguiente());
     v.querySelector('#rep-ver-fin').addEventListener('click', () => entreno.verHastaPregunta());
     if (entreno.viendo()) {   // antes de la primera jugada: la introducción del ejemplo y cómo pasar
-      if (ej.comentario0) v.querySelector('#rep-pistas').innerHTML = `<p class="pista-rep rival">${esc(ej.comentario0.trim())}</p>`;
+      if (ej.comentario0) v.querySelector('#rep-pistas').innerHTML = `<p class="pista-rep rival">${F.conFuentes(ej.comentario0.trim())}</p>`;
       avisar('Pasa las jugadas a tu ritmo: «Siguiente jugada» (o la flecha →, espacio). «Ir a la pregunta» salta hasta tu turno.');
     }
     v.querySelector('#rep-ciegas').addEventListener('click', () => {
