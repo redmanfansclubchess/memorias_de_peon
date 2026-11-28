@@ -273,7 +273,7 @@ export function lineasAPgn(lineas, cabeceras = {}) {
 // ---------------------------------------------------------------------
 //  VISOR: ver un ejemplo y pasar las jugadas
 // ---------------------------------------------------------------------
-export function crearVisor(contenedor, ej, { orientacion = 'white', ply: plyInicial = 0, alMover = () => {} } = {}) {
+export function crearVisor(contenedor, ej, { orientacion = 'white', ply: plyInicial = 0, alMover = () => {}, pgnLichess = null, idLichess = null } = {}) {
   contenedor.innerHTML = `
     <div class="tablero"></div>
     <div class="nav-jug">
@@ -283,6 +283,7 @@ export function crearVisor(contenedor, ej, { orientacion = 'white', ply: plyInic
       <button data-ir="sig" aria-label="Siguiente">▶</button>
       <button data-ir="fin" aria-label="Final">⏭</button>
     </div>
+    <button type="button" class="btn-lichess" data-lichess>Analizar en Lichess ↗</button>
     <div class="comentario-jug"></div>
     <div class="lista-jug"></div>`;
   let ply = Math.max(0, Math.min(plyInicial, ej.jugadas.length));
@@ -308,6 +309,7 @@ export function crearVisor(contenedor, ej, { orientacion = 'white', ply: plyInic
   contenedor.addEventListener('click', e => {
     const b = e.target.closest('button');
     if (!b) return;
+    if (b.hasAttribute('data-lichess')) return abrirEnLichess(ej, ply, { pgn: pgnLichess, id: idLichess });
     if (b.dataset.ply) ply = +b.dataset.ply;
     const ir = b.dataset.ir;
     if (ir === 'ini') ply = 0;
@@ -318,6 +320,40 @@ export function crearVisor(contenedor, ej, { orientacion = 'white', ply: plyInic
   });
   pintar();
   return { cerrar, ply: () => ply, ir(n) { ply = Math.max(0, Math.min(n, ej.jugadas.length)); pintar(); } };
+}
+
+// ---------------------------------------------------------------------
+//  LICHESS: analizar con Stockfish lo que estás viendo (solo al pulsar)
+//  · Con jugadas: se importa la línea o partida por la vía oficial
+//    (POST /api/import) y se abre en la jugada que estás mirando (#ply).
+//  · Sin jugadas, sin conexión o si falla: tablero de análisis con el FEN
+//    completo (turno, enroques, al paso y contadores).
+//  La pestaña se abre en el mismo toque (si no, Safari la bloquea).
+// ---------------------------------------------------------------------
+export const urlAnalisisFen = fen => 'https://lichess.org/analysis/standard/' + fen.trim().replace(/\s+/g, '_');
+export function plyLichess(fen0, ply) {   // Lichess numera las medias jugadas desde el principio de la partida
+  const [, turno = 'w', , , , num = '1'] = fen0.split(' ');
+  return (Math.max(1, parseInt(num, 10) || 1) - 1) * 2 + (turno === 'b' ? 1 : 0) + ply;
+}
+export async function abrirEnLichess(ej, ply = ej.jugadas.length, { pgn = null, id = null } = {}) {
+  const urlFen = urlAnalisisFen(fenDe(ej, ply));
+  if (id) return window.open(`https://lichess.org/${encodeURIComponent(id)}#${plyLichess(ej.fen0, ply)}`, '_blank', 'noopener');   // ya está en Lichess
+  const w = window.open('', '_blank');
+  const ir = url => { if (w && !w.closed) w.location.href = url; else window.open(url, '_blank', 'noopener'); };
+  if (!ej.jugadas.length || !navigator.onLine) return ir(urlFen);
+  try {
+    if (w) w.document.title = 'Abriendo Lichess…';
+    const r = await fetch('https://lichess.org/api/import', {
+      method: 'POST', headers: { Accept: 'application/json' },
+      body: new URLSearchParams({ pgn: pgn || aPgn(ej) }),
+    });
+    if (!r.ok) throw new Error('Lichess: ' + r.status);
+    const d = await r.json();
+    ir(`${d.url || 'https://lichess.org/' + d.id}#${plyLichess(ej.fen0, ply)}`);
+  } catch (err) {
+    console.warn('Lichess import', err);
+    ir(urlFen);
+  }
 }
 
 // ---------------------------------------------------------------------

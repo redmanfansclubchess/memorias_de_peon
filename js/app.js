@@ -8,9 +8,9 @@ import * as R from './repaso.js';
 import * as RP from './repertorio.js';
 import * as PA from './partidas.js';
 import * as F from './fuentes.js';
-import { FEN_INICIAL, crearVisor, crearEditor, crearEntrenoLinea, etiquetaJugada, sirveDeEjercicio, dePgn, aPgn, pgnARamas, lineasAPgn, ejemploVacio, validarFen, usarNotacion, verSan, diagrama, textoJugadas, escapar as esc } from './tablero.js';
+import { FEN_INICIAL, crearVisor, crearEditor, crearEntrenoLinea, abrirEnLichess, etiquetaJugada, sirveDeEjercicio, dePgn, aPgn, pgnARamas, lineasAPgn, ejemploVacio, validarFen, usarNotacion, verSan, diagrama, textoJugadas, escapar as esc } from './tablero.js';
 
-export const VERSION = '5.5.0 (Libros: bibliografía, textos y citas en los comentarios)';
+export const VERSION = '5.6.0 (Lichess, tandas con nuevas exactas y Explorar)';
 const app = document.getElementById('app');
 
 // ---------------------------------------------------------------------
@@ -1734,7 +1734,7 @@ function vGuia(v) {
         <li><b>Jugar</b>: mueve; la notación se escribe sola. Escribe un comentario en cada jugada.</li>
         <li><b>Dibujar</b>: elige color, toca salida y llegada para una flecha; dos veces la misma casilla para marcarla.</li></ul></section>
       <section class="tarjeta"><h2>Repaso diario</h2>
-        <p>Como en Anki: cada día, en Inicio, «Repaso · 10» o «Rápido · 5», con nota sobre 10. Entran tus fichas y las de la biblioteca que ya has trabajado. En el tablero, la pista te da primero el concepto y después la idea, nunca la jugada; si la usas, cuenta como Regular. Lo que aciertas vuelve más tarde; lo que fallas, mañana. En <a href="#/progreso">Mi progreso</a> ves qué dominas, qué repasar y en qué fallas.</p>
+        <p>Como en Anki: cada día, en Inicio, <b>Repasar 10</b> (2 nuevas, 4 de las que fallaste y 4 de consolidación) o <b>Repasar 5</b> (1 nueva, 2 y 2), con nota sobre 10. <b>Explorar 3 nuevas</b> te presenta 3 tarjetas que nunca has visto; desde entonces entran en tus repasos. Una tarjeta deja de ser nueva en cuanto se te presenta. En el tablero, la pista te da primero el concepto y después la idea, nunca la jugada; si la usas, cuenta como Regular. Lo que aciertas vuelve cada vez más tarde; lo que fallas, en la tanda siguiente. Con 3 aciertos seguidos y un intervalo de 3 semanas, la tarjeta está consolidada. Debajo de cada tablero, <b>Analizar en Lichess</b> abre esa posición (o la línea o partida entera) en el análisis de Lichess con Stockfish. En <a href="#/progreso">Mi progreso</a> ves qué dominas, qué repasar y en qué fallas.</p>
         <p>Para crear ejercicios de tablero, marca «Usar como ejercicio de repaso» en un ejemplo: la primera jugada será la solución.</p></section>
       <section class="tarjeta"><h2>Repertorio</h2>
         <p>Tus aperturas, elegidas por ti: hasta 5 por color (3 principales y 2 secundarias). La app no te propone ninguna; te guía para que cada una quede completa, paso a paso: <b>las jugadas que la definen</b>, objetivos, <b>línea principal</b>, <b>respuestas del rival</b>, estructura, planes, rupturas, <b>trampas</b>, tácticas, partidas modelo, conceptos de tu cuaderno y, al final, revisarla con tu maestro.</p>
@@ -2213,7 +2213,7 @@ const PRIMEROS_PASOS = [
     ayuda: 'Trae de Lichess una partida que jugaras pensando y revísala con su guía.',
     hecho: () => partidas().length > 0 },
   { titulo: 'Tu primer repaso', ir: () => (tarjetas().length ? '#/repaso?n=5' : null),
-    ayuda: 'Cuando tengas fichas trabajadas, «Repaso · 10» o «Rápido · 5», aquí en Inicio. Unos minutos al día, como en Anki.',
+    ayuda: 'Cuando tengas fichas trabajadas, «Repasar 10» o «Repasar 5», aquí en Inicio. Unos minutos al día, como en Anki.',
     hecho: () => D.lista('registro_repaso').length > 0 },
 ];
 
@@ -2462,6 +2462,12 @@ function fichaDeTarjeta(t) {
 const tarjetasDeFicha = c => tarjetas().filter(t => (t.tipo === 'concepto' && t.ref_id === c.id) ||
   (t.tipo === 'ejemplo' && D.obtener('ejemplos', t.ref_id)?.concepto_id === c.id) ||
   (t.tipo === 'momento' && D.obtener('momentos', t.ref_id)?.concepto_id === c.id));
+// Tema de una tarjeta, para que una tanda no se concentre en uno solo
+function temaDeTarjeta(t) {
+  if (t.tipo === 'linea') { const r = lineaDeTarjeta(t); return 'ap:' + (r ? r.a.id : '?'); }
+  if (t.tipo === 'momento') { const m = D.obtener('momentos', t.ref_id); return m?.concepto_id ? 'c:' + m.concepto_id : 'p:' + (m?.partida_id || '?'); }
+  return 'c:' + (fichaDeTarjeta(t)?.id || '?');
+}
 const diasRepasados = () => D.lista('registro_repaso').map(r => R.hoyISO(new Date(r.fecha)));
 
 // Crea (sin duplicar) las tarjetas de tus fichas y de tus ejemplos marcados como ejercicio
@@ -2519,16 +2525,19 @@ async function registrarRespuesta(t, res) {
 //  Tarjeta «Repaso de hoy» para Inicio
 // ---------------------------------------------------------------------
 function tarjetaRepasoHoy() {
-  const n = R.pendientes(tarjetas()).length;
+  const hoy = R.hoyISO(), ts = tarjetas();
+  const n = ts.filter(t => !R.esNueva(t) && (t.ultimo_resultado === 'mal' || (t.proxima || hoy) <= hoy)).length;
+  const nuevas = ts.filter(R.esNueva).length;
   const ra = R.racha(diasRepasados());
-  if (!tarjetas().length) return '';
+  if (!ts.length) return '';
   return `<div class="tarjeta repaso-hoy">
       <div class="rh-txt"><span class="etq">Repaso de hoy</span>
-        <b id="rep-n">${n ? `${n} ${n === 1 ? 'tarjeta' : 'tarjetas'}` : '¡Al día!'}</b>
-        <small>${ra ? `Racha: ${ra} ${ra === 1 ? 'día' : 'días seguidos'}` : 'Empieza hoy tu racha'}</small></div>
+        <b id="rep-n">${n ? `${n} para repasar` : '¡Al día!'}</b>
+        <small>${nuevas ? `${nuevas} por descubrir · ` : ''}${ra ? `Racha: ${ra} ${ra === 1 ? 'día' : 'días seguidos'}` : 'Empieza hoy tu racha'}</small></div>
       <div class="rh-btn">
-        <a class="btn primario" href="#/repaso?n=10">${ico('entrenar', 'peq')} Repaso · 10</a>
-        <a class="btn" href="#/repaso?n=5">${ico('rayo', 'peq')} Rápido · 5</a>
+        <a class="btn primario" href="#/repaso?n=10">${ico('entrenar', 'peq')} Repasar 10</a>
+        <a class="btn" href="#/repaso?n=5">${ico('rayo', 'peq')} Repasar 5</a>
+        <a class="btn" href="#/repaso?explorar=1">✦ Explorar 3 nuevas</a>
       </div></div>`;
 }
 
@@ -2537,7 +2546,8 @@ function tarjetaRepasoHoy() {
 // ---------------------------------------------------------------------
 async function vRepaso(v, _id, q) {
   editando = true;
-  const n = q.get('n') === '5' ? R.SESION_RAPIDA : R.SESION_NORMAL;
+  const explorar = q.get('explorar') === '1';
+  const n = explorar ? 3 : q.get('n') === '5' ? R.SESION_RAPIDA : R.SESION_NORMAL;
   // «Entrenar esta apertura»: todas sus líneas, primero las que peor llevas
   const apertura = q.get('ap') ? D.obtener('repertorio', q.get('ap')) : null;
   const ciegasSesion = q.get('ciegas') === '1';
@@ -2548,24 +2558,26 @@ async function vRepaso(v, _id, q) {
   v.innerHTML = '<p class="nada">Preparando tu repaso…</p>';
   await prepararTarjetas();
   if (!v.isConnected) return;
-  let sesion;
+  let sesion, avisoNuevas = '';
+  const valida = t => t.dificil || (t.tipo === 'momento' ? momentoDeTarjeta(t) : fichaDeTarjeta(t) || lineaDeTarjeta(t));
   if (modoDificiles) sesion = jugadasDificiles(apertura).slice(0, R.SESION_NORMAL);
-  else if (apertura) sesion = R.ordenarParaEntrenar(tarjetasDeApertura(apertura));
-  else if (ficha) sesion = R.ordenarParaEntrenar(tarjetasDeFicha(ficha));
-  else {
-    sesion = R.seleccionar(tarjetas(), n);
-    if (!sesion.length && q.get('adelantar') === '1')
-      sesion = tarjetas().sort((a, b) => String(a.proxima).localeCompare(String(b.proxima))).slice(0, n);
+  else if (apertura || ficha) {
+    // Una apertura o una ficha entera: primero lo que peor llevas; como mucho 2 nuevas por tanda
+    let k = 0;
+    sesion = R.ordenarParaEntrenar((apertura ? tarjetasDeApertura(apertura) : tarjetasDeFicha(ficha)).filter(valida))
+      .filter(t => !R.esNueva(t) || k++ < 2);
+  } else if (explorar) {
+    const r = R.seleccionarExplorar(tarjetas().filter(valida), 3, { grupo: temaDeTarjeta });
+    sesion = r.sesion;
+    if (r.quedan && r.quedan < 3) avisoNuevas = `Solo ${r.quedan === 1 ? 'quedaba 1 tarjeta inédita' : `quedaban ${r.quedan} tarjetas inéditas`}. Crea fichas, ejemplos o líneas nuevas para seguir explorando.`;
+  } else {
+    // Repasar 10 / 5: exactamente 2 / 1 nuevas; el resto, falladas y consolidación a partes iguales
+    const r = R.seleccionarTanda(tarjetas().filter(valida), n, { grupo: temaDeTarjeta, recientes: new Set(ajustes().ultimaTanda || []) });
+    sesion = r.sesion;
+    if (r.faltanNuevas) avisoNuevas = r.nuevas ? `Solo quedaba ${r.nuevas} tarjeta nueva; el resto es repaso.` : 'No quedan tarjetas nuevas: esta tanda es solo de repaso. Crea fichas, ejemplos o líneas nuevas cuando quieras.';
+    if (sesion.length && sesion.length < n) avisoNuevas += ` La tanda tiene ${sesion.length} tarjetas: no hay más para repasar.`;
+    guardarAjustes({ ultimaTanda: sesion.map(t => t.id) });
   }
-  sesion = sesion.filter(t => t.dificil || (t.tipo === 'momento' ? momentoDeTarjeta(t) : fichaDeTarjeta(t) || lineaDeTarjeta(t)));
-  // Líneas nuevas poco a poco, como en Chessable: como mucho 3 al día
-  const hoyR = R.hoyISO();
-  let nuevasHoy = tarjetas().filter(t => t.tipo === 'linea' && t.datos?.aprendidaEn === hoyR).length;
-  sesion = sesion.filter(t => {
-    if (t.dificil || t.tipo !== 'linea' || t.ultimo_resultado || t.datos?.aprendida) return true;
-    if (nuevasHoy >= 3) return false;
-    nuevasHoy++; return true;
-  });
   if (!sesion.length && ficha) {
     editando = false;
     v.innerHTML = `
@@ -2593,6 +2605,16 @@ async function vRepaso(v, _id, q) {
         <a class="btn primario" href="${salida}">Volver a la apertura</a></div>`;
     return;
   }
+  if (!sesion.length && explorar) {
+    editando = false;
+    v.innerHTML = `
+      <div class="cab-vista"><a href="#/inicio" class="btn-ico">${ico('atras')}</a><h1>Explorar</h1></div>
+      <div class="tarjeta vacia"><span class="etq">Todo descubierto</span><h2>No quedan tarjetas inéditas</h2>
+        <p>Ya se te ha presentado todo tu catálogo. Crea fichas, ejemplos o líneas nuevas, o sigue con «Repasar».</p>
+        <a class="btn primario" href="#/repaso?n=10">Repasar 10</a></div>`;
+    return;
+  }
+  if (avisoNuevas) aviso(avisoNuevas);
   if (!sesion.length) {
     editando = false;
     v.innerHTML = `
@@ -2629,6 +2651,10 @@ async function vRepaso(v, _id, q) {
   function pintarTarjeta() {
     const t = sesion[i];
     if (t.dificil) return pintarDificil(t);
+    if (R.esNueva(t)) {   // se ha presentado: ya no es nueva, aciertes, falles o salgas a medias
+      t.datos = { ...(t.datos || {}), descubiertaEn: R.hoyISO() };
+      setTimeout(() => D.guardar('tarjetas', t), 0);
+    }
     if (t.tipo === 'linea') return pintarLinea(t);
     if (t.tipo === 'momento') return pintarMomento(t);
     const c = fichaDeTarjeta(t);
@@ -2687,7 +2713,9 @@ async function vRepaso(v, _id, q) {
         </div>
         ${ciegasSesion ? '<p class="nota" id="rep-ciegas-txt">Memoriza la posición. Cuando la tengas, oculta las piezas y juega de memoria.</p>' : ''}
         <div id="rep-fin" hidden></div>
+        <button type="button" class="btn-lichess" id="rep-lichess">Analizar en Lichess ↗</button>
       </article>`;
+    v.querySelector('#rep-lichess').addEventListener('click', () => abrirEnLichess(ej, Math.min(entreno.ply(), ej.jugadas.length)));
     const ponerCiegas = si => {
       ciegas = si;
       v.querySelector('.rep-tablero').classList.toggle('a-ciegas', si);
@@ -3738,7 +3766,7 @@ function vPartida(v, id) {
   // Tablero: el botón marca la jugada que estás viendo
   const marcar = v.querySelector('#marcar');
   const vis = crearVisor(v.querySelector('#visor-partida'), ej, {
-    orientacion: p.color || 'white', ply: Math.min(1, ej.jugadas.length),
+    orientacion: p.color || 'white', ply: Math.min(1, ej.jugadas.length), pgnLichess: p.pgn, idLichess: p.lichess_id,
     alMover: n => {
       if (!marcar) return;
       marcar.disabled = n === 0;

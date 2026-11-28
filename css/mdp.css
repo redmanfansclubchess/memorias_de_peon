@@ -818,3 +818,7 @@ textarea.soltar { outline: 2px dashed var(--acento); outline-offset: 2px; }
 .libro-lista a { display: flex; gap: 8px; align-items: center; color: inherit; }
 .libro-caps { max-height: 40vh; overflow: auto; font-size: 14px; }
 @media print { .fuente { border: 0; background: none; padding: 0; color: inherit; font-weight: 400; } }
+.btn-lichess { display: block; margin: 8px 0 0 auto; padding: 4px 10px; border: 1px solid var(--linea); border-radius: 999px;
+  background: var(--papel); color: var(--suave); font: 600 12px var(--sans); cursor: pointer; }
+.btn-lichess:hover { color: var(--acento); border-color: var(--acento); }
+@media print { .btn-lichess { display: none; } }
