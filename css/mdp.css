@@ -834,3 +834,9 @@ textarea.soltar { outline: 2px dashed var(--acento); outline-offset: 2px; }
 .semana .barra i { position: absolute; left: 0; right: 0; bottom: 0; display: block; background: var(--acento); border-radius: 6px 6px 0 0; }
 .semana small { color: var(--suave); }
 .sec-grande { font-family: var(--serif); font-size: 20px; margin: 22px 0 4px; }
+/* Partidas modelo (v5.8) */
+.pestanas-p { margin: 0 0 12px; }
+.segmento a { padding: 6px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--suave); text-decoration: none; }
+.segmento a.on { background: var(--papel); color: var(--texto); box-shadow: var(--sombra); }
+.fuente-modelo { margin: 6px 0; font-size: 14px; }
+.fuente-modelo small { text-transform: uppercase; letter-spacing: .04em; color: var(--suave); margin-right: 4px; }

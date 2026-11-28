@@ -8,9 +8,9 @@ import * as R from './repaso.js';
 import * as RP from './repertorio.js';
 import * as PA from './partidas.js';
 import * as F from './fuentes.js';
-import { FEN_INICIAL, crearVisor, crearEditor, crearEntrenoLinea, abrirEnLichess, etiquetaJugada, sirveDeEjercicio, dePgn, aPgn, pgnARamas, lineasAPgn, ejemploVacio, validarFen, usarNotacion, verSan, diagrama, textoJugadas, escapar as esc } from './tablero.js';
+import { FEN_INICIAL, fenDe, crearVisor, crearEditor, crearEntrenoLinea, abrirEnLichess, etiquetaJugada, sirveDeEjercicio, dePgn, aPgn, pgnARamas, lineasAPgn, ejemploVacio, validarFen, usarNotacion, verSan, diagrama, textoJugadas, escapar as esc } from './tablero.js';
 
-export const VERSION = '5.7.0 (Estadísticas de aprendizaje y conexiones entre módulos)';
+export const VERSION = '5.8.1 (Momentos de partidas modelo en las tandas, sin duplicar ejercicios)';
 const app = document.getElementById('app');
 
 // ---------------------------------------------------------------------
@@ -251,7 +251,7 @@ const RUTAS = {
   inicio: vInicio, conceptos: vConceptos, bloque: vBloque, concepto: vConcepto, editar: vEditarConcepto,
   ejemplo: vEjemplo, catalogo: vCatalogo, entrenar: vEntrenar, ajustes: vAjustes,
   repertorio: vRepertorio, apertura: vApertura, 'editar-apertura': vEditarApertura, linea: vLinea, 'editar-linea': vEditarLinea, 'imprimir-repertorio': vImprimirRepertorio, 'importar-lineas': vImportarLineas,
-  partidas: vPartidas, 'importar-partidas': vImportarPartidas, partida: vPartida, 'editar-partida': vEditarPartida, 'comentar-partida': vComentarPartida, momento: vMomento, 'resumen-partidas': vResumenPartidas,
+  partidas: vPartidas, modelos: vModelos, 'editar-modelo': vEditarModelo, 'importar-partidas': vImportarPartidas, partida: vPartida, 'editar-partida': vEditarPartida, 'comentar-partida': vComentarPartida, momento: vMomento, 'resumen-partidas': vResumenPartidas,
   clases: vClases, clase: vClase, notas: vNotas, glosario: vGlosario, rutina: vRutina, guia: vGuia, imprimir: vImprimir,
   biblioteca: vBiblioteca, libros: vLibros, libro: vLibro, 'editar-libro': vEditarLibro,
   repaso: vRepaso, progreso: vProgreso, tecnicas: vTecnicas, preguntas: vPreguntas, pregunta: vPregunta,
@@ -292,7 +292,7 @@ function pintar(conservarScroll) {
   document.querySelectorAll('.barra a').forEach(a => {
     const r = a.dataset.r;
     a.classList.toggle('on', r === nombre || (r === 'conceptos' && ['bloque', 'concepto', 'editar', 'ejemplo', 'catalogo', 'imprimir', 'biblioteca'].includes(nombre))
-      || (r === 'repertorio' && ['apertura', 'editar-apertura', 'linea', 'editar-linea', 'imprimir-repertorio', 'importar-lineas'].includes(nombre)) || (r === 'partidas' && ['importar-partidas', 'partida', 'editar-partida', 'comentar-partida', 'momento', 'resumen-partidas'].includes(nombre)) || (r === 'clases' && ['clase', 'preguntas', 'pregunta'].includes(nombre)) || (r === 'entrenar' && ['repaso', 'progreso', 'tecnicas'].includes(nombre)) || (r === 'inicio' && ['notas', 'glosario', 'rutina', 'guia', 'libros', 'libro', 'editar-libro'].includes(nombre)));
+      || (r === 'repertorio' && ['apertura', 'editar-apertura', 'linea', 'editar-linea', 'imprimir-repertorio', 'importar-lineas'].includes(nombre)) || (r === 'partidas' && ['modelos', 'editar-modelo', 'importar-partidas', 'partida', 'editar-partida', 'comentar-partida', 'momento', 'resumen-partidas'].includes(nombre)) || (r === 'clases' && ['clase', 'preguntas', 'pregunta'].includes(nombre)) || (r === 'entrenar' && ['repaso', 'progreso', 'tecnicas'].includes(nombre)) || (r === 'inicio' && ['notas', 'glosario', 'rutina', 'guia', 'libros', 'libro', 'editar-libro'].includes(nombre)));
   });
   vigilarPgn(vista);
   (RUTAS[nombre] || vInicio)(vista, id, new URLSearchParams(q || ''));
@@ -619,7 +619,8 @@ function vConcepto(v, id) {
   const termino = terminoDeFicha(c, mapa);
   const itBiblio = BIBLIOTECA.find(x => norm(x.titulo) === norm(c.titulo) || (x.alias || []).some(a => norm(a) === norm(c.titulo)));
   const enAperturas = aperturas().filter(a => (a.conceptos || []).includes(id));
-  const enPartidas = D.lista('momentos').filter(m => m.concepto_id === id).map(m => ({ m, p: D.obtener('partidas', m.partida_id) })).filter(x => x.p);
+  const momCon = D.lista('momentos').filter(m => m.concepto_id === id).map(m => ({ m, p: D.obtener('partidas', m.partida_id) })).filter(x => x.p);
+  const enPartidas = momCon.filter(x => !esModelo(x.p)), enModelos = momCon.filter(x => esModelo(x.p));
   const libros = librosCitados(c.explicacion, c.principio, ...ejemplos.map(e => e.pgn));
   const volver = b ? `#/bloque/${b.id}` : '#/bloque/bandeja';
   v.innerHTML = `
@@ -664,6 +665,7 @@ function vConcepto(v, id) {
     ${enAperturas.length ? `<h3 class="sec">En tu repertorio</h3><div class="chips">${enAperturas.map(a => `<a class="chip" href="#/apertura/${a.id}">${a.color === 'white' ? '♔' : '♚'} ${esc(a.nombre)}</a>`).join('')}</div>` : ''}
     ${rel.length ? `<h3 class="sec">Relacionado</h3><div class="chips">${rel.map(r => `<a class="chip" href="#/concepto/${r.id}">${ico('enlace', 'peq')} ${esc(r.titulo)}</a>`).join('')}</div>` : ''}
     ${enPartidas.length ? `<h3 class="sec">En tus partidas</h3><div class="lista">${enPartidas.map(({ m, p }) => `<a class="fila-c" href="#/partida/${p.id}"><span class="fila-txt"><b>${esc(TIPO_MOMENTO[m.tipo] || 'Momento')} · vs ${esc(p.rival || 'rival')}</b><small>${esc([p.fecha && fechaLarga(p.fecha), p.apertura].filter(Boolean).join(' · '))}</small></span>${ico('flecha', 'peq')}</a>`).join('')}</div>` : ''}
+    ${enModelos.length ? `<h3 class="sec">En partidas modelo</h3><div class="lista">${enModelos.map(({ m, p }) => `<a class="fila-c" href="#/partida/${p.id}?ply=${m.ply + 1}"><span class="fila-txt"><b>${esc(tituloModelo(p))}</b><small>${esc(TIPO_MOMENTO[m.tipo] || 'Momento')}${m.comentario ? ' · ' + esc(m.comentario) : ''}</small></span>${ico('flecha', 'peq')}</a>`).join('')}</div>` : ''}
     ${libros.length ? `<h3 class="sec">Fuentes</h3><div class="chips">${chipsLibros(libros)}</div>` : ''}`;
   v.querySelectorAll('.enl').forEach(bt => bt.addEventListener('click', () => abrirTermino(bt.dataset.k, mapa)));
   // Duplicar: copia el ejemplo y abre la copia, para cambiar la respuesta del rival
@@ -1747,6 +1749,8 @@ function vGuia(v) {
       <section class="tarjeta"><h2>Libros</h2>
         <p>En <a href="#/libros">Libros</a> está tu bibliografía, común a todo el cuaderno. Cada libro tiene un código para citarlo en los comentarios de tus líneas: <b>[Basado en C21, cap. 1]</b> si la idea sale de un libro, <b>[Síntesis]</b> (o <b>[Síntesis: C21, S21]</b>) si reúne varios, y <b>[Recreado]</b> si es una explicación propia. Al entrenar se ven como pastillas: tócalas y se abre la ficha del libro.</p>
         <p>Puedes subir el <b>texto</b> de cada libro (un archivo .txt). Se guarda en tu Supabase, en privado, y no ocupa sitio en el móvil hasta que lo pides. Desde la ficha lo descargas o lo copias para dárselo a una IA junto con tu copia de seguridad.</p></section>
+      <section class="tarjeta"><h2>Partidas modelo</h2>
+        <p>En Partidas → <a href="#/modelos">Partidas modelo</a> guardas partidas de grandes jugadores: pega su PGN, indica la fuente (libro con su código, publicación o enlace) y desde qué lado la estudias. Marca sus momentos críticos: la jugada del maestro queda como solución. Con <b>Estudiar esta partida</b> la recorres parándote en cada momento para decidir qué jugarías; esas preguntas entran también en tus tandas de repaso, con su partida, torneo, año y jugada, y un enlace a la partida en ese punto. Si un momento crítico es el mismo ejercicio que ya tienes en una ficha (misma posición y misma solución), comparten tarjeta y progreso, y la tarjeta indica dónde más aparece. No se mezclan con tus partidas ni con tus estadísticas de juego.</p></section>
       <section class="tarjeta"><h2>Mis partidas</h2>
         <p>Solo las que eliges: las que jugaste pensando. Tráelas de Lichess marcándolas en la lista de tus últimas partidas, o pega su enlace o su PGN. Cada partida tiene su <b>guía de revisión</b>: los datos, tu apertura (la app detecta dónde se salió alguien de tu repertorio y te deja añadir la respuesta del rival como línea nueva), <b>tus ideas antes del motor</b>, los <b>momentos clave</b>, el motor de Lichess, tus <b>errores convertidos en ejercicios</b> de repaso, los conceptos de tu cuaderno y <b>la lección</b>.</p>
         <p>Para marcar un momento, ve a la jugada en el tablero de la partida y pulsa «Marcar momento». En <b>Resumen</b> ves tus resultados por color y apertura, y tus errores más repetidos.</p></section>
@@ -2288,6 +2292,8 @@ const AYUDAS = {
   repertorio: ['Repertorio', 'Tus aperturas, **elegidas por ti**: hasta 5 por color (3 principales y 2 secundarias). Cada una tiene su guía, su **árbol** de líneas y se puede **importar y exportar** a Lichess con variantes. Debajo de cada color, la app te avisa de las respuestas del rival que aún no tienes preparadas.'],
   apertura: ['Una apertura', 'Arriba, el **siguiente paso** con «Hacerlo ahora»; en «La guía», los 12 pasos. Cada línea lleva un punto de color según cómo te sale al entrenarla. **«Entrenar esta apertura»** repasa todas sus líneas, primero las que peor llevas.'],
   'editar-linea': ['Una línea', 'Juega las jugadas desde la posición inicial, o pega un PGN copiado de Lichess. **«¿Qué juega el rival aquí?»** abre el explorador de Lichess donde has llegado. Comenta las jugadas clave: esos comentarios serán tus pistas al entrenar.'],
+  modelos: ['Partidas modelo', 'Partidas de grandes jugadores para estudiar. **Marca sus momentos críticos** (la jugada del maestro es la solución) y pulsa **Estudiar esta partida**: se para en cada uno y te pregunta qué jugarías. Esas preguntas entran en tus tandas. No cuentan en tus estadísticas de partidas.'],
+  'editar-modelo': ['Partida modelo', 'Pega el PGN con su cabecera (jugadores, torneo, fecha). En **Fuente**, el código del libro si es de tu bibliografía («C21, cap. 7»), una publicación o un enlace.'],
   partidas: ['Mis partidas', 'Solo las que jugaste pensando. **«Traer de Lichess»** te enseña tus últimas partidas para que marques las que quieras; también puedes pegar un enlace o un PGN. Cada partida tiene su guía de revisión. «Resumen»: tus resultados y tus errores más repetidos.'],
   partida: ['Revisar una partida', 'Sigue el **siguiente paso** de arriba. Para marcar un momento clave, ve a la jugada con las flechas del tablero y pulsa **«Marcar momento»**. En «Tu repertorio» ves si alguien se salió de lo preparado.'],
   momento: ['Un momento clave', 'Elige si fue error, buena jugada, duda o momento clave. Si fue un error, **juega en el tablero la jugada buena** y marca «Usar como ejercicio»: entrará en tu repaso. Enlázalo con su ficha o mándalo como pregunta al maestro.'],
@@ -2352,6 +2358,7 @@ function abrirBuscador() {
     const ap = top(aperturas(), a => puntuar(a.nombre, [a.eco, a.ideas, a.planes, (a.lineas || []).map(l => l.nombre).join(' ')].join(' ')));
     const grupo = (tit, html) => html ? `<h3 class="sec">${tit}</h3><div class="lista">${html}</div>` : '';
     res.innerHTML = (grupo('Fichas', fichas.map(filaConcepto).join('')) +
+      grupo('Partidas modelo', top(modelos(), p => puntuar(tituloModelo(p), [p.apertura, p.fuente, p.notas, p.leccion].join(' '))).map(p => `<a class="fila-c" href="#/partida/${p.id}">${ico('libro', 'peq')}<span class="fila-txt"><b>${esc(tituloModelo(p))}</b><small>${esc(subtituloModelo(p))}</small></span></a>`).join('')) +
       grupo('Partidas', pt.map(p => `<a class="fila-c" href="#/partida/${p.id}">${ico('partidas', 'peq')}<span class="fila-txt"><b>vs ${esc(p.rival || 'rival')}</b><small>${[p.fecha && fechaLarga(p.fecha), p.apertura].filter(Boolean).map(esc).join(' · ')}</small></span></a>`).join('')) +
       grupo('Repertorio', ap.map(a => `<a class="fila-c" href="#/apertura/${a.id}">${ico('repertorio', 'peq')}<span class="fila-txt"><b>${esc(a.nombre)}</b><small>${COLOR_TXT[a.color]}</small></span></a>`).join('')) +
       grupo('Glosario y biblioteca', gl.map(([k, t]) => `<a class="fila-c" href="${t.ficha ? '#/concepto/' + t.ficha : t.biblio ? '#/biblioteca/' + t.biblio : '#/glosario?q=' + encodeURIComponent(t.es)}">${ico('glosario', 'peq')}<span class="fila-txt"><b>${esc(t.es)} <span class="g-en">${esc(t.en || '')}</span></b><small>${esc(t.def || '')}</small></span></a>`).join('')) +
@@ -2462,6 +2469,15 @@ function vBiblioItem(v, id) {
 // =====================================================================
 const tarjetas = () => D.lista('tarjetas');
 const conceptoElegible = c => c.origen !== 'mdp' || ejemplosDe(c.id).length > 0;   // las translúcidas no entran
+// Huella de un ejercicio: la posición de la pregunta (sin contadores) y la jugada solución.
+// Dos ejercicios con la misma huella son el mismo: comparten tarjeta, identificador y progreso.
+const fenClave = f => String(f || '').split(' ').slice(0, 4).join(' ');
+function huellaEjercicio(tipo, fila) {
+  const ej = tipo === 'ejemplo' ? ejemploDeFila(fila) : leerPgn(fila.pgn);
+  if (!ej || !ej.jugadas.length) return null;
+  const k = tipo === 'ejemplo' ? Math.max(0, Math.min(fila.ply_pregunta || 0, ej.jugadas.length - 1)) : 0;
+  return fenClave(fenDe(ej, k)) + ' ' + ej.jugadas[k].uci;
+}
 function ejemploDeFila(e) { try { return dePgn(e.pgn || `[FEN "${e.fen_inicial}"]`); } catch (err) { return null; } }
 function momentoDeTarjeta(t) {
   if (!t || t.tipo !== 'momento') return null;
@@ -2476,9 +2492,19 @@ function fichaDeTarjeta(t) {
   const e = D.obtener('ejemplos', t.ref_id);
   return e && D.obtener('conceptos', e.concepto_id);
 }
-const tarjetasDeFicha = c => tarjetas().filter(t => (t.tipo === 'concepto' && t.ref_id === c.id) ||
-  (t.tipo === 'ejemplo' && D.obtener('ejemplos', t.ref_id)?.concepto_id === c.id) ||
-  (t.tipo === 'momento' && D.obtener('momentos', t.ref_id)?.concepto_id === c.id));
+const deLaFicha = (r, c) => (r.tipo === 'ejemplo' && D.obtener('ejemplos', r.ref_id)?.concepto_id === c.id) || (r.tipo === 'momento' && D.obtener('momentos', r.ref_id)?.concepto_id === c.id);
+const tarjetasDeFicha = c => tarjetas().filter(t => (t.tipo === 'concepto' && t.ref_id === c.id) || deLaFicha(t, c) || (t.datos?.refs || []).some(r => deLaFicha(r, c)));
+// Procedencias de una tarjeta compartida, menos la que se está mostrando
+function tambienEn(t) {
+  const otras = (t.datos?.refs || []).filter(r => !(r.tipo === t.tipo && r.ref_id === t.ref_id));
+  const txt = otras.map(r => {
+    if (r.tipo === 'ejemplo') { const e = D.obtener('ejemplos', r.ref_id), c = e && D.obtener('conceptos', e.concepto_id); return c ? `<a href="#/concepto/${c.id}">ficha ${esc(c.titulo)}</a>` : ''; }
+    const m = D.obtener('momentos', r.ref_id), p = m && D.obtener('partidas', m.partida_id);
+    if (!p) return '';
+    return esModelo(p) ? `<a href="#/partida/${p.id}?ply=${m.ply + 1}">${esc(tituloModelo(p))}${anioPgn(cabecerasPgn(p.pgn)) ? ', ' + anioPgn(cabecerasPgn(p.pgn)) : ''}</a>` : `<a href="#/partida/${p.id}">tu partida contra ${esc(p.rival || 'tu rival')}</a>`;
+  }).filter(Boolean);
+  return txt.length ? ` · También en: ${txt.join(', ')}` : '';
+}
 // Tema de una tarjeta, para que una tanda no se concentre en uno solo
 function temaDeTarjeta(t) {
   if (t.tipo === 'linea') { const r = lineaDeTarjeta(t); return 'ap:' + (r ? r.a.id : '?'); }
@@ -2499,24 +2525,53 @@ async function crearTarjetasQueFalten() {
       const hoy = R.hoyISO();
       const quiero = new Map();
       for (const c of conceptos()) if (conceptoElegible(c)) quiero.set(await idDeterminista(`${usuario.id}:concepto:${c.id}`), { tipo: 'concepto', ref_id: c.id });
+      // Ejercicios de las fichas y momentos de partidas (tuyas y modelo). Si varios son
+      // el mismo ejercicio (misma huella), comparten una sola tarjeta con todas sus procedencias.
+      const ejercicios = [];
       for (const e of D.lista('ejemplos')) {
         if (!e.es_ejercicio || !D.obtener('conceptos', e.concepto_id)) continue;
         const ej = ejemploDeFila(e);
-        if (ej && sirveDeEjercicio(ej) && ej.jugadas.length > (e.ply_pregunta || 0)) quiero.set(await idDeterminista(`${usuario.id}:ejemplo:${e.id}`), { tipo: 'ejemplo', ref_id: e.id });
+        if (ej && sirveDeEjercicio(ej) && ej.jugadas.length > (e.ply_pregunta || 0))
+          ejercicios.push({ id: await idDeterminista(`${usuario.id}:ejemplo:${e.id}`), tipo: 'ejemplo', ref_id: e.id, huella: huellaEjercicio('ejemplo', e) });
       }
       for (const m of D.lista('momentos')) {
         if (m.es_ejercicio && D.obtener('partidas', m.partida_id) && leerPgn(m.pgn)?.jugadas.length)
-          quiero.set(await idDeterminista(`${usuario.id}:momento:${m.id}`), { tipo: 'momento', ref_id: m.id });
+          ejercicios.push({ id: await idDeterminista(`${usuario.id}:momento:${m.id}`), tipo: 'momento', ref_id: m.id, huella: huellaEjercicio('momento', m) });
       }
-      for (const a of aperturas()) {
-        for (const l of a.lineas || []) {
-          if (lineaEntrenable(a, leerPgn(l.pgn), l)) quiero.set(await idDeterminista(`${usuario.id}:linea:${l.id}`), { tipo: 'linea', ref_id: l.id });
+      // Un momento crítico que repite un ejercicio que ya tienes (misma posición y misma solución)
+      // se une a él. Los ejemplos de una ficha no se unen entre sí: «Duplicar» crea a propósito
+      // el mismo arranque con otra respuesta del rival. Y nunca se unen dos tarjetas con historia
+      // propia, para no perder progreso.
+      const historia = x => { const t = D.obtener('tarjetas', x.id); return t ? (t.aciertos || 0) + (t.fallos || 0) + (t.ultimo_resultado ? 1 : 0) : 0; };
+      const ejPorHuella = new Map(), momPorHuella = new Map();
+      for (const x of ejercicios) {
+        const mapa = x.tipo === 'ejemplo' ? ejPorHuella : momPorHuella;
+        if (!x.huella) { quiero.set(x.id, { tipo: x.tipo, ref_id: x.ref_id, refs: null }); continue; }
+        if (!mapa.has(x.huella)) mapa.set(x.huella, []);
+        mapa.get(x.huella).push(x);
+      }
+      for (const ejs of ejPorHuella.values()) for (const x of ejs) quiero.set(x.id, { tipo: x.tipo, ref_id: x.ref_id, refs: null });
+      for (const [h, moms] of momPorHuella) {
+        const ejs = ejPorHuella.get(h) || [];
+        const base = [...ejs].sort((a, b) => historia(b) - historia(a))[0] || [...moms].sort((a, b) => historia(b) - historia(a))[0];
+        const grupo = [base, ...moms.filter(x => x !== base)];
+        if (grupo.filter(x => historia(x) > 0).length > 1) {   // varias con progreso propio: se quedan separadas
+          for (const x of moms) quiero.set(x.id, { tipo: x.tipo, ref_id: x.ref_id, refs: null });
+          continue;
         }
+        quiero.set(base.id, { tipo: base.tipo, ref_id: base.ref_id, refs: grupo.length > 1 ? grupo.map(x => ({ tipo: x.tipo, ref_id: x.ref_id })) : null });
       }
-      for (const [id, x] of quiero) {
+      for (const [id, { refs = null, ...x }] of quiero) {
         const t = D.obtenerAunBorrado('tarjetas', id);
-        if (!t) await D.guardar('tarjetas', { id, ...x, ply: 0, facilidad: 2.5, intervalo_dias: 0, repeticiones: 0, proxima: hoy, aciertos: 0, fallos: 0, datos: {} });
-        else if (t.borrado_en) { t.borrado_en = null; await D.guardar('tarjetas', t); }
+        if (!t) { await D.guardar('tarjetas', { id, ...x, ply: 0, facilidad: 2.5, intervalo_dias: 0, repeticiones: 0, proxima: hoy, aciertos: 0, fallos: 0, datos: refs ? { refs } : {} }); continue; }
+        let cambia = false;
+        if (t.borrado_en) { t.borrado_en = null; cambia = true; }
+        if (JSON.stringify(t.datos?.refs || null) !== JSON.stringify(refs)) {   // procedencias del ejercicio
+          t.datos = { ...(t.datos || {}) };
+          if (refs) t.datos.refs = refs; else delete t.datos.refs;
+          cambia = true;
+        }
+        if (cambia) await D.guardar('tarjetas', t);
       }
       for (const t of tarjetas()) if (!quiero.has(t.id)) await D.borrar('tarjetas', t.id);
     } catch (e) { console.error(e); }
@@ -2571,14 +2626,24 @@ async function vRepaso(v, _id, q) {
   const modoDificiles = q.get('dificiles') === '1';
   // «Practicar esta ficha ahora»: todos sus ejercicios, aunque no te toquen hoy (y cuentan)
   const ficha = q.get('ficha') ? D.obtener('conceptos', q.get('ficha')) : null;
-  const salida = apertura ? '#/apertura/' + apertura.id : ficha ? '#/concepto/' + ficha.id : '#/inicio';
+  // «Estudiar esta partida»: sus momentos críticos, en el orden de la partida
+  const partidaEst = q.get('partida') ? D.obtener('partidas', q.get('partida')) : null;
+  const salida = partidaEst ? '#/partida/' + partidaEst.id : apertura ? '#/apertura/' + apertura.id : ficha ? '#/concepto/' + ficha.id : '#/inicio';
   v.innerHTML = '<p class="nada">Preparando tu repaso…</p>';
   await prepararTarjetas();
   if (!v.isConnected) return;
   let sesion, avisoNuevas = '';
+  const comoSe = new Map();   // tarjeta compartida → cómo se muestra aquí (en «Estudiar», como momento de la partida)
   const valida = t => t.dificil || (t.tipo === 'momento' ? momentoDeTarjeta(t) : fichaDeTarjeta(t) || lineaDeTarjeta(t));
   if (modoDificiles) sesion = jugadasDificiles(apertura).slice(0, R.SESION_NORMAL);
-  else if (apertura || ficha) {
+  else if (partidaEst) {
+    const orden = new Map(momentosDe(partidaEst.id).map(m => [m.id, m.ply]));
+    for (const t of tarjetas()) {
+      const r = [{ tipo: t.tipo, ref_id: t.ref_id }, ...(t.datos?.refs || [])].find(x => x.tipo === 'momento' && orden.has(x.ref_id));
+      if (r) comoSe.set(t.id, r);
+    }
+    sesion = tarjetas().filter(t => comoSe.has(t.id)).sort((a, b) => orden.get(comoSe.get(a.id).ref_id) - orden.get(comoSe.get(b.id).ref_id));
+  } else if (apertura || ficha) {
     // Una apertura o una ficha entera: primero lo que peor llevas; como mucho 2 nuevas por tanda
     let k = 0;
     sesion = R.ordenarParaEntrenar((apertura ? tarjetasDeApertura(apertura) : tarjetasDeFicha(ficha)).filter(valida))
@@ -2594,6 +2659,15 @@ async function vRepaso(v, _id, q) {
     if (r.faltanNuevas) avisoNuevas = r.nuevas ? `Solo quedaba ${r.nuevas} tarjeta nueva; el resto es repaso.` : 'No quedan tarjetas nuevas: esta tanda es solo de repaso. Crea fichas, ejemplos o líneas nuevas cuando quieras.';
     if (sesion.length && sesion.length < n) avisoNuevas += ` La tanda tiene ${sesion.length} tarjetas: no hay más para repasar.`;
     guardarAjustes({ ultimaTanda: sesion.map(t => t.id) });
+  }
+  if (!sesion.length && partidaEst) {
+    editando = false;
+    v.innerHTML = `
+      <div class="cab-vista"><a href="${salida}" class="btn-ico">${ico('atras')}</a><h1>Estudiar la partida</h1></div>
+      <div class="tarjeta vacia"><h2>Aún no tiene momentos críticos con pregunta</h2>
+        <p>En el tablero de la partida, ve a una posición importante y pulsa «Marcar momento crítico».</p>
+        <a class="btn primario" href="${salida}">Volver a la partida</a></div>`;
+    return;
   }
   if (!sesion.length && ficha) {
     editando = false;
@@ -2666,12 +2740,14 @@ async function vRepaso(v, _id, q) {
       <button class="btn bien" data-res="bien">Bien</button></div>`;
 
   function pintarTarjeta() {
-    const t = sesion[i];
-    if (t.dificil) return pintarDificil(t);
-    if (R.esNueva(t)) {   // se ha presentado: ya no es nueva, aciertes, falles o salgas a medias
-      t.datos = { ...(t.datos || {}), descubiertaEn: R.hoyISO() };
-      setTimeout(() => D.guardar('tarjetas', t), 0);
+    const real = sesion[i];
+    if (real.dificil) return pintarDificil(real);
+    if (R.esNueva(real)) {   // se ha presentado: ya no es nueva, aciertes, falles o salgas a medias
+      real.datos = { ...(real.datos || {}), descubiertaEn: R.hoyISO() };
+      setTimeout(() => D.guardar('tarjetas', real), 0);
     }
+    // la respuesta se guarda siempre en la tarjeta real; aquí solo cambia cómo se presenta
+    const t = comoSe.has(real.id) ? { ...real, ...comoSe.get(real.id) } : real;
     if (t.tipo === 'linea') return pintarLinea(t);
     if (t.tipo === 'momento') return pintarMomento(t);
     const c = fichaDeTarjeta(t);
@@ -2842,7 +2918,7 @@ async function vRepaso(v, _id, q) {
     pintarEntreno({
       ej, color, inicio: 0, ver: jugarAntes ? 0 : preg, pregunta, css,
       extras: [['Idea', c.principio]],
-      pie: `Ficha: <a href="#/concepto/${c.id}">${esc(c.titulo)}</a>${fila.titulo ? ' · ' + esc(fila.titulo) : ''}${masEnLichess(c)}`,
+      pie: `Ficha: <a href="#/concepto/${c.id}">${esc(c.titulo)}</a>${fila.titulo ? ' · ' + esc(fila.titulo) : ''}${tambienEn(t)}${masEnLichess(c)}`,
     });
   }
 
@@ -2851,12 +2927,14 @@ async function vRepaso(v, _id, q) {
     const { m, p, ej } = momentoDeTarjeta(t);
     const c = m.concepto_id && D.obtener('conceptos', m.concepto_id);
     const color = quienJuega(ej, 0);
+    const ejP = esModelo(p) && leerPgn(p.pgn);
     pintarEntreno({
       ej, color,
-      etiqueta: `<span class="etq-bloque">${ico('partidas', 'peq')} Tu partida contra ${esc(p.rival || 'tu rival')}${p.fecha ? ' · ' + esc(fechaLarga(p.fecha)) : ''}</span>`,
-      pregunta: `<b>${juegan(color)}.</b> ${c ? esc(c.titulo) + ': ' : ''}¿qué debiste jugar?`,
+      etiqueta: esModelo(p) ? `<span class="etq-bloque">${ico('libro', 'peq')} Partida modelo · ${esc([tituloModelo(p), subtituloModelo(p), ejP && ejP.jugadas[m.ply] ? etiquetaJ(ejP, m.ply) : ''].filter(Boolean).join(' · '))}</span>`
+        : `<span class="etq-bloque">${ico('partidas', 'peq')} Tu partida contra ${esc(p.rival || 'tu rival')}${p.fecha ? ' · ' + esc(fechaLarga(p.fecha)) : ''}</span>`,
+      pregunta: `<b>${juegan(color)}.</b> ${c ? esc(c.titulo) + ': ' : ''}${esModelo(p) ? '¿qué jugarías?' : '¿qué debiste jugar?'}`,
       extras: [['Idea', c?.principio], ['Lo que anotaste', m.comentario]],
-      pie: `De <a href="#/partida/${p.id}">tu partida contra ${esc(p.rival || 'tu rival')}</a>${c ? ` · Ficha: <a href="#/concepto/${c.id}">${esc(c.titulo)}</a>` : ''}${masEnLichess(c)}`,
+      pie: `De <a href="#/partida/${p.id}${esModelo(p) ? '?ply=' + (m.ply + 1) : ''}">${esModelo(p) ? esc(tituloModelo(p)) + ' (ver la partida en esta jugada)' : `tu partida contra ${esc(p.rival || 'tu rival')}`}</a>${c ? ` · Ficha: <a href="#/concepto/${c.id}">${esc(c.titulo)}</a>` : ''}${tambienEn(t)}${masEnLichess(c)}`,
     });
   }
 
@@ -2952,8 +3030,8 @@ const ESTADOS = [
 //  ESTADÍSTICAS: salen del historial de repasos (registro_repaso) y del
 //  estado de cada tarjeta; no se guarda nada nuevo
 // ---------------------------------------------------------------------
-const MODULOS = [['linea', 'Repertorio'], ['concepto', 'Conceptos'], ['momento', 'Partidas']];
-const moduloDe = t => (t.tipo === 'linea' ? 'linea' : t.tipo === 'momento' ? 'momento' : 'concepto');
+const MODULOS = [['linea', 'Repertorio'], ['concepto', 'Conceptos'], ['momento', 'Mis partidas'], ['modelo', 'Partidas modelo']];
+const moduloDe = t => (t.tipo === 'linea' ? 'linea' : t.tipo === 'momento' ? (esModelo(D.obtener('partidas', D.obtener('momentos', t.ref_id)?.partida_id)) ? 'modelo' : 'momento') : 'concepto');
 const acierto = r => r === 'bien' || r === 'dudoso' || r === 'regular';
 function estadisticas() {
   const regs = D.lista('registro_repaso').filter(r => !r.borrado_en).sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)));
@@ -3623,7 +3701,11 @@ function vImprimirRepertorio(v, _id, q) {
 // ---------------------------------------------------------------------
 //  MIS PARTIDAS (fase 4): solo las que eliges, revisadas con una guía
 // ---------------------------------------------------------------------
-const partidas = () => D.lista('partidas').sort((a, b) => String(b.fecha || '').localeCompare(String(a.fecha || '')) || String(b.editado_en).localeCompare(String(a.editado_en)));
+// Tus partidas y las partidas modelo comparten tabla: «clase» las separa ('mia' por defecto)
+const esModelo = p => p?.clase === 'modelo';
+const ordenarPartidas = l => l.sort((a, b) => String(b.fecha || '').localeCompare(String(a.fecha || '')) || String(b.editado_en).localeCompare(String(a.editado_en)));
+const partidas = () => ordenarPartidas(D.lista('partidas').filter(p => !esModelo(p)));
+const modelos = () => ordenarPartidas(D.lista('partidas').filter(esModelo));
 const momentosDe = id => D.lista('momentos').filter(m => m.partida_id === id).sort((a, b) => a.ply - b.ply);
 const sanesDe = ej => (ej ? ej.jugadas.map(j => j.san) : []);
 const repDePartida = (p, ej) => PA.enRepertorio(sanesDe(ej), p.color, aperturas(), leerPgn, verSan);
@@ -3654,6 +3736,7 @@ function vPartidas(v) {
   const pend = todas.filter(p => revisionDe(p).siguiente), hechas = todas.filter(p => !pend.includes(p));
   v.innerHTML = `
     <div class="cab-vista"><h1>Mis partidas</h1>${todas.length ? `<span class="hueco"></span><a class="btn peq" href="#/resumen-partidas">${ico('check', 'peq')} Resumen</a>` : ''}</div>
+    ${pestanasPartidas('mias')}
     ${todas.length ? '' : `<div class="tarjeta dia vacia"><span class="etq">Aprender de tus partidas</span>
       <h2>Solo las que jugaste pensando</h2>
       <p>Trae de Lichess las partidas que quieras revisar, una a una o eligiéndolas de una lista. La app te guía: tus ideas antes del motor, los momentos clave, tus errores convertidos en ejercicios y la lección que te llevas.</p></div>`}
@@ -3676,6 +3759,141 @@ async function guardarPartida(fila) {
     return { fila: await D.guardar('partidas', Object.assign(previa || {}, datos, { id, borrado_en: null })), nueva: true };
   }
   return { fila: await D.guardar('partidas', datos), nueva: true };
+}
+
+// ---------------------------------------------------------------------
+//  PARTIDAS MODELO: partidas de grandes jugadores para estudiar.
+//  Misma tabla que las tuyas (clase 'modelo'); el PGN se guarda con su
+//  cabecera (jugadores, torneo, fecha). Sus momentos críticos son
+//  «momentos» normales: preguntas «¿qué jugarías?» que entran en tus tandas.
+// ---------------------------------------------------------------------
+const cabecerasPgn = pgn => Object.fromEntries([...String(pgn || '').matchAll(/\[(\w+)\s+"([^"]*)"\]/g)].map(m => [m[1], m[2]]));
+const anioPgn = c => (String(c.Date || c.EventDate || '').match(/^(\d{4})/) || [])[1] || '';
+function tituloModelo(p) {
+  const c = cabecerasPgn(p.pgn);
+  return c.White || c.Black ? `${c.White || '?'} – ${c.Black || '?'}` : (p.rival || 'Partida modelo');
+}
+function subtituloModelo(p) {
+  const c = cabecerasPgn(p.pgn);
+  return [c.Event && c.Event !== '?' ? c.Event : '', anioPgn(c), c.Result && c.Result !== '*' ? c.Result : '', p.apertura].filter(Boolean).join(' · ');
+}
+// La fuente es texto libre; los códigos de tu bibliografía que aparezcan en ella se enlazan
+function fuenteHtml(texto) {
+  if (!texto) return '';
+  const cods = [...new Set((String(texto).match(/\b[A-Za-zÀ-ÿ]{1,3}\d{2}\b/g) || []).filter(c => F.libroPorCodigo(c)))];
+  const url = String(texto).match(/https?:\/\/\S+/);
+  return `<p class="fuente-modelo"><small>Fuente</small> ${esc(texto)}${url ? ` <a href="${esc(url[0])}" target="_blank" rel="noopener">${ico('externo', 'peq')}</a>` : ''}</p>
+    ${cods.length ? `<div class="chips">${chipsLibros(cods.map(c => F.libroPorCodigo(c)))}</div>` : ''}`;
+}
+const pestanasPartidas = actual => `<div class="segmento pestanas-p"><a href="#/partidas" class="${actual === 'mias' ? 'on' : ''}">Mis partidas</a><a href="#/modelos" class="${actual === 'modelos' ? 'on' : ''}">Partidas modelo</a></div>`;
+
+function vModelos(v) {
+  const ls = modelos();
+  v.innerHTML = `
+    <div class="cab-vista"><h1>Partidas modelo</h1><span class="hueco"></span><a class="btn peq primario" href="#/editar-modelo/nuevo">${ico('mas', 'peq')} Añadir</a></div>
+    ${pestanasPartidas('modelos')}
+    ${ls.length ? `<div class="lista">${ls.map(p => {
+      const n = momentosDe(p.id).length;
+      return `<a class="fila-c" href="#/partida/${p.id}">${ico('libro', 'peq')}<span class="fila-txt"><b>${esc(tituloModelo(p))}</b>
+        <small>${esc(subtituloModelo(p))}</small><small class="sig">${n ? `${n} ${n === 1 ? 'momento crítico' : 'momentos críticos'}` : 'Sin momentos críticos todavía'}${p.fuente ? ' · ' + esc(p.fuente) : ''}</small></span>${ico('flecha', 'peq')}</a>`;
+    }).join('')}</div>`
+      : `<div class="tarjeta dia vacia"><span class="etq">Aprender de los maestros</span><h2>Partidas que son lecciones</h2>
+        <p>Pega el PGN de una partida de un gran jugador (de un libro, de Lichess, de una base de datos), indica de dónde sale y marca sus momentos críticos. Luego la estudias: la partida avanza y se para en cada momento para preguntarte qué jugarías.</p></div>`}
+    <p class="nota">Las partidas modelo no cuentan en tus estadísticas de partidas ni en tu resumen: tienen su propia fila en «Mi progreso».</p>`;
+}
+
+function vEditarModelo(v, id) {
+  editando = true;
+  const nueva = id === 'nuevo';
+  const p = nueva ? { clase: 'modelo', origen: 'otro', pgn: '', color: 'white', fuente: '', notas: '', leccion: '' } : D.obtener('partidas', id);
+  if (!p || !esModelo(p)) return ir('#/modelos');
+  v.innerHTML = `
+    <div class="cab-vista"><a href="${nueva ? '#/modelos' : '#/partida/' + p.id}" class="btn-ico">${ico('atras')}</a><h1>${nueva ? 'Nueva partida modelo' : 'Editar partida modelo'}</h1></div>
+    <form id="f-modelo" class="form">
+      <label>PGN de la partida <small>con su cabecera (White, Black, Event, Date…) si la tiene</small>
+        <textarea name="pgn" rows="8" required placeholder='[White "Capablanca"]&#10;[Black "Marshall"]&#10;[Event "Nueva York"]&#10;[Date "1918.10.23"]&#10;&#10;1. e4 e5 2. Nf3 Nc6 …'>${esc(p.pgn)}</textarea></label>
+      <label>Fuente <small>libro (con su código: «C21, cap. 7»), publicación, base de datos o enlace</small>
+        <input name="fuente" value="${esc(p.fuente || '')}" placeholder="C21, cap. 7 · Informant 59 · https://…"></label>
+      <label>Estudiarla desde el lado de<select name="color"><option value="white"${p.color !== 'black' ? ' selected' : ''}>Blancas</option><option value="black"${p.color === 'black' ? ' selected' : ''}>Negras</option></select></label>
+      <label>Por qué estudiarla <small>contexto, planes, qué enseña</small><textarea name="notas" rows="4">${esc(p.notas || '')}</textarea></label>
+      <label>La lección <small>en una frase</small><input name="leccion" value="${esc(p.leccion || '')}"></label>
+      <div class="botones"><button class="btn primario">Guardar</button>
+        ${nueva ? '' : `<button type="button" class="btn peligro" id="m-borrar">${ico('borrar', 'peq')}</button>`}</div>
+    </form>`;
+  const f = v.querySelector('#f-modelo');
+  f.addEventListener('submit', async e => {
+    e.preventDefault();
+    const texto = f.pgn.value.trim();
+    const [una] = PA.separarPgn(texto);
+    const ej = una && leerPgn(texto);
+    if (!ej || !ej.jugadas.length) return alert('No se puede leer ese PGN. Comprueba que las jugadas son legales.');
+    if (!nueva && p.pgn !== texto && momentosDe(p.id).length && !confirm('Has cambiado las jugadas. Los momentos críticos guardan su número de jugada: revísalos después. ¿Guardar?')) return;
+    const c = una.cab, fecha = String(c.Date || '').replace(/\./g, '-');
+    Object.assign(p, {
+      clase: 'modelo', origen: p.origen || 'otro', pgn: texto, color: f.color.value,
+      fuente: f.fuente.value.trim() || null, notas: f.notas.value.trim() || null, leccion: f.leccion.value.trim() || null,
+      rival: [c.White, c.Black].filter(Boolean).join(' – ') || null, fecha: /^\d{4}-\d{2}-\d{2}$/.test(fecha) ? fecha : null,
+      resultado: ['1-0', '0-1', '1/2-1/2'].includes(c.Result) ? c.Result : null, apertura: c.Opening || c.ECO || null,
+    });
+    const fila = await D.guardar('partidas', p);
+    editando = false;
+    aviso('Partida modelo guardada');
+    ir('#/partida/' + fila.id);
+  });
+  v.querySelector('#m-borrar')?.addEventListener('click', async () => {
+    const ms = momentosDe(p.id);
+    if (!confirm(`¿Borrar esta partida modelo${ms.length ? ` y sus ${ms.length} momentos críticos` : ''}?`)) return;
+    for (const m of ms) await D.borrar('momentos', m.id);
+    await D.borrar('partidas', p.id);
+    editando = false;
+    aviso('Partida modelo borrada');
+    ir('#/modelos');
+  });
+  protegerSalida(v);
+}
+
+function vModelo(v, p, q) {
+  const ej = leerPgn(p.pgn) || ejemploVacio();
+  const ms = momentosDe(p.id);
+  const fichas = [...new Map(ms.filter(m => m.concepto_id).map(m => [m.concepto_id, D.obtener('conceptos', m.concepto_id)]).filter(x => x[1])).values()];
+  const conEjercicio = ms.filter(m => m.es_ejercicio).length;
+  v.innerHTML = `
+    <div class="cab-vista">
+      <a href="#/modelos" class="btn-ico" aria-label="Volver">${ico('atras')}</a><span class="hueco"></span>
+      <a href="#/editar-modelo/${p.id}" class="btn peq">${ico('editar', 'peq')} Editar</a>
+    </div>
+    <article class="ficha ap-cab">
+      <div class="etqs"><span class="etq-bloque">${ico('libro', 'peq')} Partida modelo · la estudias con ${p.color === 'black' ? 'negras' : 'blancas'}</span></div>
+      <h1 class="ficha-tit">${esc(tituloModelo(p))}</h1>
+      <p class="nota">${esc(subtituloModelo(p))}</p>
+      ${fuenteHtml(p.fuente)}
+      ${p.notas ? `<div class="md">${md(p.notas)}</div>` : ''}
+      ${p.leccion ? `<blockquote class="principio">${esc(p.leccion)}</blockquote>` : ''}
+    </article>
+    ${conEjercicio ? `<a class="tarjeta practicar" href="#/repaso?partida=${p.id}">${ico('entrenar')}<span><b>Estudiar esta partida</b><small>Se para en sus ${conEjercicio} ${conEjercicio === 1 ? 'momento crítico' : 'momentos críticos'} y te pregunta qué jugarías</small></span>${ico('flecha', 'peq')}</a>` : ''}
+    <div class="tarjeta ejemplo" id="tablero-partida">
+      <div class="visor" id="visor-partida"></div>
+      <div class="fila-btn"><button class="btn primario" id="marcar">${ico('bandera', 'peq')} <span>Marcar momento crítico</span></button>
+        <a class="btn" href="#/comentar-partida/${p.id}">${ico('editar', 'peq')} Comentar jugadas</a>
+        <button class="btn" id="crear-ej">${ico('mas', 'peq')} Crear ejemplo desde aquí</button></div>
+      ${ms.length ? `<div class="chips momentos-chips">${ms.map(m => `<button class="chip tipo-${m.tipo}" data-ir="${m.ply + 1}">${esc(etiquetaJ(ej, m.ply) || 'Final')}</button>`).join('')}</div>` : ''}
+    </div>
+    <h3 class="sec">Momentos críticos <small>${ms.length || ''}</small></h3>
+    ${ms.length ? `<div class="lista">${ms.map(m => `<a class="fila-c" href="#/momento/${m.id}"><span class="tipo-m ${m.tipo}">${TIPO_MOMENTO[m.tipo]}</span>
+      <span class="fila-txt"><b>${m.ply < ej.jugadas.length ? esc(etiquetaJ(ej, m.ply)) : 'Posición final'}</b>
+      <small>${[m.comentario, m.es_ejercicio ? 'pregunta de repaso' : '', m.concepto_id && D.obtener('conceptos', m.concepto_id)?.titulo].filter(Boolean).map(esc).join(' · ')}</small></span>${ico('flecha', 'peq')}</a>`).join('')}</div>`
+      : '<p class="nada peq">Ve a una posición importante en el tablero y pulsa «Marcar momento crítico». La jugada del maestro queda como solución.</p>'}
+    ${fichas.length ? `<h3 class="sec">Conceptos que enseña</h3><div class="lista">${fichas.map(c => { const n = tarjetasDeFicha(c).length;
+      return `<a class="fila-c" href="#/concepto/${c.id}"><span class="fila-txt"><b>${esc(c.titulo)}</b><small>${n ? `${n} ${n === 1 ? 'ejercicio' : 'ejercicios'} en tu cuaderno` : 'Ficha'}</small></span>${ico('flecha', 'peq')}</a>`; }).join('')}</div>` : ''}`;
+  const marcar = v.querySelector('#marcar');
+  const vis = crearVisor(v.querySelector('#visor-partida'), ej, {
+    orientacion: p.color || 'white', ply: Math.min(+(q?.get('ply')) || 1, ej.jugadas.length), pgnLichess: p.pgn,
+    alMover: n => { marcar.disabled = n === 0; marcar.querySelector('span').textContent = n ? `Marcar momento: ${etiquetaJ(ej, n - 1)}` : 'Elige una jugada'; },
+  });
+  limpiezas.push(vis.cerrar);
+  marcar.addEventListener('click', () => ir(`#/momento/nuevo?partida=${p.id}&ply=${vis.ply() - 1}`));
+  v.querySelector('#crear-ej').addEventListener('click', () => crearEjemploDesde(ej, vis.ply(), p.color || 'white'));
+  v.querySelector('.momentos-chips')?.addEventListener('click', e => { const b = e.target.closest('[data-ir]'); if (b) vis.ir(+b.dataset.ir); });
 }
 
 function vImportarPartidas(v, _id, q) {
@@ -3776,9 +3994,10 @@ function vImportarPartidas(v, _id, q) {
   });
 }
 
-function vPartida(v, id) {
+function vPartida(v, id, q) {
   const p = D.obtener('partidas', id);
   if (!p) return ir('#/partidas');
+  if (esModelo(p)) return vModelo(v, p, q);
   const r = revisionDe(p), ej = r.ej || ejemploVacio(), rep = r.rep;
   const ms = momentosDe(id);
   const res = PA.miResultado(p);
@@ -3931,7 +4150,10 @@ function vComentarPartida(v, id) {
   v.querySelector('#guardar').addEventListener('click', async () => {
     const err = ed.confirmar(); if (err) return alert(err);
     if (sanesDe(ej).join(' ') !== antes && !confirm('Has cambiado jugadas de la partida. ¿Guardar así? Los momentos marcados podrían no coincidir.')) return;
-    p.pgn = aPgn(ej);
+    // Conserva la cabecera del PGN (jugadores, torneo…) que tienen las partidas modelo
+    const cab = (p.pgn.match(/^\s*\[\w+\s+"[^"]*"\]\s*$/gm) || []).map(l => l.trim()).filter(l => !/^\[(SetUp|FEN)\s/.test(l)).join('\n');
+    const cuerpo = aPgn(ej);
+    p.pgn = cab ? cab + (cuerpo.startsWith('[') ? '\n' : '\n\n') + cuerpo : cuerpo;
     await D.guardar('partidas', p);
     editando = false; aviso('Comentarios guardados'); ir('#/partida/' + id);
   });
@@ -3948,21 +4170,24 @@ function vMomento(v, id, q) {
   m.fen = m.fen || fenAntes(ej, m.ply);
   const jugada = ej.jugadas[m.ply];
   const jugueYo = jugada && (m.ply % 2 === 0) === (p.color !== 'black');
-  const pos = (m.pgn && leerPgn(m.pgn)) || ejemploVacio(m.fen);
+  const modelo = esModelo(p);
+  // En una partida modelo, la solución propuesta es la jugada del maestro y cómo siguió
+  const pos = (m.pgn && leerPgn(m.pgn)) || (modelo && jugada && leerPgn(`[SetUp "1"]\n[FEN "${m.fen}"]\n\n${ej.jugadas.slice(m.ply, m.ply + 3).map(j => j.san).join(' ')} *`)) || ejemploVacio(m.fen);
+  if (nuevo && modelo) { m.tipo = 'clave'; m.es_ejercicio = true; }
   const fichas = conceptos().sort((a, b) => a.titulo.localeCompare(b.titulo, 'es'));
   let cambios = false;
   v.innerHTML = `
     <div class="cab-vista ej-cab">
       <a href="#/partida/${p.id}" class="btn-ico" id="volver">${ico('atras')}</a>
-      <div class="ej-tit"><h1>${nuevo ? 'Nuevo momento' : 'Momento clave'}</h1><small>vs ${esc(p.rival || 'rival')}${jugada ? ' · ' + esc(etiquetaJ(ej, m.ply)) : ''}</small></div>
+      <div class="ej-tit"><h1>${nuevo ? 'Nuevo momento' : 'Momento clave'}</h1><small>${modelo ? esc(tituloModelo(p)) : 'vs ' + esc(p.rival || 'rival')}${jugada ? ' · ' + esc(etiquetaJ(ej, m.ply)) : ''}</small></div>
       <button class="btn primario peq" id="guardar">Guardar</button>
     </div>
     <div class="segmento" id="tipo">${Object.entries(TIPO_MOMENTO).map(([k, t]) => `<button data-t="${k}" class="${m.tipo === k ? 'on ' + k : ''}">${t}</button>`).join('')}</div>
-    ${jugada ? `<p class="nota">En la partida se jugó <b>${esc(etiquetaJ(ej, m.ply))}</b>${jugueYo ? ' (tu jugada)' : ' (jugada del rival)'}. Abajo, la posición de antes.</p>` : ''}
+    ${jugada ? `<p class="nota">En la partida se jugó <b>${esc(etiquetaJ(ej, m.ply))}</b>${modelo ? '. Abajo, la posición de antes y la jugada del maestro como solución (cámbiala si el libro da otra).' : (jugueYo ? ' (tu jugada)' : ' (jugada del rival)') + '. Abajo, la posición de antes.'}</p>` : ''}
     <div id="editor" class="editor"></div>
     <div class="ej-pie">
       <p class="nota">Si fue un error, juega en el tablero <b>la jugada buena</b> (y, si quieres, cómo sigue).</p>
-      <label class="form solo"><span>Qué pasó <small>lo que pensabas, lo que no viste</small></span>
+      <label class="form solo"><span>${modelo ? 'La idea <small>qué hay que ver en esta posición</small>' : 'Qué pasó <small>lo que pensabas, lo que no viste</small>'}</span>
         <textarea id="m-com" rows="3" placeholder="No vi que el caballo quedaba clavado…">${esc(m.comentario || '')}</textarea></label>
       <label class="form solo"><span>Concepto de tu cuaderno</span>
         <select id="m-concepto"><option value="">Ninguno</option>${fichas.map(c => `<option value="${c.id}" ${m.concepto_id === c.id ? 'selected' : ''}>${esc(c.titulo)}</option>`).join('')}</select></label>
@@ -4034,9 +4259,9 @@ const CONSEJO_ERROR = {
 function vResumenPartidas(v) {
   const ps = partidas();
   const nombreAp = p => { const r = repDePartida(p, leerPgn(p.pgn)); return r.apertura ? `${r.apertura.color === 'white' ? '♔' : '♚'} ${r.apertura.nombre}` : (p.apertura || '').split(':')[0]; };
-  const s = PA.resumen(ps, D.lista('momentos').filter(m => D.obtener('partidas', m.partida_id)), nombreAp);
+  const s = PA.resumen(ps, D.lista('momentos').filter(m => { const pa = D.obtener('partidas', m.partida_id); return pa && !esModelo(pa); }), nombreAp);
   const marcador = x => `<span class="marcador"><b class="ok">${x.v}</b> <b class="reg">${x.t}</b> <b class="ko">${x.d}</b></span>`;
-  const ejercicios = D.lista('momentos').filter(m => m.es_ejercicio).length;
+  const ejercicios = D.lista('momentos').filter(m => m.es_ejercicio && !esModelo(D.obtener('partidas', m.partida_id))).length;
   v.innerHTML = `
     <div class="cab-vista"><a href="#/partidas" class="btn-ico">${ico('atras')}</a><h1>Resumen</h1></div>
     <div class="cifras">
